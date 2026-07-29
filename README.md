@@ -23,6 +23,12 @@
   <img alt="Privacy" src="https://img.shields.io/badge/privacy-local--first-0EA5E9?style=flat-square" />
 </p>
 
+<p align="center">
+  <img src="docs/readme/timeline.png" alt="Pulse Timeline — human-readable Windows events" width="900" />
+</p>
+
+<p align="center"><em>Timeline — live Event Log events in plain language</em></p>
+
 ---
 
 ## What is Pulse?
@@ -80,15 +86,27 @@ Designed to feel like a built-in Windows 11 utility (Fluent Design, Mica, dark-f
 
 ## Screenshots
 
-> Screenshots coming soon — capture Timeline, System Health, Diagnostics, and Settings once the UI is camera-ready.
+<p align="center">
+  <img src="docs/readme/timeline.png" alt="Timeline" width="48%" />
+  &nbsp;
+  <img src="docs/readme/system-health.png" alt="System Health" width="48%" />
+</p>
 
-| Timeline | System Health |
-|---|---|
-| *Live event stream + detail panel* | *CPU / Memory / GPU / Disk / Network* |
+<p align="center">
+  <strong>Timeline</strong> — live humanized events &nbsp;·&nbsp;
+  <strong>System Health</strong> — CPU, memory, GPU, disk, network
+</p>
 
-| Diagnostics | Settings |
-|---|---|
-| *Service, IPC, pipeline, export* | *Preferences that actually stick* |
+<p align="center">
+  <img src="docs/readme/diagnostics.png" alt="Diagnostics" width="48%" />
+  &nbsp;
+  <img src="docs/readme/settings.png" alt="Settings" width="48%" />
+</p>
+
+<p align="center">
+  <strong>Diagnostics</strong> — service, IPC, pipeline &nbsp;·&nbsp;
+  <strong>Settings</strong> — local preferences, no cloud
+</p>
 
 ---
 
@@ -226,7 +244,7 @@ Pulse/
 - [x] Diagnostics page + export report
 - [x] Settings persistence
 - [x] Fluent dark-first UI polish
-- [ ] Official screenshots / demo GIF in README
+- [x] Official screenshots in README
 - [ ] Packaged installer + GitHub Releases auto-update
 - [ ] Timeline search & advanced filters
 - [ ] Crash / WER timeline
