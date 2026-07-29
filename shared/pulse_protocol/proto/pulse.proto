@@ -1,0 +1,280 @@
+syntax = "proto3";
+
+package pulse.ipc;
+
+// Pulse IPC protocol schema.
+// Protocol version: 1
+// TASK-002.2: historical Timeline snapshot (System channel).
+// TASK-003: humanized title / recommendation on TimelineEvent.
+// TASK-005: Event Intelligence (importance, action_required, category).
+// TASK-006: Live Monitoring (EvtSubscribe push).
+option csharp_namespace = "Pulse.Ipc";
+
+message ClientHello {
+  uint32 protocol_version = 1;
+  string client_name = 2;
+  string client_version = 3;
+}
+
+message ServerHello {
+  uint32 protocol_version = 1;
+  string service_version = 2;
+}
+
+message Ping {
+  uint64 nonce = 1;
+  int64 unix_ms = 2;
+}
+
+message Pong {
+  uint64 nonce = 1;
+  int64 unix_ms = 2;
+  string service_version = 3;
+}
+
+message Heartbeat {
+  int64 unix_ms = 1;
+}
+
+message ErrorResponse {
+  int32 code = 1;
+  string message = 2;
+  string technical_detail = 3;
+  string component = 4;
+}
+
+// --- Timeline / Event Log (TASK-002.2) ---
+
+enum Severity {
+  SEVERITY_UNKNOWN = 0;
+  SEVERITY_INFO = 1;
+  SEVERITY_WARNING = 2;
+  SEVERITY_ERROR = 3;
+  SEVERITY_CRITICAL = 4;
+  SEVERITY_VERBOSE = 5;
+}
+
+enum Importance {
+  IMPORTANCE_LOW = 0;
+  IMPORTANCE_MEDIUM = 1;
+  IMPORTANCE_HIGH = 2;
+  IMPORTANCE_CRITICAL = 3;
+}
+
+// Wire form of a collected Event Log record for Timeline rows.
+message TimelineEvent {
+  string event_id = 1;           // stable id for UI keys / future dedup
+  int64 timestamp_unix_ms = 2;   // UTC epoch ms (0 if unknown)
+  string timestamp_iso = 3;      // ISO-8601 UTC when available
+  Severity severity = 4;
+  string channel = 5;
+  string provider_name = 6;
+  uint32 win_event_id = 7;
+  uint64 record_id = 8;
+  string computer_name = 9;
+  string summary = 10;             // Level 1 human summary (Event Intelligence)
+  string technical_summary = 11;   // Level 2
+  string message = 12;             // raw formatted Event Viewer message
+  string title = 13;               // Level 1 short title (Event Intelligence)
+  string recommendation = 14;      // optional; empty when not useful
+  bool action_required = 15;
+  Importance importance = 16;
+  string category = 17;
+}
+
+// Client → Service: request a one-shot historical batch.
+message GetTimelineSnapshot {
+  uint32 limit = 1;     // default 100
+  string channel = 2;   // default "System" (TASK-002.2: System only)
+}
+
+// Service → Client: historical batch (newest first).
+message TimelineSnapshot {
+  repeated TimelineEvent events = 1;
+  string channel = 2;
+  uint32 requested_limit = 3;
+  int64 collected_unix_ms = 4;
+}
+
+// Client → Service: begin receiving live TimelineEvent pushes.
+message StartLiveMonitoring {
+  string channel = 1; // default "System"
+}
+
+// Client → Service: stop live pushes for this connection.
+message StopLiveMonitoring {}
+
+// --- System Health metrics (TASK-007) ---
+// Unsupported sensors/metrics: has_* = false; Flutter shows "—".
+
+message HealthStaticInfo {
+  string windows_edition = 1;
+  string windows_version = 2;
+  string cpu_model = 3;
+  string gpu_model = 4;
+  uint64 installed_ram_bytes = 5;
+  uint64 primary_storage_bytes = 6;
+  string active_network_adapter = 7;
+  // TASK-007.2 detail fields
+  uint32 cpu_base_mhz = 8;
+  uint32 cpu_sockets = 9;
+  uint32 cpu_cores = 10;
+  uint32 cpu_logical_processors = 11;
+  bool cpu_virtualization_enabled = 12;
+  uint64 gpu_dedicated_bytes = 13;
+  uint64 gpu_shared_bytes = 14;
+}
+
+// Top process row for health detail panels (TASK-007.2).
+message HealthProcessEntry {
+  uint32 pid = 1;
+  string name = 2;
+  bool has_cpu_percent = 3;
+  double cpu_percent = 4;
+  bool has_memory_bytes = 5;
+  uint64 memory_bytes = 6;
+  bool has_gpu_percent = 7;
+  double gpu_percent = 8;
+  bool has_disk_bps = 9;
+  double disk_bps = 10; // bytes/sec
+  bool has_net_bps = 11;
+  double net_bps = 12; // bytes/sec
+  string path = 13; // full image path for icons (optional)
+}
+
+// One real-time sample from the service (1 Hz).
+message HealthSample {
+  int64 unix_ms = 1;
+  bool has_cpu_percent = 2;
+  double cpu_percent = 3;
+  uint64 memory_used_bytes = 4;
+  uint64 memory_total_bytes = 5;
+  bool has_gpu_percent = 6;
+  double gpu_percent = 7;
+  bool has_net_download_bps = 8;
+  double net_download_bps = 9;   // bytes/sec
+  bool has_net_upload_bps = 10;
+  double net_upload_bps = 11;    // bytes/sec
+  bool has_disk_read_bps = 12;
+  double disk_read_bps = 13;     // bytes/sec
+  bool has_disk_write_bps = 14;
+  double disk_write_bps = 15;    // bytes/sec
+  uint64 disk_used_bytes = 16;
+  uint64 disk_total_bytes = 17;
+  uint64 uptime_ms = 18;
+  bool has_cpu_temp_c = 19;
+  double cpu_temp_c = 20;
+  bool has_gpu_temp_c = 21;
+  double gpu_temp_c = 22;
+  bool has_ssd_temp_c = 23;
+  double ssd_temp_c = 24;
+  // TASK-007.2 detail fields
+  bool has_cpu_current_mhz = 25;
+  double cpu_current_mhz = 26;
+  uint64 memory_available_bytes = 27;
+  bool has_memory_committed = 28;
+  uint64 memory_committed_bytes = 29;
+  uint64 memory_commit_limit_bytes = 30;
+  bool has_memory_cached = 31;
+  uint64 memory_cached_bytes = 32;
+  string ipv4 = 33;
+  string ipv6 = 34;
+  string gateway = 35;
+  string dns = 36;
+  repeated HealthProcessEntry top_cpu = 37;
+  repeated HealthProcessEntry top_memory = 38;
+  repeated HealthProcessEntry top_gpu = 39;
+  repeated HealthProcessEntry top_disk = 40;
+  repeated HealthProcessEntry top_network = 41;
+  // Per-logical-processor utilization (Processor(*)), excludes _Total.
+  repeated double cpu_core_percent = 42;
+}
+
+message GetHealthSnapshot {}
+
+message HealthSnapshot {
+  HealthStaticInfo info = 1;
+  HealthSample sample = 2;
+}
+
+// Service → Client push every 1s (request_id = 0).
+message HealthUpdate {
+  HealthSample sample = 1;
+}
+
+message StartHealthMonitoring {}
+
+message StopHealthMonitoring {}
+
+// --- Diagnostics (TASK-008) ---
+
+message GetDiagnosticsSnapshot {}
+
+// Pipeline stage health: 0 = healthy, 1 = warning, 2 = error.
+message DiagnosticsSnapshot {
+  string service_version = 1;
+  uint32 protocol_version = 2;
+  int64 service_start_unix_ms = 3;
+  uint64 service_uptime_ms = 4;
+  string run_mode = 5; // "Console" | "Windows Service"
+  bool ipc_listening = 6;
+
+  bool live_subscribed = 7;
+  string live_channel = 8;
+  uint64 live_events_pushed = 9;
+  uint64 live_events_dropped = 10;
+  uint64 live_subscriber_reconnects = 11;
+  int64 last_live_event_unix_ms = 12;
+  string last_live_event_title = 13;
+  uint32 live_queue_depth = 14;
+  uint32 live_queue_capacity = 15;
+
+  uint64 ipc_messages_received = 16;
+  uint64 ipc_messages_sent = 17;
+  uint64 ipc_errors = 18;
+  uint32 connected_clients = 19;
+
+  uint32 service_pid = 20;
+  bool has_cpu_percent = 21;
+  double cpu_percent = 22;
+  uint64 working_set_bytes = 23;
+  uint32 thread_count = 24;
+  uint32 handle_count = 25;
+
+  int32 stage_event_log = 26;
+  int32 stage_collector = 27;
+  int32 stage_intelligence = 28;
+  int32 stage_ipc = 29;
+  string stage_detail = 30;
+
+  string windows_edition = 31;
+  string windows_version = 32;
+}
+
+// Client → Service: push one synthetic Pulse.Diagnostics TimelineEvent (no Event Log write).
+message InjectDiagnosticsTestEvent {}
+
+message Envelope {
+  uint64 request_id = 1; // 0 = server push
+  oneof body {
+    ClientHello client_hello = 10;
+    ServerHello server_hello = 11;
+    Ping ping = 12;
+    Pong pong = 13;
+    Heartbeat heartbeat = 14;
+    GetTimelineSnapshot get_timeline_snapshot = 20;
+    TimelineSnapshot timeline_snapshot = 21;
+    TimelineEvent live_timeline_event = 22; // push (request_id = 0)
+    StartLiveMonitoring start_live_monitoring = 23;
+    StopLiveMonitoring stop_live_monitoring = 24;
+    GetHealthSnapshot get_health_snapshot = 25;
+    HealthSnapshot health_snapshot = 26;
+    HealthUpdate health_update = 27; // push (request_id = 0)
+    StartHealthMonitoring start_health_monitoring = 28;
+    StopHealthMonitoring stop_health_monitoring = 29;
+    GetDiagnosticsSnapshot get_diagnostics_snapshot = 30;
+    DiagnosticsSnapshot diagnostics_snapshot = 31;
+    InjectDiagnosticsTestEvent inject_diagnostics_test_event = 32;
+    ErrorResponse error = 99;
+  }
+}

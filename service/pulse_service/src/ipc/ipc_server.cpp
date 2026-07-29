@@ -1,0 +1,859 @@
+#include "ipc/ipc_server.hpp"
+
+#include "collectors/event_log_collector.hpp"
+#include "ipc/event_mapper.hpp"
+#include "logging/logger.hpp"
+#include "pulse/constants.hpp"
+#include "pulse/version.hpp"
+
+#include <algorithm>
+#include <chrono>
+
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#include <TlHelp32.h>
+#include <psapi.h>
+#include <sddl.h>
+
+namespace pulse {
+namespace {
+
+int64_t NowUnixMs() {
+  using namespace std::chrono;
+  return duration_cast<milliseconds>(system_clock::now().time_since_epoch())
+      .count();
+}
+
+}  // namespace
+
+IpcServer::IpcServer(std::wstring pipe_name, size_t live_queue_capacity)
+    : pipe_name_(std::move(pipe_name)),
+      live_queue_capacity_(live_queue_capacity) {}
+
+IpcServer::~IpcServer() { Stop(); }
+
+void IpcServer::SetRunMode(std::string mode) {
+  run_mode_ = std::move(mode);
+}
+
+bool IpcServer::Start() {
+  if (running_.exchange(true)) return true;
+  service_start_unix_ms_ = NowUnixMs();
+  service_start_tick_ms_ = GetTickCount64();
+  EnsureHealthCollector();
+  accept_thread_ = std::thread([this] { AcceptLoop(); });
+  health_thread_running_ = true;
+  health_thread_ = std::thread([this] { HealthPushLoop(); });
+  Logger::Instance().Info("IpcServer", "Listening on named pipe");
+  return true;
+}
+
+void IpcServer::Stop() {
+  if (!running_.exchange(false)) return;
+
+  health_thread_running_ = false;
+  if (health_thread_.joinable()) {
+    health_thread_.join();
+  }
+
+  {
+    std::lock_guard lock(live_mu_);
+    live_subscriber_.Stop();
+    live_subscriber_started_ = false;
+  }
+
+  {
+    std::lock_guard lock(health_mu_);
+    health_collector_.Shutdown();
+    health_collector_ready_ = false;
+  }
+
+  HANDLE h = CreateFileW(pipe_name_.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
+                         nullptr, OPEN_EXISTING, 0, nullptr);
+  if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
+
+  if (accept_thread_.joinable()) accept_thread_.join();
+
+  std::vector<std::shared_ptr<ClientConnection>> copy;
+  {
+    std::lock_guard lock(clients_mu_);
+    copy = clients_;
+    clients_.clear();
+  }
+  for (auto& c : copy) {
+    c->alive = false;
+    c->live_enabled = false;
+    c->health_enabled = false;
+    if (c->wake_event) {
+      SetEvent(static_cast<HANDLE>(c->wake_event));
+    }
+    if (c->pipe_handle) {
+      CancelIoEx(static_cast<HANDLE>(c->pipe_handle), nullptr);
+      DisconnectNamedPipe(static_cast<HANDLE>(c->pipe_handle));
+      CloseHandle(static_cast<HANDLE>(c->pipe_handle));
+      c->pipe_handle = nullptr;
+    }
+    if (c->reader.joinable()) c->reader.join();
+  }
+  Logger::Instance().Info("IpcServer", "Stopped");
+}
+
+void* IpcServer::CreatePipeInstance() {
+  PSECURITY_DESCRIPTOR sd = nullptr;
+  if (!ConvertStringSecurityDescriptorToSecurityDescriptorA(
+          kPipeSddl, SDDL_REVISION_1, &sd, nullptr)) {
+    Logger::Instance().Error("IpcServer", "Failed to parse pipe SDDL");
+    return INVALID_HANDLE_VALUE;
+  }
+  SECURITY_ATTRIBUTES sa{};
+  sa.nLength = sizeof(sa);
+  sa.lpSecurityDescriptor = sd;
+  sa.bInheritHandle = FALSE;
+
+  HANDLE pipe = CreateNamedPipeW(
+      pipe_name_.c_str(), PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+      PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT, kMaxPipeInstances,
+      64 * 1024, 64 * 1024, 0, &sa);
+  LocalFree(sd);
+  return pipe;
+}
+
+void IpcServer::AcceptLoop() {
+  while (running_) {
+    HANDLE pipe = static_cast<HANDLE>(CreatePipeInstance());
+    if (pipe == INVALID_HANDLE_VALUE) {
+      Logger::Instance().Error("IpcServer", "CreateNamedPipe failed");
+      Sleep(500);
+      continue;
+    }
+
+    OVERLAPPED ov{};
+    ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    const BOOL ok = ConnectNamedPipe(pipe, &ov);
+    if (!ok) {
+      const DWORD err = GetLastError();
+      if (err == ERROR_IO_PENDING) {
+        WaitForSingleObject(ov.hEvent, INFINITE);
+      } else if (err != ERROR_PIPE_CONNECTED) {
+        CloseHandle(ov.hEvent);
+        CloseHandle(pipe);
+        if (!running_) break;
+        continue;
+      }
+    }
+    CloseHandle(ov.hEvent);
+    if (!running_) {
+      CloseHandle(pipe);
+      break;
+    }
+
+    auto conn = std::shared_ptr<ClientConnection>(
+        new ClientConnection(), [](ClientConnection* c) {
+          if (c->wake_event) {
+            CloseHandle(static_cast<HANDLE>(c->wake_event));
+            c->wake_event = nullptr;
+          }
+          delete c;
+        });
+    conn->pipe_handle = pipe;
+    conn->queue_capacity = live_queue_capacity_;
+    conn->wake_event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    if (conn->wake_event == nullptr) {
+      Logger::Instance().Error("IpcServer", "CreateEvent for client wake failed");
+      CloseHandle(pipe);
+      continue;
+    }
+    conn->reader = std::thread([this, conn] { ClientReader(conn); });
+    {
+      std::lock_guard lock(clients_mu_);
+      clients_.push_back(conn);
+    }
+    Logger::Instance().Info("IpcServer", "Client connected");
+  }
+}
+
+bool IpcServer::WriteExact(void* pipe, const void* buffer, size_t size) {
+  const auto* bytes = static_cast<const uint8_t*>(buffer);
+  size_t sent = 0;
+  while (sent < size) {
+    DWORD written = 0;
+    if (!WriteFile(static_cast<HANDLE>(pipe), bytes + sent,
+                   static_cast<DWORD>(size - sent), &written, nullptr)) {
+      return false;
+    }
+    if (written == 0) return false;
+    sent += written;
+  }
+  return true;
+}
+
+bool IpcServer::WriteEnvelopeLocked(
+    const std::shared_ptr<ClientConnection>& conn,
+    const ipc::Envelope& env) {
+  if (!conn || !conn->pipe_handle || !conn->alive) return false;
+  std::lock_guard lock(conn->write_mu);
+  std::vector<uint8_t> payload;
+  if (!ipc::EncodeEnvelope(env, &payload)) {
+    ++ipc_errors_;
+    return false;
+  }
+  std::vector<uint8_t> frame;
+  if (!ipc::EncodeFrame(payload, &frame)) {
+    ++ipc_errors_;
+    return false;
+  }
+  if (!WriteExact(conn->pipe_handle, frame.data(), frame.size())) {
+    ++ipc_errors_;
+    return false;
+  }
+  ++ipc_messages_sent_;
+  return true;
+}
+
+void IpcServer::EnqueueOutbound(const std::shared_ptr<ClientConnection>& conn,
+                                ipc::Envelope env) {
+  if (!conn || !conn->alive) return;
+  {
+    std::lock_guard lock(conn->queue_mu);
+    if (conn->outbound.size() >= conn->queue_capacity) {
+      ++conn->dropped;
+      ++live_events_dropped_;
+      Logger::Instance().Warn("IpcServer",
+                              "Live outbound queue full; dropping event");
+      return;
+    }
+    conn->outbound.push_back(std::move(env));
+  }
+  if (conn->wake_event) {
+    SetEvent(static_cast<HANDLE>(conn->wake_event));
+  }
+}
+
+void IpcServer::FlushOutbound(const std::shared_ptr<ClientConnection>& conn) {
+  while (conn->alive) {
+    ipc::Envelope env;
+    {
+      std::lock_guard lock(conn->queue_mu);
+      if (conn->outbound.empty()) {
+        return;
+      }
+      env = std::move(conn->outbound.front());
+      conn->outbound.pop_front();
+    }
+    if (!WriteEnvelopeLocked(conn, env)) {
+      Logger::Instance().Warn("IpcServer", "Failed to write queued envelope");
+      conn->alive = false;
+      return;
+    }
+  }
+}
+
+void IpcServer::EnsureLiveSubscriber() {
+  std::lock_guard lock(live_mu_);
+  if (live_subscriber_started_) {
+    return;
+  }
+  const bool ok = live_subscriber_.Start(
+      L"System", [this](EventRecord record) { OnLiveEventRecord(std::move(record)); });
+  live_subscriber_started_ = ok;
+  if (!ok) {
+    Logger::Instance().Error("IpcServer", "Failed to start live Event Log subscriber");
+  }
+}
+
+void IpcServer::OnLiveEventRecord(EventRecord record) {
+  Logger::Instance().Info(
+      "IpcServer",
+      std::string("[TASK-006] Event Received record_id=") +
+          (record.record_id ? std::to_string(*record.record_id) : "0") +
+          " event_id=" +
+          (record.event_id ? std::to_string(*record.event_id) : "0"));
+  const ipc::TimelineEvent event = ToTimelineEvent(record);
+  PushLiveEvent(event);
+}
+
+void IpcServer::PushLiveEvent(const ipc::TimelineEvent& event) {
+  {
+    std::lock_guard lock(last_live_mu_);
+    last_live_event_unix_ms_ = event.timestamp_unix_ms != 0
+                                   ? event.timestamp_unix_ms
+                                   : NowUnixMs();
+    last_live_event_title_ =
+        !event.title.empty()
+            ? event.title
+            : (!event.summary.empty() ? event.summary : event.message);
+  }
+  ++live_events_pushed_;
+
+  ipc::Envelope push;
+  push.request_id = 0;
+  push.body = event;
+
+  std::vector<std::shared_ptr<ClientConnection>> targets;
+  {
+    std::lock_guard lock(clients_mu_);
+    for (auto& c : clients_) {
+      if (c && c->alive && c->live_enabled) {
+        targets.push_back(c);
+      }
+    }
+  }
+
+  Logger::Instance().Info(
+      "IpcServer",
+      std::string("[TASK-006] IPC Push clients=") +
+          std::to_string(targets.size()) +
+          " win_event_id=" + std::to_string(event.win_event_id));
+
+  // Enqueue only — never WriteFile from the Wevtapi callback thread.
+  // Concurrent WriteFile + ReadFile on a duplex named pipe disconnects the client.
+  for (auto& c : targets) {
+    EnqueueOutbound(c, push);
+  }
+}
+
+void IpcServer::EnableLiveForClient(
+    const std::shared_ptr<ClientConnection>& conn) {
+  if (!conn) return;
+  conn->live_enabled = true;
+  EnsureLiveSubscriber();
+  Logger::Instance().Info("IpcServer",
+                          "[TASK-006] EvtSubscribe Active (client live enabled)");
+}
+
+void IpcServer::DisableLiveForClient(
+    const std::shared_ptr<ClientConnection>& conn) {
+  if (!conn) return;
+  conn->live_enabled = false;
+}
+
+void IpcServer::EnsureHealthCollector() {
+  std::lock_guard lock(health_mu_);
+  if (health_collector_ready_) return;
+  health_collector_ready_ = health_collector_.Initialize();
+}
+
+void IpcServer::EnableHealthForClient(
+    const std::shared_ptr<ClientConnection>& conn) {
+  if (!conn) return;
+  EnsureHealthCollector();
+  conn->health_enabled = true;
+}
+
+void IpcServer::DisableHealthForClient(
+    const std::shared_ptr<ClientConnection>& conn) {
+  if (!conn) return;
+  conn->health_enabled = false;
+}
+
+void IpcServer::PushHealthUpdate(const ipc::HealthSample& sample) {
+  ipc::Envelope push;
+  push.request_id = 0;
+  push.body = ipc::HealthUpdate{sample};
+
+  std::vector<std::shared_ptr<ClientConnection>> targets;
+  {
+    std::lock_guard lock(clients_mu_);
+    for (auto& c : clients_) {
+      if (c && c->alive && c->health_enabled) {
+        targets.push_back(c);
+      }
+    }
+  }
+  for (auto& c : targets) {
+    EnqueueOutbound(c, push);
+  }
+}
+
+void IpcServer::HealthPushLoop() {
+  // Prime CPU / network baselines before first push.
+  {
+    std::lock_guard lock(health_mu_);
+    if (health_collector_ready_) {
+      (void)health_collector_.CollectSample();
+    }
+  }
+  Sleep(1000);
+
+  while (health_thread_running_ && running_) {
+    bool any = false;
+    {
+      std::lock_guard lock(clients_mu_);
+      for (auto& c : clients_) {
+        if (c && c->alive && c->health_enabled) {
+          any = true;
+          break;
+        }
+      }
+    }
+
+    if (any) {
+      ipc::HealthSample sample;
+      {
+        std::lock_guard lock(health_mu_);
+        if (health_collector_ready_) {
+          sample = health_collector_.CollectSample();
+        }
+      }
+      PushHealthUpdate(sample);
+    }
+
+    for (int i = 0; i < 10 && health_thread_running_ && running_; ++i) {
+      Sleep(100);
+    }
+  }
+}
+
+void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
+                               const ipc::Envelope& env) {
+  ++ipc_messages_received_;
+
+  if (std::holds_alternative<ipc::ClientHello>(env.body)) {
+    const auto& hello = std::get<ipc::ClientHello>(env.body);
+    Logger::Instance().Info(
+        "IpcServer",
+        "ClientHello from " + hello.client_name + " v" + hello.client_version);
+    if (hello.protocol_version != kProtocolVersion) {
+      ipc::Envelope err;
+      err.request_id = env.request_id;
+      err.body = ipc::ErrorResponse{
+          static_cast<int32_t>(5), "Incompatible protocol version",
+          "client=" + std::to_string(hello.protocol_version) +
+              " server=" + std::to_string(kProtocolVersion),
+          "IpcServer"};
+      WriteEnvelopeLocked(conn, err);
+      return;
+    }
+    ipc::Envelope reply;
+    reply.request_id = env.request_id;
+    reply.body = ipc::ServerHello{kProtocolVersion, kServiceVersion};
+    WriteEnvelopeLocked(conn, reply);
+    return;
+  }
+
+  if (std::holds_alternative<ipc::Ping>(env.body)) {
+    const auto& ping = std::get<ipc::Ping>(env.body);
+    ipc::Envelope reply;
+    reply.request_id = env.request_id;
+    reply.body = ipc::Pong{ping.nonce, NowUnixMs(), kServiceVersion};
+    WriteEnvelopeLocked(conn, reply);
+    return;
+  }
+
+  if (std::holds_alternative<ipc::GetTimelineSnapshot>(env.body)) {
+    Logger::Instance().Info("IpcServer", "[TASK-006] Request Snapshot received");
+    const auto& req = std::get<ipc::GetTimelineSnapshot>(env.body);
+    uint32_t limit = req.limit == 0 ? 100 : req.limit;
+    if (limit > 500) {
+      limit = 500;
+    }
+    if (!req.channel.empty() && req.channel != "System") {
+      ipc::Envelope err;
+      err.request_id = env.request_id;
+      err.body = ipc::ErrorResponse{
+          2, "Only the System channel is supported in this milestone",
+          "requested=" + req.channel, "IpcServer"};
+      WriteEnvelopeLocked(conn, err);
+      return;
+    }
+
+    EventLogCollector collector;
+    auto collected = collector.CollectLatest(L"System", limit);
+    if (!collected) {
+      ipc::Envelope err;
+      err.request_id = env.request_id;
+      err.body = ipc::ErrorResponse{3, "Failed to collect Event Log snapshot",
+                                    collected.error(), "EventLogCollector"};
+      WriteEnvelopeLocked(conn, err);
+      return;
+    }
+
+    ipc::TimelineSnapshot snapshot;
+    snapshot.channel = "System";
+    snapshot.requested_limit = limit;
+    snapshot.collected_unix_ms = NowUnixMs();
+    snapshot.events.reserve(collected.value().size());
+    for (const auto& record : collected.value()) {
+      snapshot.events.push_back(ToTimelineEvent(record));
+    }
+
+    ipc::Envelope reply;
+    reply.request_id = env.request_id;
+    reply.body = std::move(snapshot);
+    if (!WriteEnvelopeLocked(conn, reply)) {
+      Logger::Instance().Error("IpcServer", "Failed to write TimelineSnapshot");
+      return;
+    }
+    Logger::Instance().Info(
+        "IpcServer",
+        "TimelineSnapshot events=" + std::to_string(collected.value().size()));
+
+    // After snapshot: enable live append for this client (TASK-006).
+    EnableLiveForClient(conn);
+    return;
+  }
+
+  if (std::holds_alternative<ipc::StartLiveMonitoring>(env.body)) {
+    Logger::Instance().Info("IpcServer", "[TASK-006] StartLiveMonitoring received");
+    const auto& req = std::get<ipc::StartLiveMonitoring>(env.body);
+    if (!req.channel.empty() && req.channel != "System") {
+      ipc::Envelope err;
+      err.request_id = env.request_id;
+      err.body = ipc::ErrorResponse{
+          2, "Only the System channel is supported for live monitoring",
+          "requested=" + req.channel, "IpcServer"};
+      WriteEnvelopeLocked(conn, err);
+      return;
+    }
+    EnableLiveForClient(conn);
+    ipc::Envelope ack;
+    ack.request_id = env.request_id;
+    ack.body = ipc::ServerHello{kProtocolVersion, kServiceVersion};
+    // Reuse ServerHello as a lightweight ack is awkward — send empty success via
+    // Heartbeat-less: reply with Start confirmation using Error code 0 style.
+    // Prefer echoing Stop/Start with no body — use Pong-less: send ErrorResponse code 0.
+    ack.body = ipc::ErrorResponse{0, "Live monitoring started", "", "IpcServer"};
+    WriteEnvelopeLocked(conn, ack);
+    return;
+  }
+
+  if (std::holds_alternative<ipc::StopLiveMonitoring>(env.body)) {
+    DisableLiveForClient(conn);
+    ipc::Envelope ack;
+    ack.request_id = env.request_id;
+    ack.body = ipc::ErrorResponse{0, "Live monitoring stopped", "", "IpcServer"};
+    WriteEnvelopeLocked(conn, ack);
+    return;
+  }
+
+  if (std::holds_alternative<ipc::GetHealthSnapshot>(env.body)) {
+    Logger::Instance().Info("IpcServer", "[TASK-007] GetHealthSnapshot");
+    EnsureHealthCollector();
+    ipc::HealthSnapshot snapshot;
+    {
+      std::lock_guard lock(health_mu_);
+      snapshot.info = health_collector_.CollectStatic();
+      snapshot.sample = health_collector_.CollectSample();
+    }
+    ipc::Envelope reply;
+    reply.request_id = env.request_id;
+    reply.body = std::move(snapshot);
+    WriteEnvelopeLocked(conn, reply);
+    EnableHealthForClient(conn);
+    return;
+  }
+
+  if (std::holds_alternative<ipc::StartHealthMonitoring>(env.body)) {
+    Logger::Instance().Info("IpcServer", "[TASK-007] StartHealthMonitoring");
+    EnableHealthForClient(conn);
+    ipc::Envelope ack;
+    ack.request_id = env.request_id;
+    ack.body = ipc::ErrorResponse{0, "Health monitoring started", "", "IpcServer"};
+    WriteEnvelopeLocked(conn, ack);
+    return;
+  }
+
+  if (std::holds_alternative<ipc::StopHealthMonitoring>(env.body)) {
+    DisableHealthForClient(conn);
+    ipc::Envelope ack;
+    ack.request_id = env.request_id;
+    ack.body = ipc::ErrorResponse{0, "Health monitoring stopped", "", "IpcServer"};
+    WriteEnvelopeLocked(conn, ack);
+    return;
+  }
+
+  if (std::holds_alternative<ipc::GetDiagnosticsSnapshot>(env.body)) {
+    Logger::Instance().Info("IpcServer", "[TASK-008] GetDiagnosticsSnapshot");
+    ipc::Envelope reply;
+    reply.request_id = env.request_id;
+    reply.body = BuildDiagnosticsSnapshot();
+    WriteEnvelopeLocked(conn, reply);
+    return;
+  }
+
+  if (std::holds_alternative<ipc::InjectDiagnosticsTestEvent>(env.body)) {
+    Logger::Instance().Info("IpcServer", "[TASK-008] InjectDiagnosticsTestEvent");
+    // Ensure the requesting client receives the synthetic push.
+    EnableLiveForClient(conn);
+    InjectTestEvent();
+    ipc::Envelope ack;
+    ack.request_id = env.request_id;
+    ack.body = ipc::ErrorResponse{0, "Diagnostics test event injected", "",
+                                  "IpcServer"};
+    WriteEnvelopeLocked(conn, ack);
+    return;
+  }
+
+  if (std::holds_alternative<ipc::Heartbeat>(env.body)) {
+    return;
+  }
+
+  ++ipc_errors_;
+  ipc::Envelope err;
+  err.request_id = env.request_id;
+  err.body = ipc::ErrorResponse{1, "Unsupported message", "", "IpcServer"};
+  WriteEnvelopeLocked(conn, err);
+}
+
+void IpcServer::ClientReader(std::shared_ptr<ClientConnection> conn) {
+  std::vector<uint8_t> buffer;
+  buffer.reserve(4096);
+  uint8_t temp[4096];
+
+  while (conn->alive && running_) {
+    // Drain live pushes on this thread so WriteFile never races ReadFile.
+    FlushOutbound(conn);
+    if (!conn->alive) {
+      break;
+    }
+
+    DWORD avail = 0;
+    if (!PeekNamedPipe(static_cast<HANDLE>(conn->pipe_handle), nullptr, 0,
+                       nullptr, &avail, nullptr)) {
+      break;
+    }
+
+    if (avail == 0) {
+      if (conn->wake_event) {
+        WaitForSingleObject(static_cast<HANDLE>(conn->wake_event), 50);
+      } else {
+        Sleep(50);
+      }
+      continue;
+    }
+
+    const DWORD to_read =
+        avail > sizeof(temp) ? static_cast<DWORD>(sizeof(temp)) : avail;
+    DWORD read = 0;
+    if (!ReadFile(static_cast<HANDLE>(conn->pipe_handle), temp, to_read, &read,
+                  nullptr)) {
+      break;
+    }
+    if (read == 0) break;
+    buffer.insert(buffer.end(), temp, temp + read);
+
+    while (true) {
+      std::vector<uint8_t> payload;
+      size_t consumed = 0;
+      std::string error;
+      if (!ipc::TryDecodeFrame(buffer.data(), buffer.size(), &payload, &consumed,
+                               &error)) {
+        if (!error.empty()) {
+          Logger::Instance().Warn("IpcServer", error);
+          conn->alive = false;
+        }
+        break;
+      }
+      buffer.erase(buffer.begin(),
+                   buffer.begin() + static_cast<std::ptrdiff_t>(consumed));
+      ipc::Envelope env;
+      if (!ipc::DecodeEnvelope(payload.data(), payload.size(), &env)) {
+        Logger::Instance().Warn("IpcServer", "Failed to decode envelope");
+        continue;
+      }
+      HandleEnvelope(conn, env);
+      FlushOutbound(conn);
+    }
+  }
+
+  conn->alive = false;
+  conn->live_enabled = false;
+  conn->health_enabled = false;
+  if (conn->pipe_handle) {
+    DisconnectNamedPipe(static_cast<HANDLE>(conn->pipe_handle));
+    CloseHandle(static_cast<HANDLE>(conn->pipe_handle));
+    conn->pipe_handle = nullptr;
+  }
+
+  {
+    std::lock_guard lock(clients_mu_);
+    clients_.erase(std::remove_if(clients_.begin(), clients_.end(),
+                                  [&](const std::shared_ptr<ClientConnection>& c) {
+                                    return c.get() == conn.get();
+                                  }),
+                   clients_.end());
+  }
+  Logger::Instance().Info("IpcServer", "Client disconnected");
+}
+
+void IpcServer::FillServiceProcessMetrics(ipc::DiagnosticsSnapshot* out) {
+  if (!out) return;
+  out->service_pid = GetCurrentProcessId();
+  HANDLE proc = GetCurrentProcess();
+
+  PROCESS_MEMORY_COUNTERS_EX pmc{};
+  pmc.cb = sizeof(pmc);
+  if (GetProcessMemoryInfo(proc,
+                           reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmc),
+                           sizeof(pmc))) {
+    out->working_set_bytes = pmc.WorkingSetSize;
+  }
+
+  DWORD handles = 0;
+  if (GetProcessHandleCount(proc, &handles)) {
+    out->handle_count = handles;
+  }
+
+  // Thread count via Toolhelp snapshot of current process.
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+  if (snap != INVALID_HANDLE_VALUE) {
+    THREADENTRY32 te{};
+    te.dwSize = sizeof(te);
+    uint32_t threads = 0;
+    const DWORD pid = out->service_pid;
+    if (Thread32First(snap, &te)) {
+      do {
+        if (te.th32OwnerProcessID == pid) ++threads;
+      } while (Thread32Next(snap, &te));
+    }
+    CloseHandle(snap);
+    out->thread_count = threads;
+  }
+
+  FILETIME create{}, exit_t{}, kernel{}, user{};
+  if (!GetProcessTimes(proc, &create, &exit_t, &kernel, &user)) {
+    return;
+  }
+  auto file_time_u64 = [](const FILETIME& ft) -> uint64_t {
+    return (static_cast<uint64_t>(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+  };
+  const uint64_t cpu_100ns = file_time_u64(kernel) + file_time_u64(user);
+  const uint64_t now_tick = GetTickCount64();
+  if (have_proc_cpu_baseline_ && now_tick > prev_proc_cpu_tick_ms_ &&
+      cpu_100ns >= prev_proc_cpu_100ns_) {
+    const double dt_s =
+        static_cast<double>(now_tick - prev_proc_cpu_tick_ms_) / 1000.0;
+    SYSTEM_INFO si{};
+    GetSystemInfo(&si);
+    const double logical = static_cast<double>(
+        (std::max)(1u, static_cast<unsigned>(si.dwNumberOfProcessors)));
+    const uint64_t delta = cpu_100ns - prev_proc_cpu_100ns_;
+    out->cpu_percent =
+        (static_cast<double>(delta) / 10'000'000.0) / dt_s / logical * 100.0;
+    out->has_cpu_percent = true;
+  }
+  prev_proc_cpu_100ns_ = cpu_100ns;
+  prev_proc_cpu_tick_ms_ = now_tick;
+  have_proc_cpu_baseline_ = true;
+}
+
+ipc::DiagnosticsSnapshot IpcServer::BuildDiagnosticsSnapshot() {
+  ipc::DiagnosticsSnapshot snap;
+  snap.service_version = kServiceVersion;
+  snap.protocol_version = kProtocolVersion;
+  snap.service_start_unix_ms = service_start_unix_ms_;
+  snap.service_uptime_ms =
+      service_start_tick_ms_ == 0
+          ? 0
+          : (GetTickCount64() - service_start_tick_ms_);
+  snap.run_mode = run_mode_;
+  snap.ipc_listening = running_.load();
+
+  bool any_live = false;
+  uint32_t clients = 0;
+  uint32_t queue_depth = 0;
+  {
+    std::lock_guard lock(clients_mu_);
+    for (auto& c : clients_) {
+      if (!c || !c->alive) continue;
+      ++clients;
+      if (c->live_enabled) any_live = true;
+      std::lock_guard qlock(c->queue_mu);
+      queue_depth += static_cast<uint32_t>(c->outbound.size());
+    }
+  }
+  snap.connected_clients = clients;
+  snap.live_queue_depth = queue_depth;
+  snap.live_queue_capacity = static_cast<uint32_t>(live_queue_capacity_);
+
+  {
+    std::lock_guard lock(live_mu_);
+    snap.live_subscribed = live_subscriber_.running();
+    snap.live_channel = live_subscriber_started_ ? "System" : "";
+    snap.live_subscriber_reconnects = live_subscriber_.reconnect_count();
+  }
+  if (any_live && !snap.live_subscribed) {
+    // Client asked for live but subscriber failed.
+  }
+
+  snap.live_events_pushed = live_events_pushed_.load();
+  snap.live_events_dropped = live_events_dropped_.load();
+  {
+    std::lock_guard lock(last_live_mu_);
+    snap.last_live_event_unix_ms = last_live_event_unix_ms_;
+    snap.last_live_event_title = last_live_event_title_;
+  }
+
+  snap.ipc_messages_received = ipc_messages_received_.load();
+  snap.ipc_messages_sent = ipc_messages_sent_.load();
+  snap.ipc_errors = ipc_errors_.load();
+
+  FillServiceProcessMetrics(&snap);
+
+  // Pipeline stages: 0 healthy, 1 warning, 2 error
+  if (!snap.live_subscribed && any_live) {
+    snap.stage_event_log = 2;
+    snap.stage_detail = "Live Event Log subscription is not running";
+  } else if (!snap.live_subscribed) {
+    snap.stage_event_log = 1;
+    snap.stage_detail = "Event Log subscription starts when a client enables live monitoring";
+  } else {
+    snap.stage_event_log = 0;
+  }
+
+  snap.stage_collector = snap.stage_event_log == 2 ? 2 : (snap.live_subscribed ? 0 : 1);
+  snap.stage_intelligence = 0;  // Always applied in-process when events flow
+  if (!snap.ipc_listening) {
+    snap.stage_ipc = 2;
+  } else if (snap.live_events_dropped > 0 ||
+             snap.live_queue_depth > snap.live_queue_capacity / 2) {
+    snap.stage_ipc = 1;
+    if (snap.stage_detail.empty()) {
+      snap.stage_detail = "IPC outbound queue pressure or dropped live events";
+    }
+  } else {
+    snap.stage_ipc = 0;
+  }
+
+  EnsureHealthCollector();
+  {
+    std::lock_guard lock(health_mu_);
+    if (health_collector_ready_) {
+      const auto info = health_collector_.CollectStatic();
+      snap.windows_edition = info.windows_edition;
+      snap.windows_version = info.windows_version;
+    }
+  }
+
+  return snap;
+}
+
+void IpcServer::InjectTestEvent() {
+  EnsureLiveSubscriber();
+  ipc::TimelineEvent event;
+  const int64_t now = NowUnixMs();
+  event.event_id = "pulse-diagnostics-test-" + std::to_string(now);
+  event.timestamp_unix_ms = now;
+  event.timestamp_iso = "";
+  event.severity = ipc::Severity::Info;
+  event.channel = "Pulse";
+  event.provider_name = "Pulse.Diagnostics";
+  event.win_event_id = 0;
+  event.record_id = 0;
+  event.computer_name = "";
+  event.title = "Diagnostics test event";
+  event.summary =
+      "Synthetic event generated from Pulse Diagnostics. "
+      "This was not written to the Windows Event Log.";
+  event.technical_summary =
+      "InjectDiagnosticsTestEvent — UI/pipeline verification only.";
+  event.message = event.summary;
+  event.recommendation =
+      "If this appears on Timeline, live IPC push is working.";
+  event.action_required = false;
+  event.importance = ipc::Importance::Low;
+  event.category = "diagnostics";
+  PushLiveEvent(event);
+}
+
+}  // namespace pulse

@@ -1,0 +1,7 @@
+name: pulse_protocol
+description: Pulse IPC wire codec and constants (bootstrap)
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.12.2

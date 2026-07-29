@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  service:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S service/pulse_service -B build/service -G "Visual Studio 17 2022" -A x64
+      - name: Build
+        run: cmake --build build/service --config Release
+      - name: Test wire codec
+        run: .\build\service\Release\pulse_wire_tests.exe
+
+  flutter:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Pub get
+        working-directory: apps/pulse_app
+        run: flutter pub get
+      - name: Analyze
+        working-directory: apps/pulse_app
+        run: flutter analyze
+      - name: Test
+        working-directory: apps/pulse_app
+        run: flutter test

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Pulse mark">
+  <!-- Mark-only (no tile) for in-app chrome  monochrome-friendly -->
+  <path d="M4 23 H28" stroke="#60CDFF" stroke-width="2.25" stroke-linecap="round"/>
+  <path d="M4 23 L10 23 L14.5 7 L19 23 L28 23"
+        fill="none"
+        stroke="#60CDFF"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+  <circle cx="14.5" cy="7" r="2.25" fill="#60CDFF"/>
+</svg>
