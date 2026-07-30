@@ -52,6 +52,12 @@ class TimelineSessionController extends ChangeNotifier {
   StreamSubscription<TimelineEvent>? _liveSub;
   int _fetchGeneration = 0;
   bool _started = false;
+
+  /// Connection epoch that last successfully applied a snapshot (or mocked).
+  /// Used so startup / visibility / Retry all converge on [reloadSnapshot].
+  int _snapshotEpoch = -1;
+  int _connectionEpoch = 0;
+
   /// When false (Timeline tab not visible), pause EvtSubscribe to idle CPU.
   bool _pageVisible = true;
   bool get pageVisible => _pageVisible;
@@ -62,10 +68,15 @@ class TimelineSessionController extends ChangeNotifier {
     return _recentLiveTimestamps.length.toDouble();
   }
 
+  /// Wire IPC after construction. Safe to call once.
+  ///
+  /// Always uses [reloadSnapshot] when already connected — same path as Retry —
+  /// so a handshake that completed before/during attach cannot leave the
+  /// Timeline empty.
   void attach() {
     if (_started) return;
     _started = true;
-    _onIpc();
+    _syncConnection(forceSnapshotIfConnected: true);
   }
 
   /// Pause live IPC when the Timeline page is not on screen.
@@ -82,14 +93,19 @@ class TimelineSessionController extends ChangeNotifier {
       }
       return;
     }
-    if (settings.liveMonitoringEnabled &&
-        ipc.status.state == IpcConnectionState.connected) {
-      try {
-        await ipc.startLiveMonitoring();
-        _liveActive = true;
-        notifyListeners();
-      } catch (e) {
-        logger.warn('TimelineSession', 'Resume live failed: $e');
+
+    // Becoming visible: same path as Retry / startup — never start live alone.
+    if (ipc.status.state == IpcConnectionState.connected) {
+      if (_needsSnapshot) {
+        await reloadSnapshot();
+      } else if (settings.liveMonitoringEnabled) {
+        try {
+          await ipc.startLiveMonitoring();
+          _liveActive = true;
+          notifyListeners();
+        } catch (e) {
+          logger.warn('TimelineSession', 'Resume live failed: $e');
+        }
       }
     }
   }
@@ -111,6 +127,8 @@ class TimelineSessionController extends ChangeNotifier {
     _events = const [];
     _pendingNewCount = 0;
     _lastLiveEvent = null;
+    // Allow the next ensure/reload to fetch again for this connection.
+    _snapshotEpoch = -1;
     notifyListeners();
     logger.info('TimelineSession', 'Timeline cleared');
   }
@@ -154,15 +172,21 @@ class TimelineSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Historical snapshot + optional live subscribe.
+  ///
+  /// Startup, attach, tab-visible, and the Retry button all call this.
   Future<void> reloadSnapshot() async {
     if (kUseMockTimeline) {
       _events = mockTimelineEvents();
       _loadError = null;
       _loadingSnapshot = false;
+      _snapshotEpoch = _connectionEpoch;
       notifyListeners();
       return;
     }
     if (ipc.status.state != IpcConnectionState.connected) return;
+
+    final epoch = _connectionEpoch;
     final gen = ++_fetchGeneration;
     _loadingSnapshot = true;
     _loadError = null;
@@ -176,18 +200,27 @@ class TimelineSessionController extends ChangeNotifier {
       _trim();
       _loadingSnapshot = false;
       _loadError = null;
+      _snapshotEpoch = epoch;
       if (settings.liveMonitoringEnabled && _pageVisible) {
         await ipc.startLiveMonitoring();
         _liveActive = true;
       }
       notifyListeners();
+      logger.info(
+        'TimelineSession',
+        'Snapshot loaded events=${_events.length} epoch=$epoch',
+      );
     } catch (e) {
       if (gen != _fetchGeneration) return;
       _loadingSnapshot = false;
       _loadError = PulseUserErrors.fromObject(e);
       notifyListeners();
+      logger.warn('TimelineSession', 'Snapshot failed: $e');
     }
   }
+
+  bool get _needsSnapshot =>
+      _snapshotEpoch != _connectionEpoch && !_loadingSnapshot;
 
   void _onLiveEvent(TimelineEvent event) {
     if (kUseMockTimeline) return;
@@ -221,15 +254,37 @@ class TimelineSessionController extends ChangeNotifier {
   }
 
   void _onIpc() {
+    _syncConnection(forceSnapshotIfConnected: false);
+  }
+
+  void _syncConnection({required bool forceSnapshotIfConnected}) {
     final state = ipc.status.state;
-    if (_lastState == state) return;
     final previous = _lastState;
-    _lastState = state;
-    final becameConnected = state == IpcConnectionState.connected &&
-        previous != IpcConnectionState.connected;
-    if (becameConnected) {
-      unawaited(reloadSnapshot());
-    } else if (state == IpcConnectionState.disconnected ||
+    final stateChanged = previous != state;
+
+    if (!forceSnapshotIfConnected && !stateChanged) {
+      return;
+    }
+
+    if (stateChanged) {
+      _lastState = state;
+    }
+
+    if (state == IpcConnectionState.connected) {
+      final becameConnected = previous != IpcConnectionState.connected;
+      if (becameConnected) {
+        _connectionEpoch++;
+        _snapshotEpoch = -1;
+      }
+      // Startup attach and connection edge share Retry's [reloadSnapshot].
+      if (becameConnected ||
+          (forceSnapshotIfConnected && _needsSnapshot)) {
+        unawaited(reloadSnapshot());
+      }
+      return;
+    }
+
+    if (state == IpcConnectionState.disconnected ||
         state == IpcConnectionState.error) {
       _liveActive = false;
       notifyListeners();

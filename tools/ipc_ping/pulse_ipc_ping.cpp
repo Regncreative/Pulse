@@ -106,6 +106,46 @@ int wmain() {
   const auto& pong = std::get<pulse::ipc::Pong>(reply.body);
   std::wcout << L"Pong OK nonce=" << pong.nonce << L" version="
              << pong.service_version.c_str() << L"\n";
+  if (pong.nonce != 99) {
+    CloseHandle(pipe);
+    return 6;
+  }
+
+  // Mirror Pulse UI: handshake uses request_id=1; snapshot uses a separate id
+  // (>=1000) so ServerHello cannot be mistaken for TimelineSnapshot.
+  constexpr uint64_t kSnapshotRequestId = 1000;
+  pulse::ipc::Envelope snap_req;
+  snap_req.request_id = kSnapshotRequestId;
+  snap_req.body = pulse::ipc::GetTimelineSnapshot{100, "System"};
+  pulse::ipc::EncodeEnvelope(snap_req, &payload);
+  pulse::ipc::EncodeFrame(payload, &frame);
+  if (!WriteExact(pipe, frame.data(), frame.size())) {
+    CloseHandle(pipe);
+    return 7;
+  }
+  if (!read_one(&reply)) {
+    std::wcerr << L"Failed to read TimelineSnapshot reply\n";
+    CloseHandle(pipe);
+    return 8;
+  }
+  if (std::holds_alternative<pulse::ipc::ServerHello>(reply.body)) {
+    std::wcerr << L"Expected TimelineSnapshot, got ServerHello (request_id collision)\n";
+    CloseHandle(pipe);
+    return 9;
+  }
+  if (!std::holds_alternative<pulse::ipc::TimelineSnapshot>(reply.body)) {
+    std::wcerr << L"Expected TimelineSnapshot\n";
+    CloseHandle(pipe);
+    return 10;
+  }
+  if (reply.request_id != kSnapshotRequestId) {
+    std::wcerr << L"TimelineSnapshot request_id mismatch\n";
+    CloseHandle(pipe);
+    return 11;
+  }
+  const auto& snap = std::get<pulse::ipc::TimelineSnapshot>(reply.body);
+  std::wcout << L"TimelineSnapshot OK events=" << snap.events.size()
+             << L" limit=" << snap.requested_limit << L"\n";
   CloseHandle(pipe);
-  return pong.nonce == 99 ? 0 : 6;
+  return snap.events.empty() ? 12 : 0;
 }

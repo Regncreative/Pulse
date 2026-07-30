@@ -1,16 +1,16 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Build a portable Pulse beta package (Flutter Release + PulseService).
+  Build Pulse beta: Flutter Release payload + VC++ CRT + Inno Setup installer.
 
 .DESCRIPTION
-  Produces dist/Pulse/ with:
-    - Pulse.exe and Flutter runner assets
-    - PulseService.exe
-    - install_service.ps1 / uninstall_service.ps1
-    - README_INSTALL.txt
+  Produces:
+    dist/Pulse-Setup-0.1.0-beta-windows-x64.exe  (primary end-user installer)
+    dist/Pulse/                                  (payload)
+    dist/Pulse-0.1.0-beta-windows-x64.zip        (optional payload archive)
 
-  No major installer framework required for beta — zip the folder for distribution.
+  The Setup.exe elevates via UAC, installs VC++ redist, registers/starts
+  PulseService (--install-start), and launches Pulse — no PowerShell.
 #>
 $ErrorActionPreference = "Stop"
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
@@ -73,7 +73,7 @@ $stageRoot = $root
 $needsStage = $root -match '[^\x00-\x7F]'
 if ($needsStage) {
   $stageRoot = "C:\dev\Pulse-build"
-  Write-Host "Non-ASCII workspace path detected — staging to $stageRoot"
+  Write-Host "Non-ASCII workspace path detected - staging to $stageRoot"
   if (Test-Path $stageRoot) { Remove-Item -Recurse -Force $stageRoot }
   New-Item -ItemType Directory -Force -Path $stageRoot | Out-Null
   robocopy $root $stageRoot /E /XD build dist .dart_tool build-ninja .git "apps\pulse_app\build" "apps\pulse_app\.dart_tool" /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
@@ -101,65 +101,89 @@ if (-not (Test-Path $runner)) { throw "Flutter Release runner not found at $runn
 Write-Host "==> Copying Flutter Release bundle"
 Copy-Item -Path (Join-Path $runner "*") -Destination $dist -Recurse -Force
 
-Write-Host "==> Writing install helpers"
-@'
-#Requires -RunAsAdministrator
-$ErrorActionPreference = "Stop"
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$exe = Join-Path $here "PulseService.exe"
-if (-not (Test-Path $exe)) { throw "PulseService.exe missing next to this script" }
-& $exe --install
-Start-Service -Name PulseService -ErrorAction SilentlyContinue
-Write-Host "PulseService installed. Start Pulse.exe from the package root."
-'@ | Set-Content -Path (Join-Path $dist "service\install_service.ps1") -Encoding UTF8
-
-@'
-#Requires -RunAsAdministrator
-$ErrorActionPreference = "Stop"
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$exe = Join-Path $here "PulseService.exe"
-if (Get-Service -Name PulseService -ErrorAction SilentlyContinue) {
-  Stop-Service -Name PulseService -Force -ErrorAction SilentlyContinue
+Write-Host "==> Bundling Visual C++ runtime (app-local + VC_redist)"
+$crtCandidates = @(
+  "${env:ProgramFiles(x86)}\Microsoft Visual Studio\18\BuildTools\VC\Redist\MSVC\14.50.35710\x64\Microsoft.VC145.CRT",
+  "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC"
+)
+$crtDir = $null
+foreach ($c in $crtCandidates) {
+  if (Test-Path $c) {
+    if ((Split-Path $c -Leaf) -eq "MSVC") {
+      $ver = Get-ChildItem $c -Directory | Where-Object { $_.Name -match '^\d' } |
+        Sort-Object Name -Descending | Select-Object -First 1
+      $maybe = Join-Path $ver.FullName "x64"
+      $crt = Get-ChildItem $maybe -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "Microsoft.VC*.CRT" } |
+        Select-Object -First 1
+      if ($crt) { $crtDir = $crt.FullName; break }
+    } else {
+      $crtDir = $c
+      break
+    }
+  }
 }
-if (Test-Path $exe) {
-  & $exe --uninstall
-} else {
-  sc.exe delete PulseService | Out-Null
+if (-not $crtDir -or -not (Test-Path $crtDir)) {
+  throw "MSVC CRT redistributable folder not found. Install VS Build Tools C++ redistributables."
 }
-Write-Host "PulseService uninstalled."
-'@ | Set-Content -Path (Join-Path $dist "service\uninstall_service.ps1") -Encoding UTF8
+Write-Host "    CRT source: $crtDir"
+# App-local next to Pulse.exe and PulseService.exe (licensed REDIST binaries).
+Copy-Item (Join-Path $crtDir "*") -Destination $dist -Force
+Copy-Item (Join-Path $crtDir "*") -Destination (Join-Path $dist "service") -Force
 
+$redistCandidates = @(
+  "${env:ProgramFiles(x86)}\Microsoft Visual Studio\18\BuildTools\VC\Redist\MSVC\v145\vc_redist.x64.exe",
+  "${env:ProgramFiles(x86)}\Microsoft Visual Studio\18\BuildTools\VC\Redist\MSVC\14.50.35710\vc_redist.x64.exe",
+  "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC\v143\vc_redist.x64.exe"
+)
+$vcRedist = $redistCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $vcRedist) { throw "vc_redist.x64.exe not found under Visual Studio Redist" }
+New-Item -ItemType Directory -Force -Path (Join-Path $dist "redist") | Out-Null
+Copy-Item $vcRedist (Join-Path $dist "redist\VC_redist.x64.exe") -Force
+
+Write-Host "==> Writing README for payload folder (advanced / portable)"
 @'
-Pulse — first public beta
-========================
+Pulse payload folder (advanced)
+===============================
 
-1) Install / start the service (elevated PowerShell):
-     cd service
-     .\install_service.ps1
+End users should run Pulse-Setup-0.1.0-beta-windows-x64.exe instead of this folder.
 
-   Or for development / troubleshooting without SCM:
-     .\PulseService.exe --console
+This folder is the install payload. For developers:
 
-2) Launch the app:
-     .\Pulse.exe
-
-3) First launch shows a short welcome (skippable).
-   Timeline, System Health, and Diagnostics need PulseService running.
+  service\PulseService.exe --install-start   (elevated)
+  Pulse.exe
 
 Privacy: local-only. No telemetry. Observation only.
-
-Uninstall service:
-     cd service
-     .\uninstall_service.ps1
 '@ | Set-Content -Path (Join-Path $dist "README_INSTALL.txt") -Encoding UTF8
 
-# Zip
+# Zip (payload / CI artifact - not the primary end-user deliverable)
 $zip = Join-Path $root "dist\Pulse-0.1.0-beta-windows-x64.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Write-Host "==> Creating $zip"
 Compress-Archive -Path (Join-Path $dist "*") -DestinationPath $zip -Force
 
+Write-Host "==> Verifying runtime deps"
+& powershell -ExecutionPolicy Bypass -File (Join-Path $root "tools\scripts\verify_runtime_deps.ps1") -PackageDir $dist
+if ($LASTEXITCODE -ne 0) { throw "verify_runtime_deps.ps1 failed" }
+
+Write-Host "==> Building Inno Setup installer (no PowerShell for end users)"
+$iscc = @(
+  "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+  "${env:LocalAppData}\Programs\Inno Setup 6\ISCC.exe",
+  "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $iscc) {
+  throw "ISCC.exe not found. Install Inno Setup 6 (winget install JRSoftware.InnoSetup)."
+}
+$iss = Join-Path $root "tools\installer\Pulse.iss"
+$setupOut = Join-Path $root "dist\Pulse-Setup-0.1.0-beta-windows-x64.exe"
+if (Test-Path $setupOut) { Remove-Item $setupOut -Force }
+& $iscc "/DPulsePayloadDir=$dist" "/DPulseOutDir=$(Join-Path $root 'dist')" $iss
+if ($LASTEXITCODE -ne 0) { throw "Inno Setup compile failed" }
+if (-not (Test-Path $setupOut)) { throw "Installer not produced: $setupOut" }
+
 Write-Host ""
 Write-Host "Beta package ready:"
-Write-Host "  Folder: $dist"
-Write-Host "  Zip:    $zip"
+Write-Host "  Installer (primary): $setupOut"
+Write-Host "  Payload folder:      $dist"
+Write-Host "  Payload zip:         $zip"

@@ -14,11 +14,12 @@ namespace {
 void PrintUsage() {
   std::wcout << L"PulseService " << pulse::ServiceVersion().ToString().c_str() << L"\n"
              << L"Usage:\n"
-             << L"  PulseService.exe --console     Run interactively\n"
-             << L"  PulseService.exe --install     Install Windows service (admin)\n"
-             << L"  PulseService.exe --uninstall   Remove Windows service (admin)\n"
+             << L"  PulseService.exe --console         Run interactively\n"
+             << L"  PulseService.exe --install         Install Windows service (admin)\n"
+             << L"  PulseService.exe --install-start   Install, start, verify (admin)\n"
+             << L"  PulseService.exe --uninstall       Remove Windows service (admin)\n"
              << L"  PulseService.exe --version\n"
-             << L"  PulseService.exe               Run as SCM service\n";
+             << L"  PulseService.exe                   Run as SCM service\n";
 }
 
 }  // namespace
@@ -39,6 +40,9 @@ int wmain(int argc, wchar_t** argv) {
     }
     if (arg == L"--install") {
       return pulse::InstallService();
+    }
+    if (arg == L"--install-start") {
+      return pulse::InstallAndStartService();
     }
     if (arg == L"--uninstall") {
       return pulse::UninstallService();

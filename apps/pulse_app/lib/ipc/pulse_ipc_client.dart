@@ -103,13 +103,17 @@ class IpcStatus {
 class PulseIpcClient extends ChangeNotifier {
   PulseIpcClient();
 
+  /// Reserved for ClientHello only — must stay out of UI RPC id space (>= 1000).
+  static const int kHandshakeRequestId = 1;
+
   IpcStatus _status = const IpcStatus(state: IpcConnectionState.disconnected);
   IpcStatus get status => _status;
 
   SendPort? _cmdPort;
   Isolate? _isolate;
   final _pending = <int, Completer<Envelope>>{};
-  int _nextRequestId = 1;
+  /// RPC ids for UI requests. 1 is reserved for the isolate ClientHello handshake.
+  int _nextRequestId = 1000;
   bool _started = false;
   final _liveEvents = StreamController<TimelineEvent>.broadcast();
   final _healthUpdates = StreamController<HealthSample>.broadcast();
@@ -232,7 +236,7 @@ class PulseIpcClient extends ChangeNotifier {
     return body;
   }
 
-  /// Explicit live subscribe (also auto-enabled after snapshot on the service).
+  /// Explicit live subscribe — call only after the historical snapshot finishes.
   Future<void> startLiveMonitoring({String channel = 'System'}) async {
     final env = Envelope(
       requestId: _nextRequestId++,
@@ -371,16 +375,26 @@ class PulseIpcClient extends ChangeNotifier {
           return;
         }
 
-        final pending = _pending.remove(env.requestId);
-        if (pending != null && !pending.isCompleted) {
-          pending.complete(env);
-        }
+        // Handshake ServerHello (request_id == 1) must never satisfy RPC waiters.
+        // Isolate ClientHello and UI GetTimelineSnapshot previously collided on id=1,
+        // which surfaced as: Expected TimelineSnapshot, got ServerHello.
         if (body is ServerHello) {
+          if (env.requestId != kHandshakeRequestId) {
+            // Ignore unexpected ServerHello frames; do not complete RPC waiters.
+            return;
+          }
           _setStatus(_status.copyWith(
             state: IpcConnectionState.connected,
             serviceVersion: body.serviceVersion,
             message: 'Connected',
+            lastError: '',
           ));
+          return;
+        }
+
+        final pending = _pending.remove(env.requestId);
+        if (pending != null && !pending.isCompleted) {
+          pending.complete(env);
         }
       } catch (e) {
         // Complete all waiters so the UI does not hang until timeout.
@@ -452,7 +466,6 @@ class _IpcWorker {
   Timer? heartbeatTimer;
   Timer? readPoll;
   var shuttingDown = false;
-  var requestIdHello = 1;
 
   void start() {
     uiPort.send(cmd.sendPort);
@@ -629,7 +642,7 @@ class _IpcWorker {
     }
 
     final hello = Envelope(
-      requestId: requestIdHello++,
+      requestId: PulseIpcClient.kHandshakeRequestId,
       body: ClientHello(
         protocolVersion: kProtocolVersion,
         clientName: 'Pulse',
@@ -651,6 +664,7 @@ class _IpcWorker {
       );
       writeAll(encodeFrame(encodeEnvelope(hb)));
     });
-    setStatus('connected', message: 'Handshake sent');
+    // Stay connecting until UI receives ServerHello — avoids racing snapshot RPC.
+    setStatus('connecting', message: 'Waiting for ServerHello…');
   }
 }

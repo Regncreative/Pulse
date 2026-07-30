@@ -22,7 +22,7 @@ class ServiceStatusCard extends StatelessWidget {
       state == IpcConnectionState.connecting;
 
   String get _statusTitle => switch (state) {
-        IpcConnectionState.connected => 'Live Monitoring',
+        IpcConnectionState.connected => 'Connected',
         IpcConnectionState.connecting => 'Connecting',
         IpcConnectionState.error => 'Offline',
         IpcConnectionState.disconnected => 'Offline',

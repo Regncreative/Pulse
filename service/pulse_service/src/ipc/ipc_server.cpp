@@ -366,15 +366,8 @@ void IpcServer::PushHealthUpdate(const ipc::HealthSample& sample) {
 }
 
 void IpcServer::HealthPushLoop() {
-  // Prime CPU / network baselines before first push.
-  {
-    std::lock_guard lock(health_mu_);
-    if (health_collector_ready_) {
-      (void)health_collector_.CollectSample();
-    }
-  }
-  Sleep(1000);
-
+  // Do not CollectSample until a client enables health. Priming here under
+  // LocalService previously raced IPC and contributed to service crashes.
   while (health_thread_running_ && running_) {
     bool any = false;
     {
@@ -488,8 +481,8 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
         "IpcServer",
         "TimelineSnapshot events=" + std::to_string(collected.value().size()));
 
-    // After snapshot: enable live append for this client (TASK-006).
-    EnableLiveForClient(conn);
+    // Live subscribe is explicit (StartLiveMonitoring) so snapshot always
+    // completes before live pushes are enabled for this client.
     return;
   }
 
@@ -508,10 +501,6 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
     EnableLiveForClient(conn);
     ipc::Envelope ack;
     ack.request_id = env.request_id;
-    ack.body = ipc::ServerHello{kProtocolVersion, kServiceVersion};
-    // Reuse ServerHello as a lightweight ack is awkward — send empty success via
-    // Heartbeat-less: reply with Start confirmation using Error code 0 style.
-    // Prefer echoing Stop/Start with no body — use Pong-less: send ErrorResponse code 0.
     ack.body = ipc::ErrorResponse{0, "Live monitoring started", "", "IpcServer"};
     WriteEnvelopeLocked(conn, ack);
     return;
@@ -539,7 +528,8 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
     reply.request_id = env.request_id;
     reply.body = std::move(snapshot);
     WriteEnvelopeLocked(conn, reply);
-    EnableHealthForClient(conn);
+    // Do not auto-enable health pushes here — clients must call
+    // StartHealthMonitoring explicitly (mirrors TimelineSnapshot / live).
     return;
   }
 

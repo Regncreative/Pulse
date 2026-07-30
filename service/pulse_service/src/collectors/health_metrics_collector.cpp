@@ -884,39 +884,11 @@ void HealthMetricsCollector::SampleTopProcesses(ipc::HealthSample* out) {
   }
   CloseHandle(snap);
 
-  // Network tops via TCP table owner PID + ESTATS when available.
-  // Guard: GetPerTcpConnectionEStats can fail on half-closed rows; skip errors.
-  {
-    DWORD size = 0;
-    GetExtendedTcpTable(nullptr, &size, FALSE, AF_INET,
-                        TCP_TABLE_OWNER_PID_CONNECTIONS, 0);
-    if (size > 0) {
-      std::vector<uint8_t> table_buf(size);
-      if (GetExtendedTcpTable(table_buf.data(), &size, FALSE, AF_INET,
-                              TCP_TABLE_OWNER_PID_CONNECTIONS,
-                              0) == NO_ERROR) {
-        auto* table =
-            reinterpret_cast<MIB_TCPTABLE_OWNER_PID*>(table_buf.data());
-        for (DWORD i = 0; i < table->dwNumEntries; ++i) {
-          const auto& row = table->table[i];
-          if (row.dwState != MIB_TCP_STATE_ESTAB) continue;
-          MIB_TCPROW tcp_row{};
-          tcp_row.dwState = row.dwState;
-          tcp_row.dwLocalAddr = row.dwLocalAddr;
-          tcp_row.dwLocalPort = row.dwLocalPort;
-          tcp_row.dwRemoteAddr = row.dwRemoteAddr;
-          tcp_row.dwRemotePort = row.dwRemotePort;
-          TCP_ESTATS_DATA_ROD_v0 rod{};
-          ULONG rod_size = sizeof(rod);
-          const ULONG est = GetPerTcpConnectionEStats(
-              &tcp_row, TcpConnectionEstatsData, nullptr, 0, 0, nullptr, 0, 0,
-              reinterpret_cast<PUCHAR>(&rod), 0, rod_size);
-          if (est != NO_ERROR) continue;
-          next_net[row.dwOwningPid] += rod.DataBytesOut + rod.DataBytesIn;
-        }
-      }
-    }
-  }
+  // Network tops via TCP ESTATS intentionally disabled.
+  // GetPerTcpConnectionEStats has caused STATUS_STACK_BUFFER_OVERRUN
+  // (0xc0000409) in PulseService under LocalService / Session 0. Keep
+  // top_network empty rather than risk taking down the whole service.
+  (void)next_net;
 
   std::vector<ipc::HealthProcessEntry> net_rows;
   if (have_proc_baseline_) {

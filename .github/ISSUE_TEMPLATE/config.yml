@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Architecture & ADRs
+    url: https://github.com/Regncreative/Pulse/tree/master/docs/architecture
+    about: Read the architecture package before proposing large design changes.
+  - name: Product constitution (AGENTS.md)
+    url: https://github.com/Regncreative/Pulse/blob/master/AGENTS.md
+    about: Vision, principles, and what Pulse will never become.

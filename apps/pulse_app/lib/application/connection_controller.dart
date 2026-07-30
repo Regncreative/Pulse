@@ -19,7 +19,7 @@ class ConnectionController extends ChangeNotifier {
   String get statusLabel {
     switch (ipc.status.state) {
       case IpcConnectionState.connected:
-        return 'Live Monitoring';
+        return 'Connected';
       case IpcConnectionState.connecting:
         return 'Connecting…';
       case IpcConnectionState.error:

@@ -10,6 +10,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <winsvc.h>
 
 namespace pulse {
 namespace {
@@ -147,25 +148,35 @@ int InstallService() {
   wchar_t path[MAX_PATH];
   if (!GetModuleFileNameW(nullptr, path, MAX_PATH)) return 1;
 
-  SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
+  SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
   if (!scm) {
     std::wcerr << L"OpenSCManager failed. Run as Administrator.\n";
     return 1;
   }
 
-  SC_HANDLE svc = CreateServiceW(
-      scm, L"PulseService", L"Pulse", SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,
-      SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, path, nullptr, nullptr, nullptr,
-      L"NT AUTHORITY\\LocalService", nullptr);
-  if (!svc) {
-    const DWORD err = GetLastError();
-    CloseServiceHandle(scm);
-    if (err == ERROR_SERVICE_EXISTS) {
-      std::wcout << L"PulseService already installed.\n";
-      return 0;
+  SC_HANDLE svc = OpenServiceW(scm, L"PulseService", SERVICE_ALL_ACCESS);
+  if (svc) {
+    // Already installed — refresh binary path + auto-start.
+    if (!ChangeServiceConfigW(svc, SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START,
+                              SERVICE_ERROR_NORMAL, path, nullptr, nullptr, nullptr,
+                              L"NT AUTHORITY\\LocalService", nullptr, L"Pulse")) {
+      const DWORD err = GetLastError();
+      CloseServiceHandle(svc);
+      CloseServiceHandle(scm);
+      std::wcerr << L"ChangeServiceConfig failed: " << err << L"\n";
+      return 1;
     }
-    std::wcerr << L"CreateService failed: " << err << L"\n";
-    return 1;
+  } else {
+    svc = CreateServiceW(
+        scm, L"PulseService", L"Pulse", SERVICE_ALL_ACCESS,
+        SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, SERVICE_ERROR_NORMAL, path,
+        nullptr, nullptr, nullptr, L"NT AUTHORITY\\LocalService", nullptr);
+    if (!svc) {
+      const DWORD err = GetLastError();
+      CloseServiceHandle(scm);
+      std::wcerr << L"CreateService failed: " << err << L"\n";
+      return 1;
+    }
   }
 
   SERVICE_DESCRIPTIONW desc{};
@@ -175,8 +186,85 @@ int InstallService() {
 
   CloseServiceHandle(svc);
   CloseServiceHandle(scm);
-  std::wcout << L"PulseService installed.\n";
+  std::wcout << L"PulseService installed (auto-start).\n";
   return 0;
+}
+
+int StartPulseServiceAndWait(DWORD timeout_ms) {
+  SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+  if (!scm) return 1;
+
+  SC_HANDLE svc = OpenServiceW(scm, L"PulseService",
+                               SERVICE_START | SERVICE_QUERY_STATUS);
+  if (!svc) {
+    CloseServiceHandle(scm);
+    std::wcerr << L"OpenService failed for start.\n";
+    return 1;
+  }
+
+  SERVICE_STATUS_PROCESS ssp{};
+  DWORD bytes = 0;
+  if (!QueryServiceStatusEx(svc, SC_STATUS_PROCESS_INFO,
+                            reinterpret_cast<LPBYTE>(&ssp), sizeof(ssp),
+                            &bytes)) {
+    CloseServiceHandle(svc);
+    CloseServiceHandle(scm);
+    return 1;
+  }
+
+  if (ssp.dwCurrentState != SERVICE_RUNNING &&
+      ssp.dwCurrentState != SERVICE_START_PENDING) {
+    if (!StartServiceW(svc, 0, nullptr)) {
+      const DWORD err = GetLastError();
+      if (err != ERROR_SERVICE_ALREADY_RUNNING) {
+        CloseServiceHandle(svc);
+        CloseServiceHandle(scm);
+        std::wcerr << L"StartService failed: " << err << L"\n";
+        return 1;
+      }
+    }
+  }
+
+  const DWORD deadline = GetTickCount() + timeout_ms;
+  for (;;) {
+    if (!QueryServiceStatusEx(svc, SC_STATUS_PROCESS_INFO,
+                              reinterpret_cast<LPBYTE>(&ssp), sizeof(ssp),
+                              &bytes)) {
+      CloseServiceHandle(svc);
+      CloseServiceHandle(scm);
+      return 1;
+    }
+    if (ssp.dwCurrentState == SERVICE_RUNNING) {
+      // Confirm it stays up briefly (catches immediate SCM crash-loop).
+      Sleep(1500);
+      if (!QueryServiceStatusEx(svc, SC_STATUS_PROCESS_INFO,
+                                reinterpret_cast<LPBYTE>(&ssp), sizeof(ssp),
+                                &bytes) ||
+          ssp.dwCurrentState != SERVICE_RUNNING) {
+        CloseServiceHandle(svc);
+        CloseServiceHandle(scm);
+        std::wcerr << L"PulseService started then stopped unexpectedly.\n";
+        return 1;
+      }
+      CloseServiceHandle(svc);
+      CloseServiceHandle(scm);
+      std::wcout << L"PulseService is running.\n";
+      return 0;
+    }
+    if (GetTickCount() > deadline) {
+      CloseServiceHandle(svc);
+      CloseServiceHandle(scm);
+      std::wcerr << L"Timed out waiting for PulseService to start.\n";
+      return 1;
+    }
+    Sleep(200);
+  }
+}
+
+int InstallAndStartService() {
+  const int installed = InstallService();
+  if (installed != 0) return installed;
+  return StartPulseServiceAndWait(20000);
 }
 
 int UninstallService() {

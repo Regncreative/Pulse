@@ -29,5 +29,7 @@ int RunConsoleMode(int argc, wchar_t** argv);
 int RunServiceMode();
 int InstallService();
 int UninstallService();
+/// Install/update the SCM service (auto-start), start it, wait until RUNNING.
+int InstallAndStartService();
 
 }  // namespace pulse

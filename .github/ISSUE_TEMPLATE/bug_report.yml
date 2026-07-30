@@ -1,0 +1,106 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in Pulse
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Pulse. Please fill out the sections below.
+        Reminder: Pulse is **observation-only** — please do not request cleaner/optimizer features here.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: A clear, short description of the problem.
+      placeholder: Timeline stays empty after connect even though Live Monitoring shows Connected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps another person can follow.
+      placeholder: |
+        1. Install Pulse-Setup-…
+        2. Launch Pulse
+        3. …
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: Timeline shows ~100 historical events, then live updates.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: Timeline is empty until Retry is clicked.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Installer / packaging
+        - Timeline
+        - Live Monitoring
+        - System Health
+        - Diagnostics
+        - Settings
+        - PulseService (native)
+        - IPC / protocol
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Pulse version
+      description: From Settings, Diagnostics, or the installer filename (e.g. 0.1.0-beta.3).
+      placeholder: 0.1.0-beta.3
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: e.g. Windows 11 24H2 (Build 26100)
+      placeholder: Windows 11 …
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / evidence
+      description: |
+        Paste relevant lines from `%ProgramData%\Pulse\logs\` or a Diagnostics export.
+        Do not include secrets or personal file paths you want to keep private.
+      render: text
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for duplicates
+          required: true
+        - label: This is observation-only feedback (not a request for cleaners/boosters/AV)
+          required: true

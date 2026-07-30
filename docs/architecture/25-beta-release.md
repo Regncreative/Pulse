@@ -2,46 +2,58 @@
 
 ## Goal
 
-Ship a portable first public beta without a full MSI yet.
+Ship a **normal Windows installer** so a clean PC reaches Connected without PowerShell.
+
+## Primary deliverable
+
+`dist/Pulse-Setup-0.1.0-beta-windows-x64.exe` (Inno Setup)
+
+The installer (admin / UAC):
+
+1. Copies Pulse into `Program Files\Pulse`
+2. Quietly installs `VC_redist.x64.exe` when present
+3. Runs `PulseService.exe --install-start` (register auto-start service + start + verify)
+4. Offers to launch `Pulse.exe`
+
+No `.ps1`. No ExecutionPolicy. No manual service steps.
 
 ## Produce a package
 
-From a developer machine with Flutter + VS C++ Build Tools:
+Prerequisites: Flutter, VS C++ Build Tools, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`).
 
 ```powershell
 .\tools\scripts\package_beta.ps1
 ```
 
-Outputs:
-
-| Path | Contents |
-|------|----------|
-| `dist/Pulse/` | `Pulse.exe` + Flutter assets + `service/PulseService.exe` |
-| `dist/Pulse-0.1.0-beta-windows-x64.zip` | Zip of the folder |
+| Output | Role |
+|--------|------|
+| `dist/Pulse-Setup-0.1.0-beta-windows-x64.exe` | **End-user installer** |
+| `dist/Pulse/` | Payload used by Inno |
+| `dist/Pulse-0.1.0-beta-windows-x64.zip` | Optional payload archive |
 
 ## Fresh machine checklist
 
-1. Extract zip to a folder the user can write (e.g. `%LOCALAPPDATA%\Pulse`)
-2. Elevated: `service\install_service.ps1`
-3. Confirm `Get-Service PulseService` is Running
-4. Launch `Pulse.exe`
-5. Complete or skip welcome
-6. Timeline shows snapshot / live events
-7. System Health shows live metrics
-8. Diagnostics shows Connected
-9. Stop service → UI shows offline empty states (no blank screens)
-10. Start service → automatic reconnect
+1. Copy **only** the Setup `.exe` to a clean Windows 10/11 PC
+2. Double-click Setup → UAC Yes
+3. Finish wizard (Launch Pulse checked)
+4. Confirm tray/status shows Connected / Live within a few seconds
+5. Timeline and System Health populate
+6. Reboot → PulseService still Running (auto-start) → Pulse reconnects
 
-## Console mode (no SCM)
+## Service CLI (developers)
 
-```powershell
-.\service\PulseService.exe --console
-.\Pulse.exe
+```text
+PulseService.exe --install-start   Elevate: install/update auto-start + start + wait RUNNING
+PulseService.exe --uninstall       Elevate: stop + delete service
+PulseService.exe --console         Dev foreground mode (no SCM)
 ```
+
+## Runtime dependencies
+
+See [26-windows-runtime-deps.md](26-windows-runtime-deps.md).
 
 ## Known beta limits
 
-- System Event Log channel only (Application / Security are future)
-- Portable zip — not yet code-signed MSI/Inno
-- Service runs as LocalService when installed via SCM
-- `flutter build windows --release` may fail under non-ASCII paths (e.g. `OneDrive\Masaüstü`); `package_beta.ps1` stages to `C:\dev\Pulse-build` automatically
+- System Event Log channel only
+- Not code-signed yet (SmartScreen may warn)
+- `flutter build windows --release` may need ASCII staging path (`package_beta.ps1` handles this)

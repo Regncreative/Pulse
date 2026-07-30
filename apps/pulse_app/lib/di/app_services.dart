@@ -41,8 +41,11 @@ class AppServices {
       logger: logger,
     );
 
-    await ipc.start();
+    // Attach before start so the connecting→connected edge is never missed.
+    // Snapshot loading always goes through TimelineSessionController.reloadSnapshot
+    // (same method as the Timeline Retry button).
     timeline.attach();
+    await ipc.start();
 
     return AppServices(
       ipcClient: ipc,

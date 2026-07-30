@@ -1,0 +1,74 @@
+name: Feature Request
+description: Propose a new capability for Pulse
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Pulse is a **read-only** Windows observability platform.
+        Features that modify, clean, optimize, or inject into Windows will be closed.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What user need does this address?
+      placeholder: Users cannot currently filter Timeline by provider name at scale.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should Pulse do?
+      placeholder: Add a provider filter chip and persist the last selection locally.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about (optional).
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      options:
+        - Timeline
+        - Live Monitoring
+        - System Health
+        - Diagnostics
+        - Settings / UX
+        - PulseService / collectors
+        - ETW / WMI (future)
+        - Packaging / installer
+        - Documentation / website
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Suggested priority
+      options:
+        - Nice to have
+        - Should have for next minor release
+        - Blocking for a named milestone
+      default: 0
+
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Principles
+      options:
+        - label: This feature is read-only / observation-only
+          required: true
+        - label: This does not require cloud accounts, telemetry, or ads
+          required: true
+        - label: I am willing to discuss architecture against AGENTS.md / ADRs
+          required: false
