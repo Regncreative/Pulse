@@ -1,32 +1,57 @@
+# Dart / Flutter
 .dart_tool/
+**/.dart_tool/
 .packages
 .pub-cache/
 .pub/
-build/
-**/doc/api/
 .flutter-plugins
 .flutter-plugins-dependencies
+**/doc/api/
+
+# Build outputs
+build/
+**/build/
+dist/
+**/dist/
+build-ninja/
+**/generated/
+!shared/pulse_protocol/proto/
+
+# Flutter Windows runner binaries
+**/windows/**/runner/Debug/
+**/windows/**/runner/Release/
+**/windows/**/x64/runner/Debug/
+**/windows/**/x64/runner/Release/
 apps/pulse_app/windows/flutter/ephemeral/
-apps/pulse_app/.dart_tool/
-apps/pulse_app/build/
+
+# Compiled / packaged artifacts
 *.exe
+*.dll
 *.pdb
 *.obj
 *.lib
-*.dll
 *.exp
 *.ilk
+*.zip
+*.log
+*.appx
+*.msix
+*.msi
+
+# CMake / Ninja
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 .ninja_deps
 .ninja_log
-build-ninja/
+
+# IDE / OS
 .vs/
 .idea/
 .vscode/
 *.user
 .DS_Store
+Thumbs.db
+
+# Local machine data
 ProgramData/
-**/generated/
-!shared/pulse_protocol/proto/

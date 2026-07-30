@@ -52,6 +52,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 22 | [WMI Integration](22-wmi-integration.md) | **Future milestone** |
 | 23 | [Architecture Review](23-architecture-review.md) | Review (P0s accepted) |
 | 24 | [Health Metrics vs Task Manager](24-health-metrics-task-manager.md) | System Health counter alignment |
+| 25 | [Beta Release Packaging](25-beta-release.md) | Portable zip + fresh-machine checklist |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 

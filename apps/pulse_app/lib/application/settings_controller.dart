@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../logging/app_logger.dart';
 
-/// Persisted user preferences (local-only). TASK-008.
+/// Persisted user preferences (local-only).
 class SettingsController extends ChangeNotifier {
   SettingsController({required this.logger});
 
@@ -16,8 +16,9 @@ class SettingsController extends ChangeNotifier {
   static const _kCompact = 'interface.compact';
   static const _kAnimations = 'interface.animations';
   static const _kDebugLogging = 'diagnostics.debug_logging';
+  static const _kWelcomeDone = 'onboarding.welcome_completed';
 
-  static const String buildDate = '2026-07-29';
+  static const String buildDate = '2026-07-30';
 
   SharedPreferences? _prefs;
   bool _ready = false;
@@ -30,6 +31,7 @@ class SettingsController extends ChangeNotifier {
   bool compactMode = false;
   bool animationsEnabled = true;
   bool debugLogging = false;
+  bool welcomeCompleted = false;
 
   Future<void> load() async {
     _prefs = await SharedPreferences.getInstance();
@@ -41,6 +43,7 @@ class SettingsController extends ChangeNotifier {
     compactMode = p.getBool(_kCompact) ?? false;
     animationsEnabled = p.getBool(_kAnimations) ?? true;
     debugLogging = p.getBool(_kDebugLogging) ?? false;
+    welcomeCompleted = p.getBool(_kWelcomeDone) ?? false;
     logger.debugEnabled = debugLogging;
     _ready = true;
     notifyListeners();
@@ -89,6 +92,12 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> completeWelcome() async {
+    welcomeCompleted = true;
+    await _prefs?.setBool(_kWelcomeDone, true);
+    notifyListeners();
+  }
+
   Future<void> resetAll() async {
     maxStoredEvents = 500;
     startupSnapshotSize = 100;
@@ -97,6 +106,7 @@ class SettingsController extends ChangeNotifier {
     compactMode = false;
     animationsEnabled = true;
     debugLogging = false;
+    welcomeCompleted = false;
     logger.debugEnabled = false;
     await _prefs?.clear();
     notifyListeners();
@@ -110,5 +120,6 @@ class SettingsController extends ChangeNotifier {
         'compact_mode': compactMode,
         'animations_enabled': animationsEnabled,
         'debug_logging': debugLogging,
+        'welcome_completed': welcomeCompleted,
       };
 }

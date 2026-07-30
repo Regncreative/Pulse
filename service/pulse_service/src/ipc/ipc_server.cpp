@@ -262,9 +262,9 @@ void IpcServer::EnsureLiveSubscriber() {
 }
 
 void IpcServer::OnLiveEventRecord(EventRecord record) {
-  Logger::Instance().Info(
+  Logger::Instance().Debug(
       "IpcServer",
-      std::string("[TASK-006] Event Received record_id=") +
+      std::string("Event Received record_id=") +
           (record.record_id ? std::to_string(*record.record_id) : "0") +
           " event_id=" +
           (record.event_id ? std::to_string(*record.event_id) : "0"));
@@ -299,9 +299,9 @@ void IpcServer::PushLiveEvent(const ipc::TimelineEvent& event) {
     }
   }
 
-  Logger::Instance().Info(
+  Logger::Instance().Debug(
       "IpcServer",
-      std::string("[TASK-006] IPC Push clients=") +
+      std::string("IPC Push clients=") +
           std::to_string(targets.size()) +
           " win_event_id=" + std::to_string(event.win_event_id));
 
@@ -318,7 +318,7 @@ void IpcServer::EnableLiveForClient(
   conn->live_enabled = true;
   EnsureLiveSubscriber();
   Logger::Instance().Info("IpcServer",
-                          "[TASK-006] EvtSubscribe Active (client live enabled)");
+                          "EvtSubscribe Active (client live enabled)");
 }
 
 void IpcServer::DisableLiveForClient(
@@ -441,7 +441,7 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
   }
 
   if (std::holds_alternative<ipc::GetTimelineSnapshot>(env.body)) {
-    Logger::Instance().Info("IpcServer", "[TASK-006] Request Snapshot received");
+    Logger::Instance().Info("IpcServer", "Request Snapshot received");
     const auto& req = std::get<ipc::GetTimelineSnapshot>(env.body);
     uint32_t limit = req.limit == 0 ? 100 : req.limit;
     if (limit > 500) {
@@ -494,7 +494,7 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
   }
 
   if (std::holds_alternative<ipc::StartLiveMonitoring>(env.body)) {
-    Logger::Instance().Info("IpcServer", "[TASK-006] StartLiveMonitoring received");
+    Logger::Instance().Info("IpcServer", "StartLiveMonitoring received");
     const auto& req = std::get<ipc::StartLiveMonitoring>(env.body);
     if (!req.channel.empty() && req.channel != "System") {
       ipc::Envelope err;
@@ -527,7 +527,7 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
   }
 
   if (std::holds_alternative<ipc::GetHealthSnapshot>(env.body)) {
-    Logger::Instance().Info("IpcServer", "[TASK-007] GetHealthSnapshot");
+    Logger::Instance().Info("IpcServer", "GetHealthSnapshot");
     EnsureHealthCollector();
     ipc::HealthSnapshot snapshot;
     {
@@ -544,7 +544,7 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
   }
 
   if (std::holds_alternative<ipc::StartHealthMonitoring>(env.body)) {
-    Logger::Instance().Info("IpcServer", "[TASK-007] StartHealthMonitoring");
+    Logger::Instance().Info("IpcServer", "StartHealthMonitoring");
     EnableHealthForClient(conn);
     ipc::Envelope ack;
     ack.request_id = env.request_id;
@@ -563,7 +563,7 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
   }
 
   if (std::holds_alternative<ipc::GetDiagnosticsSnapshot>(env.body)) {
-    Logger::Instance().Info("IpcServer", "[TASK-008] GetDiagnosticsSnapshot");
+    Logger::Instance().Info("IpcServer", "GetDiagnosticsSnapshot");
     ipc::Envelope reply;
     reply.request_id = env.request_id;
     reply.body = BuildDiagnosticsSnapshot();
@@ -572,7 +572,7 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
   }
 
   if (std::holds_alternative<ipc::InjectDiagnosticsTestEvent>(env.body)) {
-    Logger::Instance().Info("IpcServer", "[TASK-008] InjectDiagnosticsTestEvent");
+    Logger::Instance().Info("IpcServer", "InjectDiagnosticsTestEvent");
     // Ensure the requesting client receives the synthetic push.
     EnableLiveForClient(conn);
     InjectTestEvent();

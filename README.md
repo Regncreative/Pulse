@@ -142,16 +142,25 @@ ETW, WMI, and plugins are intentional future milestones — see [docs/architectu
 
 ## Installation
 
-### For everyone (when a release is published)
+### For everyone (beta package)
 
-1. Download the latest release from [GitHub Releases](https://github.com/Regncreative/Pulse/releases)
-2. Install / run **PulseService** (observes Windows in the background)
-3. Launch **Pulse**
-4. Open **Timeline** or **System Health** — you should see live activity within seconds
+1. Download **Pulse-0.1.0-beta-windows-x64.zip** from [GitHub Releases](https://github.com/Regncreative/Pulse/releases)
+2. Extract the folder
+3. Elevated PowerShell → `cd service` → `.\install_service.ps1`
+4. Run `Pulse.exe`
+5. Skip or complete the short welcome — then open Timeline or System Health
 
-Tip: keep PulseService running so reconnect is instant after sleep or app restart.
+Tip: for troubleshooting without installing the SCM service, run `service\PulseService.exe --console`.
 
-### For developers
+Developers can also build a local package:
+
+```powershell
+.\tools\scripts\package_beta.ps1
+```
+
+Output: `dist\Pulse\` and `dist\Pulse-0.1.0-beta-windows-x64.zip`
+
+### For developers (day-to-day)
 
 ```powershell
 # 1) Build & run the service (console mode — preferred while developing)
@@ -196,7 +205,7 @@ Full prerequisites and flags: [BUILD.md](BUILD.md) · [DEVELOPMENT.md](DEVELOPME
 | `.\build\service\pulse_wire_tests.exe` | Wire codec unit tests |
 | `.\tools\scripts\run_ipc_ping.ps1` | IPC Ping/Pong smoke |
 | `.\tools\scripts\run_diagnostics_ping.ps1` | Diagnostics + inject-event smoke |
-| `cd apps\pulse_app; flutter analyze` | Static analysis |
+| `.\tools\scripts\package_beta.ps1` | Build portable beta zip (Flutter Release + PulseService) |
 | `cd apps\pulse_app; flutter test` | Flutter unit / widget tests |
 
 ---
@@ -245,8 +254,10 @@ Pulse/
 - [x] Settings persistence
 - [x] Fluent dark-first UI polish
 - [x] Official screenshots in README
-- [ ] Packaged installer + GitHub Releases auto-update
-- [ ] Timeline search & advanced filters
+- [x] First-launch welcome (skippable)
+- [x] Timeline search, severity/source filters, JSON export
+- [x] Portable beta package script (`package_beta.ps1`)
+- [ ] Packaged MSI/Inno installer + GitHub Releases auto-update
 - [ ] Crash / WER timeline
 - [ ] ETW engine (future milestone)
 - [ ] Plugin system (future milestone)

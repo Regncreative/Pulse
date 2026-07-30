@@ -121,7 +121,7 @@ bool EventLogSubscriber::StartSubscriptionLocked() {
 
   Logger::Instance().Info(
       "EventLogSubscriber",
-      "[TASK-006] EvtSubscribe Active on " + wevt::WideToUtf8(channel_));
+      "EvtSubscribe Active on " + wevt::WideToUtf8(channel_));
   return true;
 }
 
@@ -160,12 +160,12 @@ void EventLogSubscriber::DeliverEvent(void* event_handle) {
   auto parsed = EventLogCollector::ParseEvtHandle(event_handle, render_ctx);
   if (!parsed) {
     Logger::Instance().Warn("EventLogSubscriber",
-                            "[TASK-006] Event Received but parse failed");
+                            "Event Received but parse failed");
     return;
   }
-  Logger::Instance().Info(
+  Logger::Instance().Debug(
       "EventLogSubscriber",
-      std::string("[TASK-006] Event Received (Wevtapi callback) event_id=") +
+      std::string("Event Received (Wevtapi callback) event_id=") +
           (parsed->event_id ? std::to_string(*parsed->event_id) : "0"));
   try {
     cb(std::move(*parsed));

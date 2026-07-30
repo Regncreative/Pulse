@@ -169,7 +169,7 @@ int InstallService() {
   }
 
   SERVICE_DESCRIPTIONW desc{};
-  wchar_t text[] = L"Read-only Windows diagnostics collector for Pulse (bootstrap)";
+  wchar_t text[] = L"Read-only Windows diagnostics collector for Pulse";
   desc.lpDescription = text;
   ChangeServiceConfig2W(svc, SERVICE_CONFIG_DESCRIPTION, &desc);
 

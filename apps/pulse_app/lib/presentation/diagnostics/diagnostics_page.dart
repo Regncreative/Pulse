@@ -14,6 +14,7 @@ import '../components/pulse_app_bar.dart';
 import '../components/pulse_badge.dart';
 import '../components/pulse_button.dart';
 import '../components/pulse_card.dart';
+import '../components/pulse_empty_state.dart';
 import '../components/pulse_section_header.dart';
 import '../utils/pulse_snack.dart';
 import '../utils/pulse_user_errors.dart';
@@ -90,7 +91,16 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
           connectionLabel: connectionLabel,
         ),
         Expanded(
-          child: LayoutBuilder(
+          child: state == IpcConnectionState.disconnected ||
+                  state == IpcConnectionState.error
+              ? const PulseEmptyState(
+                  useBrandIllustration: true,
+                  title: 'Diagnostics needs PulseService',
+                  message:
+                      'This page shows service health, IPC stats, and the event pipeline so you can troubleshoot connection issues.\n\n'
+                      'Start PulseService to connect — all diagnostics stay on this PC.',
+                )
+              : LayoutBuilder(
             builder: (context, constraints) {
               final wide = constraints.maxWidth >= 980;
               final pagePad = EdgeInsets.fromLTRB(
@@ -272,7 +282,17 @@ class _ServiceCard extends StatelessWidget {
       expand: expand,
       child: Column(
         children: [
-          _kv('Status', connected ? 'Connected' : status.state.name),
+          _kv(
+            'Status',
+            connected
+                ? 'Connected'
+                : switch (status.state) {
+                    IpcConnectionState.connecting => 'Connecting…',
+                    IpcConnectionState.disconnected => 'Offline',
+                    IpcConnectionState.error => 'Connection issue',
+                    IpcConnectionState.connected => 'Connected',
+                  },
+          ),
           _kv(
             'Service version',
             snap?.serviceVersion.isNotEmpty == true

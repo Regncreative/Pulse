@@ -11,10 +11,11 @@ import 'package:pulse_protocol/pulse_wire.dart';
 
 import '../ipc/pulse_ipc_client.dart';
 import '../logging/app_logger.dart';
+import '../presentation/utils/pulse_user_errors.dart';
 import 'settings_controller.dart';
 import 'timeline_session_controller.dart';
 
-/// Owns Diagnostics page polling, actions, and export. TASK-008.
+/// Owns Diagnostics page polling, actions, and export.
 class DiagnosticsController extends ChangeNotifier {
   DiagnosticsController({
     required this.ipc,
@@ -62,7 +63,7 @@ class DiagnosticsController extends ChangeNotifier {
     if (!connected) {
       snapshot = null;
       snapshotError =
-          'PulseService is offline. Start PulseService.exe --console to load service diagnostics.';
+          'PulseService is offline. Start it to load service diagnostics.';
       notifyListeners();
       return;
     }
@@ -71,7 +72,7 @@ class DiagnosticsController extends ChangeNotifier {
       snapshotError = null;
       notifyListeners();
     } catch (e) {
-      snapshotError = e.toString();
+      snapshotError = PulseUserErrors.fromObject(e);
       notifyListeners();
     }
   }
@@ -157,7 +158,7 @@ class DiagnosticsController extends ChangeNotifier {
             snapshot = await ipc.getDiagnosticsSnapshot();
             snapshotError = null;
           } catch (e) {
-            snapshotError = e.toString();
+            snapshotError = PulseUserErrors.fromObject(e);
           }
           try {
             final hs = await ipc.getHealthSnapshot();

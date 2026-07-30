@@ -37,6 +37,14 @@ flutter build windows --debug
 flutter run -d windows
 ```
 
+## Package beta (portable)
+
+```powershell
+.\tools\scripts\package_beta.ps1
+```
+
+Produces `dist\Pulse\` and `dist\Pulse-0.1.0-beta-windows-x64.zip`. See [docs/architecture/25-beta-release.md](docs/architecture/25-beta-release.md).
+
 ## Install service (optional)
 
 ```powershell

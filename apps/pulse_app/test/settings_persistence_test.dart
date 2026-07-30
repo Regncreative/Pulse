@@ -20,6 +20,7 @@ void main() {
     await a.setCompactMode(true);
     await a.setAnimationsEnabled(false);
     await a.setDebugLogging(true);
+    await a.completeWelcome();
 
     final b = SettingsController(logger: AppLogger());
     await b.load();
@@ -32,5 +33,6 @@ void main() {
     expect(b.animationsEnabled, isFalse);
     expect(b.debugLogging, isTrue);
     expect(b.logger.debugEnabled, isTrue);
+    expect(b.welcomeCompleted, isTrue);
   });
 }

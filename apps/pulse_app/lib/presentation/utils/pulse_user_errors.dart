@@ -13,7 +13,12 @@ abstract final class PulseUserErrors {
       return 'The service took too long to respond. Pulse will keep trying.';
     }
     if (lower.contains('createfile') ||
-        (lower.contains('pipe') && lower.contains('2')) ||
+        lower.contains('named pipe') ||
+        (lower.contains('pipe') &&
+            (lower.contains('2') ||
+                lower.contains('fail') ||
+                lower.contains('error') ||
+                lower.contains('broken'))) ||
         lower.contains('offline') ||
         lower.contains('not connected') ||
         lower.contains('disconnected')) {

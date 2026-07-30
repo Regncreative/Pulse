@@ -7,6 +7,7 @@ import '../app/dev_flags.dart';
 import '../features/timeline/mock_timeline_events.dart';
 import '../ipc/pulse_ipc_client.dart';
 import '../logging/app_logger.dart';
+import '../presentation/utils/pulse_user_errors.dart';
 import 'settings_controller.dart';
 
 /// Shared Timeline session so Diagnostics tools can clear / restart live.
@@ -183,7 +184,7 @@ class TimelineSessionController extends ChangeNotifier {
     } catch (e) {
       if (gen != _fetchGeneration) return;
       _loadingSnapshot = false;
-      _loadError = e.toString();
+      _loadError = PulseUserErrors.fromObject(e);
       notifyListeners();
     }
   }

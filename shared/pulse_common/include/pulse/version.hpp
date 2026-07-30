@@ -9,7 +9,7 @@ struct VersionInfo {
   int major = 0;
   int minor = 1;
   int patch = 0;
-  const char* label = "bootstrap";
+  const char* label = "beta";
 
   std::string ToString() const {
     return std::to_string(major) + "." + std::to_string(minor) + "." +

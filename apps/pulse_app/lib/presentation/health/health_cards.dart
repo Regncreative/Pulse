@@ -314,7 +314,7 @@ class HealthHeroCard extends StatelessWidget {
                   ),
             ),
           ],
-          const Spacer(),
+          SizedBox(height: compact ? 8 : 14),
           if (progress != null)
             _HealthProgressBar(
               value: progress,

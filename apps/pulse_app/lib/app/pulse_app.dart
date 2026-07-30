@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../application/settings_controller.dart';
+import '../presentation/onboarding/welcome_page.dart';
 import '../presentation/shell/app_shell.dart';
 import 'theme/pulse_theme.dart';
 
@@ -28,7 +29,13 @@ class PulseApp extends StatelessWidget {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: const AppShell(),
+      home: settings.welcomeCompleted
+          ? const AppShell()
+          : WelcomePage(
+              onFinished: () {
+                settings.completeWelcome();
+              },
+            ),
     );
   }
 }
