@@ -32,4 +32,14 @@ int UninstallService();
 /// Install/update the SCM service (auto-start), start it, wait until RUNNING.
 int InstallAndStartService();
 
+/// Start installed service and wait until RUNNING (or fail).
+int StartInstalledService();
+/// Stop service and wait until STOPPED (or fail).
+int StopInstalledService();
+/// Stop then start; waits for RUNNING.
+int RestartInstalledService();
+/// Print machine-readable SCM state to stdout: one of
+/// not_installed | stopped | start_pending | stop_pending | running | unknown
+int PrintServiceStatus();
+
 }  // namespace pulse

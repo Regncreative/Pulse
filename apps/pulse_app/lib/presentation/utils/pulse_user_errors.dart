@@ -30,8 +30,22 @@ abstract final class PulseUserErrors {
     if (lower.contains('unsupported') || lower.contains('only the system')) {
       return 'That channel is not available in this build.';
     }
-    if (lower.contains('another diagnostics action')) {
-      return 'Wait for the current diagnostics action to finish.';
+    if (lower.contains('another diagnostics action') ||
+        lower.contains('another service action')) {
+      return 'Wait for the current action to finish.';
+    }
+    if (lower.contains('administrator approval was cancelled') ||
+        lower.contains('uac')) {
+      return 'Administrator approval is required to control PulseService.';
+    }
+    if (lower.contains('not installed')) {
+      return 'PulseService is not installed. Use Repair / Install service.';
+    }
+    if (lower.contains('pulseservice.exe was not found') ||
+        lower.contains('pulseservice.exe is missing') ||
+        lower.contains('could not locate the installed pulseservice')) {
+      return 'PulseService.exe is missing from the install folder. '
+          'Reinstall Pulse, then try Repair / Install service.';
     }
     // Strip StateError / Exception wrappers when present.
     final cleaned = raw
@@ -54,7 +68,7 @@ abstract final class PulseUserErrors {
       IpcConnectionState.connecting =>
         'Looking for PulseService on this PC…',
       IpcConnectionState.disconnected || IpcConnectionState.error =>
-        'Offline — start PulseService to observe Windows events.',
+        'Offline — start PulseService from this screen to observe Windows events.',
     };
   }
 }

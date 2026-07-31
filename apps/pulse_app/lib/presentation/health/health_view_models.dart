@@ -652,23 +652,57 @@ class HealthViewState {
   List<HealthDetailRow> get storageRows {
     final s = sample;
     final i = info;
-    final total = s?.diskTotalBytes ?? i?.primaryStorageBytes ?? 0;
-    final used = s?.diskUsedBytes ?? 0;
-    final free = total > used ? total - used : 0;
-    return [
-      HealthDetailRow(
-        label: 'Disk Usage',
-        value: total > 0
-            ? '${formatBytesBinary(used)} of ${formatBytesBinary(total, fractionDigits: 0)}'
-            : kUnavailableDash,
-        available: total > 0,
-        progress: storageProgress,
-      ),
-      HealthDetailRow(
-        label: 'Available Space',
-        value: total > 0 ? '${formatBytesBinary(free)} free' : kUnavailableDash,
-        available: total > 0,
-      ),
+    final volumes = s?.volumes ?? const <HealthVolume>[];
+    final rows = <HealthDetailRow>[];
+
+    if (volumes.isEmpty) {
+      final total = s?.diskTotalBytes ?? i?.primaryStorageBytes ?? 0;
+      final used = s?.diskUsedBytes ?? 0;
+      final free = total > used ? total - used : 0;
+      rows.add(
+        HealthDetailRow(
+          label: 'Disk Usage',
+          value: total > 0
+              ? '${formatBytesBinary(used)} of ${formatBytesBinary(total, fractionDigits: 0)}'
+              : kUnavailableDash,
+          available: total > 0,
+          progress: storageProgress,
+        ),
+      );
+      rows.add(
+        HealthDetailRow(
+          label: 'Available Space',
+          value:
+              total > 0 ? '${formatBytesBinary(free)} free' : kUnavailableDash,
+          available: total > 0,
+        ),
+      );
+    } else {
+      for (final v in volumes) {
+        final label = _volumeRowLabel(v);
+        if (v.hasCapacity && v.totalBytes > 0) {
+          rows.add(
+            HealthDetailRow(
+              label: label,
+              value:
+                  '${formatBytesBinary(v.usedBytes)} of ${formatBytesBinary(v.totalBytes, fractionDigits: 0)}',
+              available: true,
+              progress: (v.usedBytes / v.totalBytes).clamp(0.0, 1.0),
+            ),
+          );
+        } else {
+          rows.add(
+            HealthDetailRow(
+              label: label,
+              value: _volumeUnavailableReason(v),
+              available: false,
+            ),
+          );
+        }
+      }
+    }
+
+    rows.add(
       HealthDetailRow(
         label: 'Read Speed',
         value: s?.hasDiskReadBps == true
@@ -676,6 +710,8 @@ class HealthViewState {
             : kNotSupported,
         available: s?.hasDiskReadBps ?? false,
       ),
+    );
+    rows.add(
       HealthDetailRow(
         label: 'Write Speed',
         value: s?.hasDiskWriteBps == true
@@ -683,7 +719,8 @@ class HealthViewState {
             : kNotSupported,
         available: s?.hasDiskWriteBps ?? false,
       ),
-    ];
+    );
+    return rows;
   }
 
   List<HealthDetailRow> get networkRows {
@@ -716,6 +753,30 @@ class HealthViewState {
       ),
     ];
   }
+}
+
+String _volumeRowLabel(HealthVolume v) {
+  final id = v.id.trim().isEmpty ? v.mountPoint.trim() : v.id.trim();
+  final label = v.label.trim();
+  final kind = switch (v.kind) {
+    HealthDriveKind.remote => 'Network',
+    HealthDriveKind.removable => 'Removable',
+    HealthDriveKind.cdrom => 'Optical',
+    HealthDriveKind.ramdisk => 'RAM',
+    _ => '',
+  };
+  final base = label.isEmpty ? id : '$id $label';
+  if (kind.isEmpty) return base;
+  return '$base ($kind)';
+}
+
+String _volumeUnavailableReason(HealthVolume v) {
+  return switch (v.kind) {
+    HealthDriveKind.remote => 'Network — capacity not queried',
+    HealthDriveKind.removable => 'No media',
+    HealthDriveKind.cdrom => 'No media',
+    _ => kUnavailableDash,
+  };
 }
 
 HealthMetric _unavailableHero(

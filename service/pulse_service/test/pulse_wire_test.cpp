@@ -57,11 +57,17 @@ int main() {
   snap.body = TimelineSnapshot{{ev}, "System", 100, 1722081601000};
 
   std::vector<uint8_t> snap_payload;
-  assert(EncodeEnvelope(snap, &snap_payload));
+  if (!EncodeEnvelope(snap, &snap_payload)) {
+    std::cerr << "timeline encode failed\n";
+    return 2;
+  }
   Envelope snap_decoded;
-  assert(DecodeEnvelope(snap_payload.data(), snap_payload.size(), &snap_decoded));
+  if (!DecodeEnvelope(snap_payload.data(), snap_payload.size(), &snap_decoded) ||
+      !std::holds_alternative<TimelineSnapshot>(snap_decoded.body)) {
+    std::cerr << "timeline decode failed\n";
+    return 2;
+  }
   assert(snap_decoded.request_id == 9);
-  assert(std::holds_alternative<TimelineSnapshot>(snap_decoded.body));
   const auto& out = std::get<TimelineSnapshot>(snap_decoded.body);
   assert(out.channel == "System");
   assert(out.requested_limit == 100);
@@ -84,7 +90,7 @@ int main() {
   assert(std::holds_alternative<GetTimelineSnapshot>(req_decoded.body));
   assert(std::get<GetTimelineSnapshot>(req_decoded.body).limit == 100);
 
-  // HealthSnapshot / HealthUpdate roundtrip (TASK-007).
+  // HealthSnapshot / HealthUpdate roundtrip (TASK-007 + issue #11).
   HealthSample sample;
   sample.unix_ms = 1722081602000;
   sample.has_cpu_percent = true;
@@ -122,6 +128,47 @@ int main() {
   sample.ipv6 = "fe80::1";
   sample.gateway = "192.168.1.1";
   sample.dns = "1.1.1.1";
+  HealthVolume vol_c;
+  vol_c.id = "C:";
+  vol_c.mount_point = "C:\\";
+  vol_c.label = "Windows";
+  vol_c.file_system = "NTFS";
+  vol_c.kind = HealthDriveKind::Fixed;
+  vol_c.used_bytes = 200ull * 1024 * 1024 * 1024;
+  vol_c.total_bytes = 512ull * 1024 * 1024 * 1024;
+  vol_c.has_capacity = true;
+  vol_c.included_in_summary = true;
+  HealthVolume vol_d;
+  vol_d.id = "D:";
+  vol_d.mount_point = "D:\\";
+  vol_d.kind = HealthDriveKind::Fixed;
+  vol_d.used_bytes = 100ull * 1024 * 1024 * 1024;
+  vol_d.total_bytes = 1000ull * 1024 * 1024 * 1024;
+  vol_d.has_capacity = true;
+  vol_d.included_in_summary = true;
+  HealthVolume vol_z;
+  vol_z.id = "Z:";
+  vol_z.mount_point = "Z:\\";
+  vol_z.kind = HealthDriveKind::Remote;
+  vol_z.has_capacity = false;
+  vol_z.included_in_summary = false;
+  sample.volumes.push_back(vol_c);
+  sample.volumes.push_back(vol_d);
+  sample.volumes.push_back(vol_z);
+  HealthPhysicalDisk disk0;
+  disk0.id = "0 C:";
+  disk0.name = "0 C:";
+  disk0.has_read_bps = true;
+  disk0.read_bps = 1048576.0;
+  disk0.has_write_bps = true;
+  disk0.write_bps = 524288.0;
+  HealthPhysicalDisk disk1;
+  disk1.id = "1 D:";
+  disk1.name = "1 D:";
+  disk1.has_read_bps = true;
+  disk1.read_bps = 2048.0;
+  sample.disks.push_back(disk0);
+  sample.disks.push_back(disk1);
   HealthProcessEntry proc;
   proc.pid = 4242;
   proc.name = "chrome.exe";
@@ -150,11 +197,18 @@ int main() {
   health_snap.body = HealthSnapshot{info, sample};
 
   std::vector<uint8_t> health_payload;
-  assert(EncodeEnvelope(health_snap, &health_payload));
+  if (!EncodeEnvelope(health_snap, &health_payload) || health_payload.empty()) {
+    std::cerr << "health encode failed\n";
+    return 3;
+  }
   Envelope health_decoded;
-  assert(DecodeEnvelope(health_payload.data(), health_payload.size(), &health_decoded));
+  if (!DecodeEnvelope(health_payload.data(), health_payload.size(),
+                      &health_decoded) ||
+      !std::holds_alternative<HealthSnapshot>(health_decoded.body)) {
+    std::cerr << "health decode failed\n";
+    return 4;
+  }
   assert(health_decoded.request_id == 11);
-  assert(std::holds_alternative<HealthSnapshot>(health_decoded.body));
   const auto& hs = std::get<HealthSnapshot>(health_decoded.body);
   assert(hs.info.windows_edition == "Windows 11 Pro");
   assert(hs.info.cpu_model == "AMD Ryzen 7");
@@ -177,17 +231,36 @@ int main() {
   assert(hs.sample.top_cpu[0].pid == 4242);
   assert(hs.sample.top_cpu[0].name == "chrome.exe");
   assert(hs.sample.top_cpu[0].cpu_percent == 12.25);
+  // Release builds strip assert(); keep explicit checks for multi-volume fields.
+  if (hs.sample.volumes.size() != 3 || hs.sample.volumes[0].id != "C:" ||
+      hs.sample.volumes[0].kind != HealthDriveKind::Fixed ||
+      !hs.sample.volumes[0].has_capacity ||
+      !hs.sample.volumes[0].included_in_summary ||
+      hs.sample.volumes[1].id != "D:" || hs.sample.volumes[2].id != "Z:" ||
+      hs.sample.volumes[2].kind != HealthDriveKind::Remote ||
+      hs.sample.volumes[2].has_capacity || hs.sample.disks.size() != 2 ||
+      hs.sample.disks[0].id != "0 C:" || !hs.sample.disks[0].has_read_bps ||
+      hs.sample.disks[1].id != "1 D:") {
+    std::cerr << "health volumes/disks mismatch\n";
+    return 5;
+  }
 
   Envelope health_upd;
   health_upd.request_id = 0;
   health_upd.body = HealthUpdate{sample};
 
   std::vector<uint8_t> upd_payload;
-  assert(EncodeEnvelope(health_upd, &upd_payload));
+  if (!EncodeEnvelope(health_upd, &upd_payload)) {
+    std::cerr << "health update encode failed\n";
+    return 6;
+  }
   Envelope upd_decoded;
-  assert(DecodeEnvelope(upd_payload.data(), upd_payload.size(), &upd_decoded));
+  if (!DecodeEnvelope(upd_payload.data(), upd_payload.size(), &upd_decoded) ||
+      !std::holds_alternative<HealthUpdate>(upd_decoded.body)) {
+    std::cerr << "health update decode failed\n";
+    return 6;
+  }
   assert(upd_decoded.request_id == 0);
-  assert(std::holds_alternative<HealthUpdate>(upd_decoded.body));
   const auto& hu = std::get<HealthUpdate>(upd_decoded.body);
   assert(hu.sample.has_cpu_percent == true);
   assert(hu.sample.cpu_percent == 42.5);

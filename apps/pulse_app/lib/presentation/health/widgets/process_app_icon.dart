@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ffi';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:ffi/ffi.dart';
@@ -10,21 +11,30 @@ import 'package:win32/win32.dart';
 
 import '../../../app/theme/pulse_theme.dart';
 
-/// Loads a Windows shell file icon for an executable path (read-only).
+/// Loads a Windows shell file icon for a process (read-only, presentation-only).
 ///
-/// Extraction is serialized and COM-initialized: [SHGetFileInfo] is not safe
-/// to call concurrently from multiple isolates, which caused intermittent
-/// letter-glyph fallbacks for otherwise valid paths.
+/// Prefer [path] from IPC (`HealthProcessEntry.path` / executable path). When
+/// empty, optionally resolve via [pid] in the UI session — LocalService often
+/// cannot [OpenProcess] interactive user apps, so the service may leave path
+/// blank for Chrome/Cursor/etc.
+///
+/// If the path is still unknown (or icon extraction fails), try a well-known
+/// `%SystemRoot%` location for common system binaries, then the letter avatar.
 class ProcessAppIcon extends StatefulWidget {
   const ProcessAppIcon({
     super.key,
     required this.path,
     required this.name,
+    this.pid = 0,
     this.size = 28,
   });
 
+  /// Executable path from PulseService when available.
   final String path;
   final String name;
+
+  /// Used only when [path] is empty (LocalService gap). Prefer service paths.
+  final int pid;
   final double size;
 
   @override
@@ -33,7 +43,7 @@ class ProcessAppIcon extends StatefulWidget {
 
 class _ProcessAppIconState extends State<ProcessAppIcon> {
   ui.Image? _image;
-  bool _loading = false;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -44,24 +54,40 @@ class _ProcessAppIconState extends State<ProcessAppIcon> {
   @override
   void didUpdateWidget(covariant ProcessAppIcon oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.path != widget.path) {
-      _image = null;
+    if (oldWidget.path != widget.path ||
+        oldWidget.pid != widget.pid ||
+        oldWidget.name != widget.name) {
+      setState(() => _image = null);
       _load();
     }
   }
 
   Future<void> _load() async {
-    final key = widget.path.trim().toLowerCase();
-    if (key.isEmpty) return;
-    if (_loading) return;
-    _loading = true;
-    try {
-      final img = await _ProcessIconCache.load(widget.path);
-      if (!mounted) return;
-      setState(() => _image = img);
-    } finally {
-      _loading = false;
+    final generation = ++_loadGeneration;
+    final candidates = <String>[];
+
+    void addCandidate(String? p) {
+      final t = p?.trim() ?? '';
+      if (t.isEmpty) return;
+      final key = t.toLowerCase();
+      if (candidates.any((c) => c.toLowerCase() == key)) return;
+      candidates.add(t);
     }
+
+    addCandidate(widget.path);
+    if (widget.path.trim().isEmpty && widget.pid > 0) {
+      addCandidate(_ProcessPathCache.resolve(widget.pid, widget.name));
+    }
+    addCandidate(knownSystemExecutablePath(widget.name));
+
+    ui.Image? img;
+    for (final path in candidates) {
+      img = await _ProcessIconCache.load(path);
+      if (img != null) break;
+    }
+
+    if (!mounted || generation != _loadGeneration) return;
+    setState(() => _image = img);
   }
 
   @override
@@ -81,6 +107,118 @@ class _ProcessAppIconState extends State<ProcessAppIcon> {
     }
     return _FallbackGlyph(name: widget.name, size: size);
   }
+}
+
+/// Maps common system process names to on-disk executables under SystemRoot.
+///
+/// Returns null when the name is not a known system binary.
+@visibleForTesting
+String? knownSystemExecutablePath(String name) {
+  final file = _baseFileName(name).toLowerCase();
+  if (file.isEmpty) return null;
+
+  final root = _systemRoot();
+  if (root == null || root.isEmpty) return null;
+  final sys = '$root\\System32';
+
+  if (file == 'explorer.exe') {
+    return '$root\\explorer.exe';
+  }
+
+  const system32 = <String>{
+    'svchost.exe',
+    'dwm.exe',
+    'csrss.exe',
+    'wininit.exe',
+    'services.exe',
+    'lsass.exe',
+    'winlogon.exe',
+    'smss.exe',
+    'fontdrvhost.exe',
+    'sihost.exe',
+    'taskhostw.exe',
+    'runtimebroker.exe',
+  };
+  if (system32.contains(file)) {
+    return '$sys\\$file';
+  }
+  return null;
+}
+
+String _baseFileName(String pathOrName) {
+  final trimmed = pathOrName.trim();
+  if (trimmed.isEmpty) return '';
+  final slash = trimmed.replaceAll('/', '\\').lastIndexOf('\\');
+  return slash < 0 ? trimmed : trimmed.substring(slash + 1);
+}
+
+String? _systemRoot() {
+  final fromEnv =
+      Platform.environment['SystemRoot'] ?? Platform.environment['SYSTEMROOT'];
+  if (fromEnv != null && fromEnv.trim().isNotEmpty) {
+    return fromEnv.trim();
+  }
+  // Fallback: parent of GetSystemDirectoryW (…\Windows\System32 → …\Windows).
+  final buf = wsalloc(MAX_PATH);
+  try {
+    final n = GetSystemDirectory(buf, MAX_PATH);
+    if (n == 0 || n > MAX_PATH) return null;
+    final sys = buf.toDartString().trim();
+    if (sys.isEmpty) return null;
+    final slash = sys.replaceAll('/', '\\').lastIndexOf('\\');
+    if (slash <= 0) return null;
+    return sys.substring(0, slash);
+  } finally {
+    calloc.free(buf);
+  }
+}
+
+/// Resolves process image paths by PID (cached).
+///
+/// Fallback for when PulseService (LocalService) cannot open the process.
+class _ProcessPathCache {
+  static final Map<String, String?> _paths = {};
+
+  static String? resolve(int pid, String name) {
+    if (pid <= 0) return null;
+    final key = '$pid:${name.trim().toLowerCase()}';
+    if (_paths.containsKey(key)) return _paths[key];
+    final path = _queryProcessImagePath(pid);
+    _paths[key] = path;
+    return path;
+  }
+}
+
+String? _queryProcessImagePath(int pid) {
+  final handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+  if (handle == 0) return null;
+
+  try {
+    var capacity = MAX_PATH;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final buf = wsalloc(capacity);
+      final size = calloc<DWORD>()..value = capacity;
+      try {
+        final ok = QueryFullProcessImageName(handle, 0, buf, size);
+        if (ok != 0) {
+          final path = buf.toDartString().trim();
+          return path.isEmpty ? null : path;
+        }
+        if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+          final needed = size.value;
+          capacity = needed > capacity ? needed + 1 : capacity * 2;
+          continue;
+        }
+        return null;
+      } finally {
+        calloc.free(buf);
+        calloc.free(size);
+      }
+    }
+  } finally {
+    CloseHandle(handle);
+  }
+  return null;
 }
 
 /// Process-wide icon cache + single-flight extractor queue.

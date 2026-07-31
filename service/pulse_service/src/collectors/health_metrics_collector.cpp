@@ -1,11 +1,13 @@
-#include "collectors/health_metrics_collector.hpp"
+﻿#include "collectors/health_metrics_collector.hpp"
 
 #include "logging/logger.hpp"
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <cstring>
 #include <map>
+#include <set>
 #include <vector>
 
 #define WIN32_LEAN_AND_MEAN
@@ -67,6 +69,81 @@ std::string TrimCopy(std::string s) {
   return s.substr(i);
 }
 
+std::string AsciiLowerCopy(std::string s) {
+  for (char& c : s) {
+    if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+  }
+  return s;
+}
+
+std::string BaseFileNameAscii(const std::string& path_or_name) {
+  const auto slash = path_or_name.find_last_of("\\/");
+  if (slash == std::string::npos) return path_or_name;
+  return path_or_name.substr(slash + 1);
+}
+
+/// Well-known system binaries whose on-disk path is stable under %SystemRoot%.
+/// Used when OpenProcess is denied (PPL / LocalService) so the UI can still
+/// extract the shell icon from the file.
+std::string KnownSystemExecutablePath(const std::string& name) {
+  const std::string file = AsciiLowerCopy(BaseFileNameAscii(name));
+  if (file.empty()) return {};
+
+  wchar_t windows_dir[MAX_PATH]{};
+  wchar_t system_dir[MAX_PATH]{};
+  if (GetWindowsDirectoryW(windows_dir, MAX_PATH) == 0) return {};
+  if (GetSystemDirectoryW(system_dir, MAX_PATH) == 0) return {};
+
+  const std::string win = NarrowFromWide(windows_dir);
+  const std::string sys = NarrowFromWide(system_dir);
+  if (win.empty() || sys.empty()) return {};
+
+  if (file == "explorer.exe") {
+    return win + "\\explorer.exe";
+  }
+
+  static constexpr const char* kSystem32[] = {
+      "svchost.exe",   "dwm.exe",         "csrss.exe",    "wininit.exe",
+      "services.exe",  "lsass.exe",       "winlogon.exe", "smss.exe",
+      "fontdrvhost.exe", "sihost.exe",    "taskhostw.exe",
+      "runtimebroker.exe",
+  };
+  for (const char* known : kSystem32) {
+    if (file == known) {
+      return sys + "\\" + known;
+    }
+  }
+  return {};
+}
+
+/// Resolve executable path for IPC (wire field `path`).
+/// Prefer QueryFullProcessImageName when LocalService can open the process;
+/// otherwise fall back to a known SystemRoot path for common system binaries.
+std::string ResolveProcessExecutablePath(uint32_t pid, const std::string& name) {
+  if (pid > 0) {
+    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (h != nullptr) {
+      wchar_t path[MAX_PATH * 4];
+      DWORD size = static_cast<DWORD>(sizeof(path) / sizeof(path[0]));
+      std::string resolved;
+      if (QueryFullProcessImageNameW(h, 0, path, &size) && path[0] != L'\0') {
+        resolved = NarrowFromWide(path);
+      }
+      CloseHandle(h);
+      if (!resolved.empty()) return resolved;
+    }
+  }
+  return KnownSystemExecutablePath(name);
+}
+
+void FillExecutablePaths(std::vector<ipc::HealthProcessEntry>* entries) {
+  if (entries == nullptr) return;
+  for (auto& e : *entries) {
+    if (!e.path.empty()) continue;
+    e.path = ResolveProcessExecutablePath(e.pid, e.name);
+  }
+}
+
 template <typename ScoreFn>
 void KeepTopN(std::vector<ipc::HealthProcessEntry>* entries, size_t n,
               ScoreFn score) {
@@ -96,6 +173,98 @@ uint32_t ParsePidFromGpuInstance(const wchar_t* name) {
   return pid;
 }
 
+// --- NtQuerySystemInformation(SystemProcessInformation) ---
+// Same process snapshot family Task Manager uses. No OpenProcess / no PDH
+// Process(*) counters. Layout matches Vista+ / Win7+ (Process Hacker / PHNT).
+
+constexpr ULONG kSystemProcessInformation = 5;
+constexpr LONG kStatusSuccess = 0;
+constexpr LONG kStatusInfoLengthMismatch = static_cast<LONG>(0xC0000004L);
+
+using NtQuerySystemInformationFn = LONG(WINAPI*)(ULONG, PVOID, ULONG, PULONG);
+
+#pragma pack(push, 8)
+struct PulseUnicodeString {
+  USHORT Length = 0;
+  USHORT MaximumLength = 0;
+  PWSTR Buffer = nullptr;
+};
+
+struct PulseSystemProcessInformation {
+  ULONG NextEntryOffset = 0;
+  ULONG NumberOfThreads = 0;
+  LARGE_INTEGER WorkingSetPrivateSize{};
+  ULONG HardFaultCount = 0;
+  ULONG NumberOfThreadsHighWatermark = 0;
+  ULONGLONG CycleTime = 0;
+  LARGE_INTEGER CreateTime{};
+  LARGE_INTEGER UserTime{};
+  LARGE_INTEGER KernelTime{};
+  PulseUnicodeString ImageName{};
+  LONG BasePriority = 0;
+  HANDLE UniqueProcessId = nullptr;
+  HANDLE InheritedFromUniqueProcessId = nullptr;
+  ULONG HandleCount = 0;
+  ULONG SessionId = 0;
+  ULONG_PTR UniqueProcessKey = 0;
+  SIZE_T PeakVirtualSize = 0;
+  SIZE_T VirtualSize = 0;
+  ULONG PageFaultCount = 0;
+  SIZE_T PeakWorkingSetSize = 0;
+  SIZE_T WorkingSetSize = 0;
+  SIZE_T QuotaPeakPagedPoolUsage = 0;
+  SIZE_T QuotaPagedPoolUsage = 0;
+  SIZE_T QuotaPeakNonPagedPoolUsage = 0;
+  SIZE_T QuotaNonPagedPoolUsage = 0;
+  SIZE_T PagefileUsage = 0;
+  SIZE_T PeakPagefileUsage = 0;
+  SIZE_T PrivatePageCount = 0;
+  LARGE_INTEGER ReadOperationCount{};
+  LARGE_INTEGER WriteOperationCount{};
+  LARGE_INTEGER OtherOperationCount{};
+  LARGE_INTEGER ReadTransferCount{};
+  LARGE_INTEGER WriteTransferCount{};
+  LARGE_INTEGER OtherTransferCount{};
+};
+#pragma pack(pop)
+
+// Verified against Vista+/Win7+ SYSTEM_PROCESS_INFORMATION (x64).
+static_assert(offsetof(PulseSystemProcessInformation, UserTime) == 40,
+              "SYSTEM_PROCESS_INFORMATION UserTime offset");
+static_assert(offsetof(PulseSystemProcessInformation, KernelTime) == 48,
+              "SYSTEM_PROCESS_INFORMATION KernelTime offset");
+static_assert(offsetof(PulseSystemProcessInformation, ImageName) == 56,
+              "SYSTEM_PROCESS_INFORMATION ImageName offset");
+static_assert(offsetof(PulseSystemProcessInformation, UniqueProcessId) == 80,
+              "SYSTEM_PROCESS_INFORMATION UniqueProcessId offset");
+static_assert(offsetof(PulseSystemProcessInformation, HandleCount) == 96,
+              "SYSTEM_PROCESS_INFORMATION HandleCount offset");
+static_assert(offsetof(PulseSystemProcessInformation, WorkingSetSize) == 144,
+              "SYSTEM_PROCESS_INFORMATION WorkingSetSize offset");
+
+NtQuerySystemInformationFn ResolveNtQuerySystemInformation() {
+  static NtQuerySystemInformationFn fn = []() -> NtQuerySystemInformationFn {
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    if (ntdll == nullptr) return nullptr;
+    return reinterpret_cast<NtQuerySystemInformationFn>(
+        GetProcAddress(ntdll, "NtQuerySystemInformation"));
+  }();
+  return fn;
+}
+
+std::string ProcessNameFromSpi(const PulseSystemProcessInformation& info) {
+  const uint32_t pid =
+      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.UniqueProcessId));
+  if (info.ImageName.Buffer != nullptr && info.ImageName.Length > 0) {
+    const size_t chars = info.ImageName.Length / sizeof(wchar_t);
+    std::wstring w(info.ImageName.Buffer, chars);
+    return NarrowFromWide(w.c_str());
+  }
+  if (pid == 0) return "System Idle Process";
+  if (pid == 4) return "System";
+  return "pid_" + std::to_string(pid);
+}
+
 }  // namespace
 
 HealthMetricsCollector::HealthMetricsCollector() = default;
@@ -119,6 +288,17 @@ bool HealthMetricsCollector::Initialize() {
       pdh_disk_read_ = read_counter;
       pdh_disk_write_ = write_counter;
       pdh_disk_ok_ = true;
+    }
+
+    PDH_HCOUNTER read_all = nullptr;
+    PDH_HCOUNTER write_all = nullptr;
+    if (PdhAddEnglishCounterW(query, L"\\PhysicalDisk(*)\\Disk Read Bytes/sec",
+                              0, &read_all) == ERROR_SUCCESS &&
+        PdhAddEnglishCounterW(query, L"\\PhysicalDisk(*)\\Disk Write Bytes/sec",
+                              0, &write_all) == ERROR_SUCCESS) {
+      pdh_disk_read_all_ = read_all;
+      pdh_disk_write_all_ = write_all;
+      pdh_disk_instances_ok_ = true;
     }
 
     // Task Manager GPU graph: max utilization across all GPU engines.
@@ -212,7 +392,7 @@ bool HealthMetricsCollector::Initialize() {
   active_adapter_ = QueryActiveAdapterName();
   initialized_ = true;
   Logger::Instance().Info("HealthMetrics",
-                          "Collector initialized (Task Manager–aligned counters)");
+                          "Collector initialized (Task Managerâ€“aligned counters)");
   return true;
 }
 
@@ -224,6 +404,8 @@ void HealthMetricsCollector::Shutdown() {
   }
   pdh_disk_read_ = nullptr;
   pdh_disk_write_ = nullptr;
+  pdh_disk_read_all_ = nullptr;
+  pdh_disk_write_all_ = nullptr;
   pdh_gpu_ = nullptr;
   pdh_cpu_perf_ = nullptr;
   pdh_cpu_utility_ = nullptr;
@@ -234,6 +416,7 @@ void HealthMetricsCollector::Shutdown() {
   pdh_mem_standby_normal_ = nullptr;
   pdh_mem_standby_core_ = nullptr;
   pdh_disk_ok_ = false;
+  pdh_disk_instances_ok_ = false;
   pdh_gpu_ok_ = false;
   pdh_cpu_perf_ok_ = false;
   pdh_cpu_utility_ok_ = false;
@@ -289,7 +472,7 @@ std::optional<double> HealthMetricsCollector::SampleCpuPercentFromSystemTimes() 
 }
 
 std::optional<double> HealthMetricsCollector::SampleCpuPercent() {
-  // Prefer % Processor Utility — same counter family as Task Manager Performance.
+  // Prefer % Processor Utility â€” same counter family as Task Manager Performance.
   if (pdh_cpu_utility_ok_ && pdh_cpu_utility_ != nullptr) {
     CollectPdhOnce();
     PDH_FMT_COUNTERVALUE val{};
@@ -314,7 +497,7 @@ void HealthMetricsCollector::SampleMemory(ipc::HealthSample* out) {
   if (!GlobalMemoryStatusEx(&mem)) return;
   out->memory_total_bytes = mem.ullTotalPhys;
   out->memory_available_bytes = mem.ullAvailPhys;
-  // Task Manager "In use" ≈ Total − Available (MS memory performance docs).
+  // Task Manager "In use" â‰ˆ Total âˆ’ Available (MS memory performance docs).
   out->memory_used_bytes = mem.ullTotalPhys - mem.ullAvailPhys;
 
   PERFORMANCE_INFORMATION pi{};
@@ -370,12 +553,162 @@ void HealthMetricsCollector::SampleCachedMemoryFromPdh(ipc::HealthSample* out) {
 }
 
 void HealthMetricsCollector::SampleDiskSpace(ipc::HealthSample* out) {
-  ULARGE_INTEGER free_bytes{}, total_bytes{}, total_free{};
-  if (!GetDiskFreeSpaceExW(L"C:\\", &free_bytes, &total_bytes, &total_free)) {
+  // Enumerate logical drives. Policy (issue #11):
+  // - Fixed: always listed; capacity queried; included in primary summary.
+  // - Removable / CD-ROM: listed only when media is present (capacity query OK).
+  // - Remote/network: listed by letter; capacity NOT queried each sample
+  //   (avoids SMB hangs); has_capacity=false.
+  // - Unavailable roots: skipped.
+  wchar_t drives[512];
+  const DWORD n = GetLogicalDriveStringsW(
+      static_cast<DWORD>(std::size(drives) - 1), drives);
+  if (n == 0 || n >= std::size(drives)) return;
+
+  out->volumes.clear();
+
+  for (wchar_t* p = drives; *p != L'\0'; p += wcslen(p) + 1) {
+    const UINT type = GetDriveTypeW(p);
+    ipc::HealthVolume vol;
+    vol.mount_point = NarrowFromWide(p);
+    if (vol.mount_point.size() >= 2 && vol.mount_point[1] == ':') {
+      vol.id = vol.mount_point.substr(0, 2);
+    } else {
+      vol.id = vol.mount_point;
+    }
+
+    switch (type) {
+      case DRIVE_FIXED:
+        vol.kind = ipc::HealthDriveKind::Fixed;
+        vol.included_in_summary = true;
+        break;
+      case DRIVE_REMOVABLE:
+        vol.kind = ipc::HealthDriveKind::Removable;
+        break;
+      case DRIVE_REMOTE:
+        vol.kind = ipc::HealthDriveKind::Remote;
+        break;
+      case DRIVE_CDROM:
+        vol.kind = ipc::HealthDriveKind::CdRom;
+        break;
+      case DRIVE_RAMDISK:
+        vol.kind = ipc::HealthDriveKind::RamDisk;
+        break;
+      case DRIVE_NO_ROOT_DIR:
+        continue;
+      default:
+        vol.kind = ipc::HealthDriveKind::Unknown;
+        break;
+    }
+
+    // Skip volume info + capacity for network drives (avoid SMB/DFS hangs).
+    if (vol.kind != ipc::HealthDriveKind::Remote) {
+      wchar_t label[MAX_PATH] = {};
+      wchar_t fs_name[MAX_PATH] = {};
+      DWORD serial = 0;
+      DWORD max_comp = 0;
+      DWORD flags = 0;
+      if (GetVolumeInformationW(p, label, MAX_PATH, &serial, &max_comp, &flags,
+                                fs_name, MAX_PATH)) {
+        vol.label = NarrowFromWide(label);
+        vol.file_system = NarrowFromWide(fs_name);
+      }
+
+      ULARGE_INTEGER free_bytes{}, total_bytes{}, total_free{};
+      if (GetDiskFreeSpaceExW(p, &free_bytes, &total_bytes, &total_free) &&
+          total_bytes.QuadPart > 0) {
+        vol.has_capacity = true;
+        vol.total_bytes = total_bytes.QuadPart;
+        vol.used_bytes = total_bytes.QuadPart - free_bytes.QuadPart;
+      } else if (vol.kind == ipc::HealthDriveKind::Removable ||
+                 vol.kind == ipc::HealthDriveKind::CdRom) {
+        // No media â€” omit from inventory.
+        continue;
+      }
+    }
+
+    out->volumes.push_back(std::move(vol));
+  }
+
+  // Primary summary scalars: prefer C:, else first fixed volume with capacity.
+  const ipc::HealthVolume* primary = nullptr;
+  for (const auto& v : out->volumes) {
+    if (!v.included_in_summary || !v.has_capacity) continue;
+    if (v.id == "C:") {
+      primary = &v;
+      break;
+    }
+    if (primary == nullptr) primary = &v;
+  }
+  if (primary != nullptr) {
+    out->disk_total_bytes = primary->total_bytes;
+    out->disk_used_bytes = primary->used_bytes;
+  }
+}
+
+void HealthMetricsCollector::SamplePhysicalDisks(ipc::HealthSample* out) {
+  if (!pdh_disk_instances_ok_ || pdh_query_ == nullptr ||
+      pdh_disk_read_all_ == nullptr || pdh_disk_write_all_ == nullptr) {
     return;
   }
-  out->disk_total_bytes = total_bytes.QuadPart;
-  out->disk_used_bytes = total_bytes.QuadPart - free_bytes.QuadPart;
+  CollectPdhOnce();
+  if (!pdh_collected_this_sample_) return;
+
+  auto read_array = [](PDH_HCOUNTER counter,
+                       std::map<std::wstring, double>* values) {
+    values->clear();
+    DWORD buffer_size = 0;
+    DWORD item_count = 0;
+    PDH_STATUS st = PdhGetFormattedCounterArrayW(
+        counter, PDH_FMT_DOUBLE, &buffer_size, &item_count, nullptr);
+    if (st != PDH_MORE_DATA && st != ERROR_SUCCESS) return;
+    if (buffer_size == 0 || item_count == 0) return;
+    std::vector<uint8_t> buffer(buffer_size);
+    auto* items =
+        reinterpret_cast<PDH_FMT_COUNTERVALUE_ITEM_W*>(buffer.data());
+    st = PdhGetFormattedCounterArrayW(counter, PDH_FMT_DOUBLE, &buffer_size,
+                                      &item_count, items);
+    if (st != ERROR_SUCCESS || item_count == 0) return;
+    for (DWORD i = 0; i < item_count; ++i) {
+      if (items[i].szName == nullptr) continue;
+      if (_wcsicmp(items[i].szName, L"_Total") == 0) continue;
+      if (items[i].FmtValue.CStatus != ERROR_SUCCESS &&
+          items[i].FmtValue.CStatus != PDH_CSTATUS_VALID_DATA) {
+        continue;
+      }
+      (*values)[items[i].szName] = items[i].FmtValue.doubleValue;
+    }
+  };
+
+  std::map<std::wstring, double> reads;
+  std::map<std::wstring, double> writes;
+  read_array(static_cast<PDH_HCOUNTER>(pdh_disk_read_all_), &reads);
+  read_array(static_cast<PDH_HCOUNTER>(pdh_disk_write_all_), &writes);
+
+  out->disks.clear();
+  std::set<std::wstring> ids;
+  for (const auto& kv : reads) ids.insert(kv.first);
+  for (const auto& kv : writes) ids.insert(kv.first);
+
+  for (const auto& id_w : ids) {
+    ipc::HealthPhysicalDisk disk;
+    disk.id = NarrowFromWide(id_w.c_str());
+    disk.name = disk.id;
+    const auto rit = reads.find(id_w);
+    if (rit != reads.end()) {
+      disk.has_read_bps = true;
+      disk.read_bps = rit->second;
+    }
+    const auto wit = writes.find(id_w);
+    if (wit != writes.end()) {
+      disk.has_write_bps = true;
+      disk.write_bps = wit->second;
+    }
+    out->disks.push_back(std::move(disk));
+  }
+
+  std::sort(out->disks.begin(), out->disks.end(),
+            [](const ipc::HealthPhysicalDisk& a,
+               const ipc::HealthPhysicalDisk& b) { return a.id < b.id; });
 }
 
 void HealthMetricsCollector::SampleUptime(ipc::HealthSample* out) {
@@ -404,7 +737,7 @@ void HealthMetricsCollector::SampleNetwork(ipc::HealthSample* out) {
            has(alias, L"VPN");
   };
 
-  // Prefer a non-virtual up adapter with the most cumulative traffic —
+  // Prefer a non-virtual up adapter with the most cumulative traffic â€”
   // closest to Task Manager's default selected NIC without UI selection.
   const MIB_IF_ROW2* best = nullptr;
   uint64_t best_traffic = 0;
@@ -548,7 +881,7 @@ void HealthMetricsCollector::SampleGpuPercent(ipc::HealthSample* out) {
                                     items);
   if (st != ERROR_SUCCESS || item_count == 0) return;
 
-  // Task Manager overall GPU % ≈ highest engine utilization.
+  // Task Manager overall GPU % â‰ˆ highest engine utilization.
   double max_util = 0.0;
   bool any = false;
   for (DWORD i = 0; i < item_count; ++i) {
@@ -588,7 +921,7 @@ void HealthMetricsCollector::SampleCpuCores(ipc::HealthSample* out) {
                                     items);
   if (st != ERROR_SUCCESS || item_count == 0) return;
 
-  // Processor Information instances are "0,0", "0,1", … — sort by name.
+  // Processor Information instances are "0,0", "0,1", â€¦ â€” sort by name.
   struct CoreVal {
     std::wstring name;
     double value = 0;
@@ -656,22 +989,17 @@ void HealthMetricsCollector::SampleTopGpuFromPdh(ipc::HealthSample* out) {
     e.pid = pid;
     e.has_gpu_percent = true;
     e.gpu_percent = util;
-    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-    if (h != nullptr) {
-      wchar_t path[MAX_PATH];
-      DWORD size = MAX_PATH;
-      if (QueryFullProcessImageNameW(h, 0, path, &size)) {
-        e.path = NarrowFromWide(path);
-        const wchar_t* base = wcsrchr(path, L'\\');
-        e.name = NarrowFromWide(base ? base + 1 : path);
-      }
-      CloseHandle(h);
+    e.path = ResolveProcessExecutablePath(pid, {});
+    if (!e.path.empty()) {
+      const auto slash = e.path.find_last_of("\\/");
+      e.name = slash == std::string::npos ? e.path : e.path.substr(slash + 1);
     }
     if (e.name.empty()) e.name = "pid_" + std::to_string(pid);
     entries.push_back(std::move(e));
   }
   KeepTopN(&entries, kTopProcessLimit,
            [](const ipc::HealthProcessEntry& e) { return e.gpu_percent; });
+  FillExecutablePaths(&entries);
   out->top_gpu = std::move(entries);
 }
 
@@ -770,6 +1098,15 @@ void HealthMetricsCollector::SampleNetworkAddresses(ipc::HealthSample* out) {
 }
 
 void HealthMetricsCollector::SampleTopProcesses(ipc::HealthSample* out) {
+  // Task Manager–style process inventory: NtQuerySystemInformation(
+  // SystemProcessInformation). No OpenProcess, no PDH Process(*) counters.
+  auto* NtQuery = ResolveNtQuerySystemInformation();
+  if (NtQuery == nullptr) {
+    Logger::Instance().Warn("HealthMetrics",
+                            "NtQuerySystemInformation unavailable");
+    return;
+  }
+
   const uint64_t now_ms = GetTickCount64();
   const double dt_s = have_proc_baseline_
                           ? (std::max)(0.001, (now_ms - prev_proc_tick_ms_) /
@@ -778,152 +1115,112 @@ void HealthMetricsCollector::SampleTopProcesses(ipc::HealthSample* out) {
   const double logical =
       static_cast<double>((std::max)(1u, cpu_logical_));
 
-  HANDLE snap =
-      CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-  if (snap == INVALID_HANDLE_VALUE) return;
+  ULONG needed = 0;
+  LONG st = NtQuery(kSystemProcessInformation, nullptr, 0, &needed);
+  if (st != kStatusInfoLengthMismatch && st != kStatusSuccess) {
+    Logger::Instance().Warn(
+        "HealthMetrics",
+        "NtQuerySystemInformation size probe failed status=" +
+            std::to_string(static_cast<unsigned long>(st)));
+    return;
+  }
 
-  PROCESSENTRY32W pe{};
-  pe.dwSize = sizeof(pe);
+  std::vector<uint8_t> buffer;
+  for (int attempt = 0; attempt < 6; ++attempt) {
+    if (needed < sizeof(PulseSystemProcessInformation)) {
+      needed = static_cast<ULONG>(sizeof(PulseSystemProcessInformation) * 64);
+    }
+    // Grow slightly — process list can change between probes.
+    const ULONG alloc = needed + (needed / 4) + 4096;
+    buffer.assign(alloc, 0);
+    needed = 0;
+    st = NtQuery(kSystemProcessInformation, buffer.data(), alloc, &needed);
+    if (st == kStatusSuccess) break;
+    if (st != kStatusInfoLengthMismatch) {
+      Logger::Instance().Warn(
+          "HealthMetrics",
+          "NtQuerySystemInformation failed status=" +
+              std::to_string(static_cast<unsigned long>(st)));
+      return;
+    }
+  }
+  if (st != kStatusSuccess || buffer.empty()) return;
+
   std::unordered_map<uint32_t, ProcCpuPrev> next_cpu;
   std::unordered_map<uint32_t, ProcIoPrev> next_io;
-  std::unordered_map<uint32_t, uint64_t> next_net;
-
   std::vector<ipc::HealthProcessEntry> cpu_rows;
   std::vector<ipc::HealthProcessEntry> mem_rows;
   std::vector<ipc::HealthProcessEntry> disk_rows;
 
-  if (Process32FirstW(snap, &pe)) {
-    do {
-      const uint32_t pid = pe.th32ProcessID;
-      if (pid == 0) continue;  // System Idle
-      const std::string name = NarrowFromWide(pe.szExeFile);
+  size_t offset = 0;
+  for (;;) {
+    if (offset + sizeof(PulseSystemProcessInformation) > buffer.size()) break;
+    const auto* info = reinterpret_cast<const PulseSystemProcessInformation*>(
+        buffer.data() + offset);
 
-      HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION |
-                                 PROCESS_VM_READ,
-                             FALSE, pid);
-      if (h == nullptr) {
-        // Retry without VM_READ for protected processes.
-        h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-      }
-      if (h == nullptr) continue;
+    const uint32_t pid = static_cast<uint32_t>(
+        reinterpret_cast<uintptr_t>(info->UniqueProcessId));
+    // Skip Idle (PID 0). Keep System (4) and everything else — Task Manager
+    // Processes list excludes Idle from the interactive top consumers.
+    if (pid != 0) {
+      const std::string name = ProcessNameFromSpi(*info);
+      const uint64_t cpu_100ns = static_cast<uint64_t>(info->KernelTime.QuadPart) +
+                                static_cast<uint64_t>(info->UserTime.QuadPart);
+      next_cpu[pid] = ProcCpuPrev{cpu_100ns};
 
-      std::string image_path;
-      {
-        wchar_t path_buf[MAX_PATH];
-        DWORD psz = MAX_PATH;
-        if (QueryFullProcessImageNameW(h, 0, path_buf, &psz)) {
-          image_path = NarrowFromWide(path_buf);
+      const uint64_t io_bytes =
+          static_cast<uint64_t>(info->ReadTransferCount.QuadPart) +
+          static_cast<uint64_t>(info->WriteTransferCount.QuadPart);
+      next_io[pid] = ProcIoPrev{io_bytes};
+
+      ipc::HealthProcessEntry base;
+      base.pid = pid;
+      base.name = name;
+      base.thread_count = info->NumberOfThreads;
+      base.handle_count = info->HandleCount;
+      base.has_memory_bytes = true;
+      base.memory_bytes = static_cast<uint64_t>(info->WorkingSetSize);
+
+      if (have_proc_baseline_) {
+        const auto it = prev_proc_cpu_.find(pid);
+        if (it != prev_proc_cpu_.end() && cpu_100ns >= it->second.cpu_100ns) {
+          const uint64_t delta = cpu_100ns - it->second.cpu_100ns;
+          // 100ns units → seconds, then share of all logical processors.
+          const double pct =
+              (static_cast<double>(delta) / 10'000'000.0) / dt_s / logical *
+              100.0;
+          if (pct > 0.01) {
+            ipc::HealthProcessEntry e = base;
+            e.has_cpu_percent = true;
+            e.cpu_percent = (std::min)(pct, 100.0);
+            cpu_rows.push_back(std::move(e));
+          }
         }
-      }
 
-      FILETIME create{}, exit_t{}, kernel{}, user{};
-      uint64_t cpu_100ns = 0;
-      if (GetProcessTimes(h, &create, &exit_t, &kernel, &user)) {
-        cpu_100ns = FileTimeToU64(kernel) + FileTimeToU64(user);
-        next_cpu[pid] = ProcCpuPrev{cpu_100ns};
-        if (have_proc_baseline_) {
-          const auto it = prev_proc_cpu_.find(pid);
-          if (it != prev_proc_cpu_.end() && cpu_100ns >= it->second.cpu_100ns) {
-            const uint64_t delta = cpu_100ns - it->second.cpu_100ns;
-            // FILETIME is 100ns units.
-            const double pct =
-                (static_cast<double>(delta) / 10'000'000.0) / dt_s / logical *
-                100.0;
-            if (pct > 0.05) {
-              ipc::HealthProcessEntry e;
-              e.pid = pid;
-              e.name = name;
-              e.path = image_path;
-              e.has_cpu_percent = true;
-              e.cpu_percent = (std::min)(pct, 100.0 * logical);
-              cpu_rows.push_back(std::move(e));
-            }
+        const auto io_it = prev_proc_io_.find(pid);
+        if (io_it != prev_proc_io_.end() && io_bytes >= io_it->second.bytes) {
+          const double bps =
+              static_cast<double>(io_bytes - io_it->second.bytes) / dt_s;
+          if (bps > 1024.0) {
+            ipc::HealthProcessEntry e = base;
+            e.has_disk_bps = true;
+            e.disk_bps = bps;
+            disk_rows.push_back(std::move(e));
           }
         }
       }
 
-      PROCESS_MEMORY_COUNTERS_EX pmc{};
-      pmc.cb = sizeof(pmc);
-      if (GetProcessMemoryInfo(h, reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmc),
-                               sizeof(pmc))) {
-        ipc::HealthProcessEntry e;
-        e.pid = pid;
-        e.name = name;
-        e.path = image_path;
-        e.has_memory_bytes = true;
-        e.memory_bytes = pmc.WorkingSetSize;
-        if (e.memory_bytes > 1024 * 1024) {
-          mem_rows.push_back(std::move(e));
-        }
+      if (base.memory_bytes > 1024 * 1024) {
+        mem_rows.push_back(std::move(base));
       }
-
-      IO_COUNTERS io{};
-      if (GetProcessIoCounters(h, &io)) {
-        const uint64_t bytes = io.ReadTransferCount + io.WriteTransferCount;
-        next_io[pid] = ProcIoPrev{bytes};
-        if (have_proc_baseline_) {
-          const auto it = prev_proc_io_.find(pid);
-          if (it != prev_proc_io_.end() && bytes >= it->second.bytes) {
-            const double bps =
-                static_cast<double>(bytes - it->second.bytes) / dt_s;
-            if (bps > 1024.0) {
-              ipc::HealthProcessEntry e;
-              e.pid = pid;
-              e.name = name;
-              e.path = image_path;
-              e.has_disk_bps = true;
-              e.disk_bps = bps;
-              disk_rows.push_back(std::move(e));
-            }
-          }
-        }
-      }
-
-      CloseHandle(h);
-    } while (Process32NextW(snap, &pe));
-  }
-  CloseHandle(snap);
-
-  // Network tops via TCP ESTATS intentionally disabled.
-  // GetPerTcpConnectionEStats has caused STATUS_STACK_BUFFER_OVERRUN
-  // (0xc0000409) in PulseService under LocalService / Session 0. Keep
-  // top_network empty rather than risk taking down the whole service.
-  (void)next_net;
-
-  std::vector<ipc::HealthProcessEntry> net_rows;
-  if (have_proc_baseline_) {
-    for (const auto& [pid, bytes] : next_net) {
-      const auto it = prev_proc_net_.find(pid);
-      if (it == prev_proc_net_.end() || bytes < it->second.bytes) continue;
-      const double bps =
-          static_cast<double>(bytes - it->second.bytes) / dt_s;
-      if (bps < 256.0) continue;
-      ipc::HealthProcessEntry e;
-      e.pid = pid;
-      e.has_net_bps = true;
-      e.net_bps = bps;
-      HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-      if (h != nullptr) {
-        wchar_t path[MAX_PATH];
-        DWORD psz = MAX_PATH;
-        if (QueryFullProcessImageNameW(h, 0, path, &psz)) {
-          e.path = NarrowFromWide(path);
-          const wchar_t* base = wcsrchr(path, L'\\');
-          e.name = NarrowFromWide(base ? base + 1 : path);
-        }
-        CloseHandle(h);
-      }
-      if (e.name.empty()) e.name = "pid_" + std::to_string(pid);
-      net_rows.push_back(std::move(e));
     }
+
+    if (info->NextEntryOffset == 0) break;
+    offset += info->NextEntryOffset;
   }
 
   prev_proc_cpu_ = std::move(next_cpu);
   prev_proc_io_ = std::move(next_io);
-  prev_proc_net_.clear();
-  for (const auto& [pid, bytes] : next_net) {
-    prev_proc_net_[pid] = ProcNetPrev{bytes};
-  }
   prev_proc_tick_ms_ = now_ms;
   have_proc_baseline_ = true;
 
@@ -935,14 +1232,20 @@ void HealthMetricsCollector::SampleTopProcesses(ipc::HealthSample* out) {
            });
   KeepTopN(&disk_rows, kTopProcessLimit,
            [](const ipc::HealthProcessEntry& e) { return e.disk_bps; });
-  KeepTopN(&net_rows, kTopProcessLimit,
-           [](const ipc::HealthProcessEntry& e) { return e.net_bps; });
+
+  // Path fill only for retained tops (≤ 24 OpenProcess attempts). LocalService
+  // often cannot open interactive user processes; known SystemRoot paths still
+  // populate for common protected/system binaries.
+  FillExecutablePaths(&cpu_rows);
+  FillExecutablePaths(&mem_rows);
+  FillExecutablePaths(&disk_rows);
 
   out->top_cpu = std::move(cpu_rows);
   out->top_memory = std::move(mem_rows);
   out->top_disk = std::move(disk_rows);
-  out->top_network = std::move(net_rows);
+  out->top_network.clear();
 }
+
 
 std::string HealthMetricsCollector::ReadRegistryString(const wchar_t* subkey,
                                                        const wchar_t* value) {
@@ -1173,6 +1476,7 @@ ipc::HealthSample HealthMetricsCollector::CollectSample() {
   }
   SampleMemory(&sample);
   SampleDiskSpace(&sample);
+  SamplePhysicalDisks(&sample);
   SampleUptime(&sample);
   SampleNetwork(&sample);
   SampleDiskThroughput(&sample);

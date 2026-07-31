@@ -5,16 +5,24 @@ import 'package:provider/provider.dart';
 import 'package:pulse/app/theme/pulse_theme.dart';
 import 'package:pulse/application/connection_controller.dart';
 import 'package:pulse/application/diagnostics_controller.dart';
+import 'package:pulse/application/service_lifecycle_controller.dart';
 import 'package:pulse/application/settings_controller.dart';
 import 'package:pulse/application/timeline_session_controller.dart';
 import 'package:pulse/ipc/pulse_ipc_client.dart';
 import 'package:pulse/logging/app_logger.dart';
+import 'package:pulse/platform/pulse_service_scm.dart';
 import 'package:pulse/presentation/diagnostics/diagnostics_page.dart';
 import 'package:pulse/presentation/health/health_cards.dart';
 import 'package:pulse/presentation/health/health_view_models.dart';
 import 'package:pulse/presentation/health/system_health_page.dart';
 import 'package:pulse/presentation/settings/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _StoppedScm implements PulseServiceScm {
+  @override
+  PulseServiceScmSnapshot query() =>
+      const PulseServiceScmSnapshot(state: PulseServiceScmState.stopped);
+}
 
 Future<Widget> _harness(Widget page) async {
   SharedPreferences.setMockInitialValues({});
@@ -35,6 +43,11 @@ Future<Widget> _harness(Widget page) async {
     settings: settings,
     logger: logger,
   );
+  final lifecycle = ServiceLifecycleController(
+    logger: logger,
+    scm: _StoppedScm(),
+  );
+  lifecycle.refresh();
   return MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: ipc),
@@ -42,6 +55,7 @@ Future<Widget> _harness(Widget page) async {
       ChangeNotifierProvider.value(value: settings),
       ChangeNotifierProvider.value(value: timeline),
       ChangeNotifierProvider.value(value: diagnostics),
+      ChangeNotifierProvider.value(value: lifecycle),
     ],
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -68,7 +82,7 @@ void main() {
     expect(find.text('Preferences'), findsOneWidget);
   });
 
-  testWidgets('Diagnostics offline empty state explains next step',
+  testWidgets('Diagnostics offline recovery offers Start PulseService',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(640, 720));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -79,11 +93,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Diagnostics needs PulseService'), findsOneWidget);
-    expect(find.textContaining('Start PulseService'), findsOneWidget);
+    expect(find.text('PulseService is stopped'), findsOneWidget);
+    expect(find.text('Start PulseService'), findsWidgets);
   });
 
-  testWidgets('Diagnostics offline empty state at very narrow width',
+  testWidgets('Diagnostics offline recovery at very narrow width',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(480, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -94,10 +108,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Diagnostics needs PulseService'), findsOneWidget);
+    expect(find.text('PulseService is stopped'), findsOneWidget);
   });
 
-  testWidgets('System Health shows offline empty state when disconnected',
+  testWidgets('System Health shows offline recovery when disconnected',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -108,8 +122,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Ready when Windows is'), findsOneWidget);
-    expect(find.textContaining('Start PulseService'), findsOneWidget);
+    expect(find.text('PulseService is stopped'), findsOneWidget);
+    expect(find.text('Start PulseService'), findsOneWidget);
   });
 
   testWidgets('Health hero grid reflows without overflow at 2-column width',
@@ -159,5 +173,62 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('CPU'), findsOneWidget);
     expect(find.text('Memory'), findsOneWidget);
+  });
+
+  testWidgets('Storage card scrolls many volumes without RenderFlex overflow',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final rows = <HealthDetailRow>[
+      for (var i = 0; i < 10; i++)
+        HealthDetailRow(
+          label: '${String.fromCharCode(67 + i)}:',
+          value: '${i + 1}.0 GB of 100 GB',
+          available: true,
+          progress: (i + 1) / 12,
+        ),
+      const HealthDetailRow(
+        label: 'Read Speed',
+        value: '12 MB/s',
+        available: true,
+      ),
+      const HealthDetailRow(
+        label: 'Write Speed',
+        value: '4 MB/s',
+        available: true,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: PulseTheme.dark(),
+        home: Scaffold(
+          backgroundColor: PulseTokens.canvas,
+          body: SizedBox(
+            width: 320,
+            height: 220,
+            child: HealthGroupedCard(
+              title: 'Storage',
+              icon: LucideIcons.hardDrive,
+              rows: rows,
+              compact: true,
+              scrollBody: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Storage'), findsOneWidget);
+    expect(find.text('C:'), findsOneWidget);
+    expect(find.byType(ListView), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -800));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Write Speed'), findsWidgets);
   });
 }

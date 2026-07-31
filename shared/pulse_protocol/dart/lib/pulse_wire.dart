@@ -184,6 +184,8 @@ class HealthProcessEntry {
     this.hasNetBps = false,
     this.netBps = 0.0,
     this.path = '',
+    this.threadCount = 0,
+    this.handleCount = 0,
   });
   int pid;
   String name;
@@ -198,6 +200,67 @@ class HealthProcessEntry {
   bool hasNetBps;
   double netBps;
   String path;
+  int threadCount;
+  int handleCount;
+}
+
+enum HealthDriveKind {
+  unspecified,
+  fixed,
+  removable,
+  remote,
+  cdrom,
+  ramdisk,
+  unknown,
+}
+
+HealthDriveKind healthDriveKindFromWire(int v) {
+  if (v < 0 || v >= HealthDriveKind.values.length) {
+    return HealthDriveKind.unspecified;
+  }
+  return HealthDriveKind.values[v];
+}
+
+class HealthVolume {
+  HealthVolume({
+    this.id = '',
+    this.mountPoint = '',
+    this.label = '',
+    this.fileSystem = '',
+    this.kind = HealthDriveKind.unspecified,
+    this.usedBytes = 0,
+    this.totalBytes = 0,
+    this.hasCapacity = false,
+    this.includedInSummary = false,
+  });
+
+  String id;
+  String mountPoint;
+  String label;
+  String fileSystem;
+  HealthDriveKind kind;
+  int usedBytes;
+  int totalBytes;
+  bool hasCapacity;
+  bool includedInSummary;
+}
+
+class HealthPhysicalDisk {
+  HealthPhysicalDisk({
+    this.id = '',
+    this.name = '',
+    this.hasReadBps = false,
+    this.readBps = 0.0,
+    this.hasWriteBps = false,
+    this.writeBps = 0.0,
+  });
+
+  String id;
+  String name;
+  bool hasReadBps;
+  double readBps;
+  bool hasWriteBps;
+  double writeBps;
 }
 
 class HealthSample {
@@ -244,12 +307,16 @@ class HealthSample {
     List<HealthProcessEntry>? topDisk,
     List<HealthProcessEntry>? topNetwork,
     List<double>? cpuCorePercent,
+    List<HealthVolume>? volumes,
+    List<HealthPhysicalDisk>? disks,
   })  : topCpu = topCpu ?? <HealthProcessEntry>[],
         topMemory = topMemory ?? <HealthProcessEntry>[],
         topGpu = topGpu ?? <HealthProcessEntry>[],
         topDisk = topDisk ?? <HealthProcessEntry>[],
         topNetwork = topNetwork ?? <HealthProcessEntry>[],
-        cpuCorePercent = cpuCorePercent ?? <double>[];
+        cpuCorePercent = cpuCorePercent ?? <double>[],
+        volumes = volumes ?? <HealthVolume>[],
+        disks = disks ?? <HealthPhysicalDisk>[];
   int unixMs;
   bool hasCpuPercent;
   double cpuPercent;
@@ -292,6 +359,8 @@ class HealthSample {
   List<HealthProcessEntry> topDisk;
   List<HealthProcessEntry> topNetwork;
   List<double> cpuCorePercent;
+  List<HealthVolume> volumes;
+  List<HealthPhysicalDisk> disks;
 }
 
 class GetHealthSnapshot {
@@ -554,6 +623,33 @@ Uint8List _encodeHealthProcessEntry(HealthProcessEntry m) {
   _writeBool(11, m.hasNetBps, out);
   _writeDouble(12, m.netBps, out);
   _writeString(13, m.path, out);
+  _writeU64(14, m.threadCount, out);
+  _writeU64(15, m.handleCount, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeHealthVolume(HealthVolume m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.mountPoint, out);
+  _writeString(3, m.label, out);
+  _writeString(4, m.fileSystem, out);
+  _writeU64(5, m.kind.index, out);
+  _writeU64(6, m.usedBytes, out);
+  _writeU64(7, m.totalBytes, out);
+  _writeBool(8, m.hasCapacity, out);
+  _writeBool(9, m.includedInSummary, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeHealthPhysicalDisk(HealthPhysicalDisk m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.name, out);
+  _writeBool(3, m.hasReadBps, out);
+  _writeDouble(4, m.readBps, out);
+  _writeBool(5, m.hasWriteBps, out);
+  _writeDouble(6, m.writeBps, out);
   return out.toBytes();
 }
 
@@ -631,6 +727,12 @@ Uint8List _encodeHealthSample(HealthSample m) {
   }
   for (final core in m.cpuCorePercent) {
     _writeDouble(42, core, out);
+  }
+  for (final v in m.volumes) {
+    _writeBytesField(43, _encodeHealthVolume(v), out);
+  }
+  for (final d in m.disks) {
+    _writeBytesField(44, _encodeHealthPhysicalDisk(d), out);
   }
   return out.toBytes();
 }
@@ -1091,6 +1193,68 @@ HealthProcessEntry _decodeHealthProcessEntry(Uint8List data) {
       m.netBps = r.readDouble();
     } else if (field == 13 && wire == 2) {
       m.path = r.readString();
+    } else if (field == 14 && wire == 0) {
+      m.threadCount = r.readVarint();
+    } else if (field == 15 && wire == 0) {
+      m.handleCount = r.readVarint();
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+HealthVolume _decodeHealthVolume(Uint8List data) {
+  final r = _Reader(data);
+  final m = HealthVolume();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.mountPoint = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.label = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.fileSystem = r.readString();
+    } else if (field == 5 && wire == 0) {
+      m.kind = healthDriveKindFromWire(r.readVarint());
+    } else if (field == 6 && wire == 0) {
+      m.usedBytes = r.readVarint();
+    } else if (field == 7 && wire == 0) {
+      m.totalBytes = r.readVarint();
+    } else if (field == 8 && wire == 0) {
+      m.hasCapacity = r.readVarint() != 0;
+    } else if (field == 9 && wire == 0) {
+      m.includedInSummary = r.readVarint() != 0;
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+HealthPhysicalDisk _decodeHealthPhysicalDisk(Uint8List data) {
+  final r = _Reader(data);
+  final m = HealthPhysicalDisk();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.name = r.readString();
+    } else if (field == 3 && wire == 0) {
+      m.hasReadBps = r.readVarint() != 0;
+    } else if (field == 4 && wire == 1) {
+      m.readBps = r.readDouble();
+    } else if (field == 5 && wire == 0) {
+      m.hasWriteBps = r.readVarint() != 0;
+    } else if (field == 6 && wire == 1) {
+      m.writeBps = r.readDouble();
     } else {
       r.skip(wire);
     }
@@ -1231,6 +1395,10 @@ HealthSample _decodeHealthSample(Uint8List data) {
       m.topNetwork.add(_decodeHealthProcessEntry(r.readBytes()));
     } else if (field == 42 && wire == 1) {
       m.cpuCorePercent.add(r.readDouble());
+    } else if (field == 43 && wire == 2) {
+      m.volumes.add(_decodeHealthVolume(r.readBytes()));
+    } else if (field == 44 && wire == 2) {
+      m.disks.add(_decodeHealthPhysicalDisk(r.readBytes()));
     } else {
       r.skip(wire);
     }

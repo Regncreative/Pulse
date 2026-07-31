@@ -197,8 +197,13 @@ int StartPulseServiceAndWait(DWORD timeout_ms) {
   SC_HANDLE svc = OpenServiceW(scm, L"PulseService",
                                SERVICE_START | SERVICE_QUERY_STATUS);
   if (!svc) {
+    const DWORD err = GetLastError();
     CloseServiceHandle(scm);
-    std::wcerr << L"OpenService failed for start.\n";
+    if (err == ERROR_SERVICE_DOES_NOT_EXIST) {
+      std::wcerr << L"PulseService is not installed.\n";
+      return 2;
+    }
+    std::wcerr << L"OpenService failed for start: " << err << L"\n";
     return 1;
   }
 
@@ -265,6 +270,139 @@ int InstallAndStartService() {
   const int installed = InstallService();
   if (installed != 0) return installed;
   return StartPulseServiceAndWait(20000);
+}
+
+int StartInstalledService() { return StartPulseServiceAndWait(20000); }
+
+int StopPulseServiceAndWait(DWORD timeout_ms) {
+  SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+  if (!scm) {
+    std::wcerr << L"OpenSCManager failed. Run as Administrator.\n";
+    return 1;
+  }
+
+  SC_HANDLE svc = OpenServiceW(scm, L"PulseService",
+                               SERVICE_STOP | SERVICE_QUERY_STATUS);
+  if (!svc) {
+    const DWORD err = GetLastError();
+    CloseServiceHandle(scm);
+    if (err == ERROR_SERVICE_DOES_NOT_EXIST) {
+      std::wcerr << L"PulseService is not installed.\n";
+      return 2;
+    }
+    std::wcerr << L"OpenService failed for stop: " << err << L"\n";
+    return 1;
+  }
+
+  SERVICE_STATUS_PROCESS ssp{};
+  DWORD bytes = 0;
+  if (!QueryServiceStatusEx(svc, SC_STATUS_PROCESS_INFO,
+                            reinterpret_cast<LPBYTE>(&ssp), sizeof(ssp),
+                            &bytes)) {
+    CloseServiceHandle(svc);
+    CloseServiceHandle(scm);
+    return 1;
+  }
+
+  if (ssp.dwCurrentState != SERVICE_STOPPED &&
+      ssp.dwCurrentState != SERVICE_STOP_PENDING) {
+    SERVICE_STATUS status{};
+    if (!ControlService(svc, SERVICE_CONTROL_STOP, &status)) {
+      const DWORD err = GetLastError();
+      if (err != ERROR_SERVICE_NOT_ACTIVE) {
+        CloseServiceHandle(svc);
+        CloseServiceHandle(scm);
+        std::wcerr << L"ControlService(STOP) failed: " << err << L"\n";
+        return 1;
+      }
+    }
+  }
+
+  const DWORD deadline = GetTickCount() + timeout_ms;
+  for (;;) {
+    if (!QueryServiceStatusEx(svc, SC_STATUS_PROCESS_INFO,
+                              reinterpret_cast<LPBYTE>(&ssp), sizeof(ssp),
+                              &bytes)) {
+      CloseServiceHandle(svc);
+      CloseServiceHandle(scm);
+      return 1;
+    }
+    if (ssp.dwCurrentState == SERVICE_STOPPED) {
+      CloseServiceHandle(svc);
+      CloseServiceHandle(scm);
+      std::wcout << L"PulseService is stopped.\n";
+      return 0;
+    }
+    if (GetTickCount() > deadline) {
+      CloseServiceHandle(svc);
+      CloseServiceHandle(scm);
+      std::wcerr << L"Timed out waiting for PulseService to stop.\n";
+      return 1;
+    }
+    Sleep(200);
+  }
+}
+
+int StopInstalledService() { return StopPulseServiceAndWait(20000); }
+
+int RestartInstalledService() {
+  // Best-effort stop; continue if already stopped.
+  StopPulseServiceAndWait(20000);
+  return StartPulseServiceAndWait(20000);
+}
+
+int PrintServiceStatus() {
+  SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+  if (!scm) {
+    std::wcout << L"unknown\n";
+    return 1;
+  }
+
+  SC_HANDLE svc =
+      OpenServiceW(scm, L"PulseService", SERVICE_QUERY_STATUS);
+  if (!svc) {
+    const DWORD err = GetLastError();
+    CloseServiceHandle(scm);
+    if (err == ERROR_SERVICE_DOES_NOT_EXIST) {
+      std::wcout << L"not_installed\n";
+      return 0;
+    }
+    std::wcout << L"unknown\n";
+    return 1;
+  }
+
+  SERVICE_STATUS_PROCESS ssp{};
+  DWORD bytes = 0;
+  if (!QueryServiceStatusEx(svc, SC_STATUS_PROCESS_INFO,
+                            reinterpret_cast<LPBYTE>(&ssp), sizeof(ssp),
+                            &bytes)) {
+    CloseServiceHandle(svc);
+    CloseServiceHandle(scm);
+    std::wcout << L"unknown\n";
+    return 1;
+  }
+
+  CloseServiceHandle(svc);
+  CloseServiceHandle(scm);
+
+  switch (ssp.dwCurrentState) {
+    case SERVICE_STOPPED:
+      std::wcout << L"stopped\n";
+      break;
+    case SERVICE_START_PENDING:
+      std::wcout << L"start_pending\n";
+      break;
+    case SERVICE_STOP_PENDING:
+      std::wcout << L"stop_pending\n";
+      break;
+    case SERVICE_RUNNING:
+      std::wcout << L"running\n";
+      break;
+    default:
+      std::wcout << L"unknown\n";
+      break;
+  }
+  return 0;
 }
 
 int UninstallService() {

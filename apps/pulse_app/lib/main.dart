@@ -59,6 +59,7 @@ class PulseRoot extends StatelessWidget {
         ChangeNotifierProvider.value(value: services.settingsController),
         ChangeNotifierProvider.value(value: services.timelineSession),
         ChangeNotifierProvider.value(value: services.diagnosticsController),
+        ChangeNotifierProvider.value(value: services.serviceLifecycle),
       ],
       child: PulseApp(),
     );

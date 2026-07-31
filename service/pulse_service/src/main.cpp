@@ -17,6 +17,10 @@ void PrintUsage() {
              << L"  PulseService.exe --console         Run interactively\n"
              << L"  PulseService.exe --install         Install Windows service (admin)\n"
              << L"  PulseService.exe --install-start   Install, start, verify (admin)\n"
+             << L"  PulseService.exe --start           Start installed service (admin)\n"
+             << L"  PulseService.exe --stop            Stop installed service (admin)\n"
+             << L"  PulseService.exe --restart         Restart installed service (admin)\n"
+             << L"  PulseService.exe --status          Print SCM state (no admin)\n"
              << L"  PulseService.exe --uninstall       Remove Windows service (admin)\n"
              << L"  PulseService.exe --version\n"
              << L"  PulseService.exe                   Run as SCM service\n";
@@ -43,6 +47,18 @@ int wmain(int argc, wchar_t** argv) {
     }
     if (arg == L"--install-start") {
       return pulse::InstallAndStartService();
+    }
+    if (arg == L"--start") {
+      return pulse::StartInstalledService();
+    }
+    if (arg == L"--stop") {
+      return pulse::StopInstalledService();
+    }
+    if (arg == L"--restart") {
+      return pulse::RestartInstalledService();
+    }
+    if (arg == L"--status") {
+      return pulse::PrintServiceStatus();
     }
     if (arg == L"--uninstall") {
       return pulse::UninstallService();

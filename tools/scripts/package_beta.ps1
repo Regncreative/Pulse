@@ -5,14 +5,15 @@
 
 .DESCRIPTION
   Produces:
-    dist/Pulse-Setup-0.1.0-beta-windows-x64.exe  (primary end-user installer)
+    dist/Pulse-Setup-<version>-windows-x64.exe  (primary end-user installer)
     dist/Pulse/                                  (payload)
-    dist/Pulse-0.1.0-beta-windows-x64.zip        (optional payload archive)
+    dist/Pulse-<version>-windows-x64.zip        (optional payload archive)
 
   The Setup.exe elevates via UAC, installs VC++ redist, registers/starts
   PulseService (--install-start), and launches Pulse — no PowerShell.
 #>
 $ErrorActionPreference = "Stop"
+$Version = "0.1.1-beta"
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $dist = Join-Path $root "dist\Pulse"
 $flutterBin = @(
@@ -20,6 +21,8 @@ $flutterBin = @(
   "C:\Users\ozsin\flutter\bin"
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($flutterBin) { $env:Path = "$flutterBin;$env:Path" }
+
+Write-Host "==> Packaging Pulse $Version"
 
 Write-Host "==> Cleaning $dist"
 if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
@@ -54,8 +57,27 @@ foreach ($c in $cmakeCandidates) {
 if (-not $cmake) { throw "cmake not found" }
 
 $serviceBuild = Join-Path $root "build\service-release"
-cmd /c "`"$vsDev`" -arch=amd64 -host_arch=amd64 && `"$cmake`" -S `"$root\service\pulse_service`" -B `"$serviceBuild`" -G Ninja -DCMAKE_BUILD_TYPE=Release && `"$cmake`" --build `"$serviceBuild`""
-if ($LASTEXITCODE -ne 0) { throw "PulseService build failed" }
+# Non-ASCII OneDrive paths + VsDevCmd via cmd /c overflow ("input line is too long").
+if ($root -match '[^\x00-\x7F]') {
+  $serviceBuild = "C:\dev\Pulse-service-release"
+  Write-Host "Non-ASCII workspace path detected - service build at $serviceBuild"
+}
+New-Item -ItemType Directory -Force -Path $serviceBuild | Out-Null
+
+# Prefer importing the Dev Shell module (avoids a giant cmd.exe command line).
+$vsInstall = Split-Path (Split-Path (Split-Path $vsDev -Parent) -Parent) -Parent
+$devShell = Join-Path $vsInstall "Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+if (Test-Path $devShell) {
+  Import-Module $devShell
+  Enter-VsDevShell -VsInstallPath $vsInstall -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64" | Out-Null
+  & $cmake -S (Join-Path $root "service\pulse_service") -B $serviceBuild -G Ninja -DCMAKE_BUILD_TYPE=Release
+  if ($LASTEXITCODE -ne 0) { throw "PulseService cmake configure failed" }
+  & $cmake --build $serviceBuild
+  if ($LASTEXITCODE -ne 0) { throw "PulseService build failed" }
+} else {
+  cmd /c "`"$vsDev`" -arch=amd64 -host_arch=amd64 && `"$cmake`" -S `"$root\service\pulse_service`" -B `"$serviceBuild`" -G Ninja -DCMAKE_BUILD_TYPE=Release && `"$cmake`" --build `"$serviceBuild`""
+  if ($LASTEXITCODE -ne 0) { throw "PulseService build failed" }
+}
 
 $serviceExe = Join-Path $serviceBuild "PulseService.exe"
 if (-not (Test-Path $serviceExe)) {
@@ -142,11 +164,11 @@ New-Item -ItemType Directory -Force -Path (Join-Path $dist "redist") | Out-Null
 Copy-Item $vcRedist (Join-Path $dist "redist\VC_redist.x64.exe") -Force
 
 Write-Host "==> Writing README for payload folder (advanced / portable)"
-@'
+@"
 Pulse payload folder (advanced)
 ===============================
 
-End users should run Pulse-Setup-0.1.0-beta-windows-x64.exe instead of this folder.
+End users should run Pulse-Setup-$Version-windows-x64.exe instead of this folder.
 
 This folder is the install payload. For developers:
 
@@ -154,10 +176,10 @@ This folder is the install payload. For developers:
   Pulse.exe
 
 Privacy: local-only. No telemetry. Observation only.
-'@ | Set-Content -Path (Join-Path $dist "README_INSTALL.txt") -Encoding UTF8
+"@ | Set-Content -Path (Join-Path $dist "README_INSTALL.txt") -Encoding UTF8
 
 # Zip (payload / CI artifact - not the primary end-user deliverable)
-$zip = Join-Path $root "dist\Pulse-0.1.0-beta-windows-x64.zip"
+$zip = Join-Path $root "dist\Pulse-$Version-windows-x64.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Write-Host "==> Creating $zip"
 Compress-Archive -Path (Join-Path $dist "*") -DestinationPath $zip -Force
@@ -176,7 +198,7 @@ if (-not $iscc) {
   throw "ISCC.exe not found. Install Inno Setup 6 (winget install JRSoftware.InnoSetup)."
 }
 $iss = Join-Path $root "tools\installer\Pulse.iss"
-$setupOut = Join-Path $root "dist\Pulse-Setup-0.1.0-beta-windows-x64.exe"
+$setupOut = Join-Path $root "dist\Pulse-Setup-$Version-windows-x64.exe"
 if (Test-Path $setupOut) { Remove-Item $setupOut -Force }
 & $iscc "/DPulsePayloadDir=$dist" "/DPulseOutDir=$(Join-Path $root 'dist')" $iss
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup compile failed" }

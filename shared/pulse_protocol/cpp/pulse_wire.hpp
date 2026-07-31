@@ -129,6 +129,39 @@ struct HealthProcessEntry {
   bool has_net_bps = false;
   double net_bps = 0.0;
   std::string path;
+  uint32_t thread_count = 0;
+  uint32_t handle_count = 0;
+};
+
+enum class HealthDriveKind : uint32_t {
+  Unspecified = 0,
+  Fixed = 1,
+  Removable = 2,
+  Remote = 3,
+  CdRom = 4,
+  RamDisk = 5,
+  Unknown = 6,
+};
+
+struct HealthVolume {
+  std::string id;
+  std::string mount_point;
+  std::string label;
+  std::string file_system;
+  HealthDriveKind kind = HealthDriveKind::Unspecified;
+  uint64_t used_bytes = 0;
+  uint64_t total_bytes = 0;
+  bool has_capacity = false;
+  bool included_in_summary = false;
+};
+
+struct HealthPhysicalDisk {
+  std::string id;
+  std::string name;
+  bool has_read_bps = false;
+  double read_bps = 0.0;
+  bool has_write_bps = false;
+  double write_bps = 0.0;
 };
 
 struct HealthSample {
@@ -174,6 +207,8 @@ struct HealthSample {
   std::vector<HealthProcessEntry> top_disk;
   std::vector<HealthProcessEntry> top_network;
   std::vector<double> cpu_core_percent;
+  std::vector<HealthVolume> volumes;
+  std::vector<HealthPhysicalDisk> disks;
 };
 
 struct GetHealthSnapshot {};

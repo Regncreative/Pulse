@@ -6,7 +6,7 @@ Ship a **normal Windows installer** so a clean PC reaches Connected without Powe
 
 ## Primary deliverable
 
-`dist/Pulse-Setup-0.1.0-beta-windows-x64.exe` (Inno Setup)
+`dist/Pulse-Setup-0.1.1-beta-windows-x64.exe` (Inno Setup)
 
 The installer (admin / UAC):
 
@@ -27,9 +27,9 @@ Prerequisites: Flutter, VS C++ Build Tools, [Inno Setup 6](https://jrsoftware.or
 
 | Output | Role |
 |--------|------|
-| `dist/Pulse-Setup-0.1.0-beta-windows-x64.exe` | **End-user installer** |
+| `dist/Pulse-Setup-0.1.1-beta-windows-x64.exe` | **End-user installer** |
 | `dist/Pulse/` | Payload used by Inno |
-| `dist/Pulse-0.1.0-beta-windows-x64.zip` | Optional payload archive |
+| `dist/Pulse-0.1.1-beta-windows-x64.zip` | Optional payload archive |
 
 ## Fresh machine checklist
 
@@ -37,8 +37,9 @@ Prerequisites: Flutter, VS C++ Build Tools, [Inno Setup 6](https://jrsoftware.or
 2. Double-click Setup → UAC Yes
 3. Finish wizard (Launch Pulse checked)
 4. Confirm tray/status shows Connected / Live within a few seconds
-5. Timeline and System Health populate
-6. Reboot → PulseService still Running (auto-start) → Pulse reconnects
+5. If Offline: use in-app **Start PulseService** / **Repair / Install** (UAC) — do not require Services.msc
+6. Timeline and System Health populate
+7. Reboot → PulseService still Running (auto-start) → Pulse reconnects
 
 ## Service CLI (developers)
 

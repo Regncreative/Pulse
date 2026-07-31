@@ -149,13 +149,16 @@ int wmain() {
             << " top_gpu=" << s.top_gpu.size()
             << " top_disk=" << s.top_disk.size()
             << " top_net=" << s.top_network.size() << "\n";
-  if (!s.top_cpu.empty()) {
-    std::cout << "top_cpu0=" << s.top_cpu.front().name << " "
-              << s.top_cpu.front().cpu_percent << "%\n";
+  for (size_t i = 0; i < s.top_cpu.size(); ++i) {
+    const auto& e = s.top_cpu[i];
+    std::cout << "top_cpu[" << i << "] pid=" << e.pid << " name=" << e.name
+              << " cpu=" << e.cpu_percent << " has=" << e.has_cpu_percent
+              << " path=" << (e.path.empty() ? "-" : e.path) << "\n";
   }
-  if (!s.top_memory.empty()) {
-    std::cout << "top_mem0=" << s.top_memory.front().name << " "
-              << s.top_memory.front().memory_bytes << "\n";
+  for (size_t i = 0; i < s.top_memory.size(); ++i) {
+    const auto& e = s.top_memory[i];
+    std::cout << "top_mem[" << i << "] pid=" << e.pid << " name=" << e.name
+              << " ws=" << e.memory_bytes << "\n";
   }
   CloseHandle(pipe);
   return 0;

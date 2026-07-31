@@ -40,6 +40,12 @@ class _WelcomePageState extends State<WelcomePage> {
       body:
           'When something looks off, check service status, IPC health, and the event pipeline — all data stays on this PC.',
     ),
+    _WelcomeSlide(
+      icon: LucideIcons.server,
+      title: 'PulseService',
+      body:
+          'Pulse observes through a local Windows service. If Timeline looks Offline after launch, start PulseService from the app — no Services.msc needed.',
+    ),
   ];
 
   @override

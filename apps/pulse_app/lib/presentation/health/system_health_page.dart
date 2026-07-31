@@ -11,6 +11,7 @@ import '../../ipc/pulse_ipc_client.dart';
 import '../components/pulse_app_bar.dart';
 import '../components/pulse_empty_state.dart';
 import '../components/pulse_loading.dart';
+import '../components/service_lifecycle_controls.dart';
 import '../utils/pulse_user_errors.dart';
 import 'health_cards.dart';
 import 'health_view_models.dart';
@@ -156,12 +157,8 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
         ),
         Expanded(
           child: offline
-              ? const PulseEmptyState(
-                  useBrandIllustration: true,
-                  title: 'Ready when Windows is',
-                  message:
-                      'System Health shows how this PC is doing right now — CPU, memory, GPU, disk, and network.\n\n'
-                      'Start PulseService to connect and watch live metrics.',
+              ? const ServiceOfflineRecovery(
+                  titleFallback: 'Ready when Windows is',
                 )
               : connecting || (_loading && _view.sample == null)
                   ? const _HealthConnectingState()
@@ -374,6 +371,7 @@ class _SystemHealthBody extends StatelessWidget {
                         icon: LucideIcons.hardDrive,
                         rows: view.storageRows,
                         compact: true,
+                        scrollBody: true,
                         selected: selectedPanel == HealthPanelKind.disk,
                         onTap: () => onSelect(HealthPanelKind.disk),
                       ),

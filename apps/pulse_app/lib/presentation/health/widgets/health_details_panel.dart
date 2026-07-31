@@ -374,6 +374,8 @@ class _DiskPanelBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = view.sample;
     final i = view.info;
+    final volumes = s?.volumes ?? const <HealthVolume>[];
+    final disks = s?.disks ?? const <HealthPhysicalDisk>[];
     final total = s?.diskTotalBytes ?? i?.primaryStorageBytes ?? 0;
     final used = s?.diskUsedBytes ?? 0;
     final free = total > used ? total - used : 0;
@@ -390,10 +392,31 @@ class _DiskPanelBody extends StatelessWidget {
         ? formatDiskRate(s!.diskWriteBps)
         : kNotSupported;
 
+    final volumeSpec = <(String, String)>[
+      for (final v in volumes)
+        if (v.hasCapacity && v.totalBytes > 0)
+          (
+            _diskPanelVolumeTitle(v),
+            '${formatBytesBinary(v.usedBytes)} / ${formatBytesBinary(v.totalBytes, fractionDigits: 0)}',
+          )
+        else
+          (_diskPanelVolumeTitle(v), _diskPanelVolumeUnavailable(v)),
+    ];
+    final diskSpec = <(String, String)>[
+      for (final d in disks)
+        (
+          d.name.trim().isEmpty ? d.id : d.name,
+          [
+            if (d.hasReadBps) 'R ${formatDiskRate(d.readBps)}',
+            if (d.hasWriteBps) 'W ${formatDiskRate(d.writeBps)}',
+          ].join(' · ').ifEmpty(kUnavailableDash),
+        ),
+    ];
+
     return Column(
       children: [
         Expanded(
-          flex: 5,
+          flex: 4,
           child: DetailSection(
             title: 'Overview',
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
@@ -411,10 +434,10 @@ class _DiskPanelBody extends StatelessWidget {
                   child: _SpecList(
                     compact: true,
                     rows: [
-                      ('Capacity', capacity),
+                      ('Primary', capacity),
                       ('Free', freeLabel),
-                      ('Read', read),
-                      ('Write', write),
+                      ('Read (total)', read),
+                      ('Write (total)', write),
                     ],
                   ),
                 ),
@@ -422,9 +445,33 @@ class _DiskPanelBody extends StatelessWidget {
             ),
           ),
         ),
+        if (volumeSpec.isNotEmpty) ...[
+          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          Expanded(
+            flex: 3,
+            child: DetailSection(
+              title: 'Volumes',
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              expandChild: true,
+              child: _SpecList(compact: true, rows: volumeSpec),
+            ),
+          ),
+        ],
+        if (diskSpec.isNotEmpty) ...[
+          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          Expanded(
+            flex: 3,
+            child: DetailSection(
+              title: 'Physical disks',
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              expandChild: true,
+              child: _SpecList(compact: true, rows: diskSpec),
+            ),
+          ),
+        ],
         const Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
-          flex: 5,
+          flex: 4,
           child: DetailSection(
             title: 'Top Processes',
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
@@ -439,6 +486,24 @@ class _DiskPanelBody extends StatelessWidget {
       ],
     );
   }
+}
+
+String _diskPanelVolumeTitle(HealthVolume v) {
+  final id = v.id.trim().isEmpty ? v.mountPoint.trim() : v.id.trim();
+  final label = v.label.trim();
+  return label.isEmpty ? id : '$id · $label';
+}
+
+String _diskPanelVolumeUnavailable(HealthVolume v) {
+  return switch (v.kind) {
+    HealthDriveKind.remote => 'Network',
+    HealthDriveKind.removable || HealthDriveKind.cdrom => 'No media',
+    _ => kUnavailableDash,
+  };
+}
+
+extension on String {
+  String ifEmpty(String fallback) => trim().isEmpty ? fallback : this;
 }
 
 class _NetworkPanelBody extends StatelessWidget {
@@ -928,7 +993,12 @@ class _ProcessRow extends StatelessWidget {
 
     return Row(
       children: [
-        ProcessAppIcon(path: entry.path, name: name, size: iconSize),
+        ProcessAppIcon(
+          path: entry.path,
+          name: name,
+          pid: entry.pid,
+          size: iconSize,
+        ),
         SizedBox(width: compact ? 8 : 10),
         Expanded(
           child: Text(
@@ -988,24 +1058,49 @@ class _CoreHistoryGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = compact
-            ? (histories.length <= 4 ? 2 : 3)
-            : (constraints.maxWidth >= 320 ? 2 : 1);
-        final gap = compact ? 6.0 : 10.0;
-        final rows = (histories.length / columns).ceil().clamp(1, 99);
-        final tileHeight =
-            (constraints.maxHeight - gap * (rows - 1)) / rows;
+        final count = histories.length;
+        if (count == 0) {
+          return const SizedBox.shrink();
+        }
 
-        return Wrap(
+        final gap = compact ? 6.0 : 10.0;
+        final minTileHeight = compact ? 36.0 : 52.0;
+        final maxColumns = compact ? 6 : 4;
+
+        // Grow columns until tiles fit the available height (any core count).
+        var columns = count <= 4 ? 2 : 3;
+        columns = columns.clamp(1, maxColumns);
+        for (var c = columns; c <= maxColumns; c++) {
+          final rows = (count / c).ceil();
+          final tileH =
+              (constraints.maxHeight - gap * (rows - 1).clamp(0, 99)) / rows;
+          if (tileH >= minTileHeight || c == maxColumns) {
+            columns = c;
+            if (tileH >= minTileHeight) break;
+          }
+        }
+
+        final rows = (count / columns).ceil().clamp(1, 999);
+        final availableH = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : minTileHeight * rows;
+        final rawTileH =
+            (availableH - gap * (rows - 1).clamp(0, 999)) / rows;
+        final needsScroll = rawTileH < minTileHeight;
+        final tileHeight = needsScroll
+            ? minTileHeight
+            : rawTileH.clamp(minTileHeight, availableH);
+        final tileWidth =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+
+        final grid = Wrap(
           spacing: gap,
           runSpacing: gap,
           children: [
-            for (var i = 0; i < histories.length; i++)
+            for (var i = 0; i < count; i++)
               SizedBox(
-                width: (constraints.maxWidth - gap * (columns - 1)) / columns,
-                height: tileHeight.isFinite && tileHeight > 0
-                    ? tileHeight
-                    : (compact ? 48 : 64),
+                width: tileWidth,
+                height: tileHeight,
                 child: _MiniCoreSparkline(
                   label: 'Core ${i + 1}',
                   values: histories[i],
@@ -1013,6 +1108,12 @@ class _CoreHistoryGrid extends StatelessWidget {
                 ),
               ),
           ],
+        );
+
+        if (!needsScroll) return grid;
+        return SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: grid,
         );
       },
     );
@@ -1049,9 +1150,12 @@ class _MiniCoreSparkline extends StatelessWidget {
         children: [
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: PulseTokens.textTertiary,
                   fontSize: compact ? 10 : null,
+                  height: 1.1,
                 ),
           ),
           SizedBox(height: compact ? 2 : 6),

@@ -4,6 +4,7 @@
 
 | Version | Supported |
 | --- | --- |
+| `0.1.1-beta.x` (pre-release) | Yes — best effort |
 | `0.1.0-beta.x` (pre-release) | Yes — best effort |
 | Older / unsigned experimental builds | No |
 
@@ -30,6 +31,6 @@ Pulse is **read-only** by design:
 
 - No process injection, hooks, or kernel patching
 - Local named-pipe IPC only (no cloud)
-- Elevation only for explicit service install / uninstall
+- Elevation only for explicit user actions: service install / uninstall / start / stop / restart (UAC)
 
 Reports that rely on social engineering, physical access, or already-compromised admin sessions may be closed as out of scope unless they reveal a Pulse-specific flaw.

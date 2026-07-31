@@ -199,6 +199,33 @@ std::vector<uint8_t> EncodeHealthProcessEntry(const HealthProcessEntry& m) {
   WriteBool(11, m.has_net_bps, &out);
   WriteDouble(12, m.net_bps, &out);
   WriteString(13, m.path, &out);
+  WriteU32(14, m.thread_count, &out);
+  WriteU32(15, m.handle_count, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeHealthVolume(const HealthVolume& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.mount_point, &out);
+  WriteString(3, m.label, &out);
+  WriteString(4, m.file_system, &out);
+  WriteU32(5, static_cast<uint32_t>(m.kind), &out);
+  WriteU64(6, m.used_bytes, &out);
+  WriteU64(7, m.total_bytes, &out);
+  WriteBool(8, m.has_capacity, &out);
+  WriteBool(9, m.included_in_summary, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeHealthPhysicalDisk(const HealthPhysicalDisk& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.name, &out);
+  WriteBool(3, m.has_read_bps, &out);
+  WriteDouble(4, m.read_bps, &out);
+  WriteBool(5, m.has_write_bps, &out);
+  WriteDouble(6, m.write_bps, &out);
   return out;
 }
 
@@ -276,6 +303,12 @@ std::vector<uint8_t> EncodeHealthSample(const HealthSample& m) {
   }
   for (double core : m.cpu_core_percent) {
     WriteDouble(42, core, &out);
+  }
+  for (const auto& v : m.volumes) {
+    WriteBytesField(43, EncodeHealthVolume(v), &out);
+  }
+  for (const auto& d : m.disks) {
+    WriteBytesField(44, EncodeHealthPhysicalDisk(d), &out);
   }
   return out;
 }
@@ -721,6 +754,89 @@ bool DecodeHealthProcessEntry(const uint8_t* data, size_t len,
       if (!ReadDouble(p, end, &m->net_bps)) return false;
     } else if (field == 13 && wire == 2) {
       if (!DecodeString(p, end, &m->path)) return false;
+    } else if (field == 14 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->thread_count = static_cast<uint32_t>(v);
+    } else if (field == 15 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->handle_count = static_cast<uint32_t>(v);
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeHealthVolume(const uint8_t* data, size_t len, HealthVolume* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->mount_point)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->label)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->file_system)) return false;
+    } else if (field == 5 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->kind = static_cast<HealthDriveKind>(v);
+    } else if (field == 6 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->used_bytes = v;
+    } else if (field == 7 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->total_bytes = v;
+    } else if (field == 8 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_capacity = v != 0;
+    } else if (field == 9 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->included_in_summary = v != 0;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeHealthPhysicalDisk(const uint8_t* data, size_t len,
+                              HealthPhysicalDisk* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->name)) return false;
+    } else if (field == 3 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_read_bps = v != 0;
+    } else if (field == 4 && wire == 1) {
+      if (!ReadDouble(p, end, &m->read_bps)) return false;
+    } else if (field == 5 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_write_bps = v != 0;
+    } else if (field == 6 && wire == 1) {
+      if (!ReadDouble(p, end, &m->write_bps)) return false;
     } else if (!SkipField(wire, p, end)) {
       return false;
     }
@@ -967,6 +1083,24 @@ bool DecodeHealthSample(const uint8_t* data, size_t len, HealthSample* m) {
       double core = 0.0;
       if (!ReadDouble(p, end, &core)) return false;
       m->cpu_core_percent.push_back(core);
+    } else if (field == 43 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      HealthVolume vol;
+      if (!DecodeHealthVolume(p, static_cast<size_t>(blen), &vol)) return false;
+      m->volumes.push_back(std::move(vol));
+      p += blen;
+    } else if (field == 44 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      HealthPhysicalDisk disk;
+      if (!DecodeHealthPhysicalDisk(p, static_cast<size_t>(blen), &disk)) {
+        return false;
+      }
+      m->disks.push_back(std::move(disk));
+      p += blen;
     } else if (!SkipField(wire, p, end)) {
       return false;
     }

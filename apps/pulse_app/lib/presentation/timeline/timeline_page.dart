@@ -22,6 +22,7 @@ import '../components/pulse_badge.dart';
 import '../components/pulse_empty_state.dart';
 import '../components/pulse_loading.dart';
 import '../components/safe_hover.dart';
+import '../components/service_lifecycle_controls.dart';
 import '../utils/pulse_snack.dart';
 import '../utils/pulse_user_errors.dart';
 
@@ -362,12 +363,8 @@ class _TimelinePageState extends State<TimelinePage> {
         ),
         Expanded(
           child: offline
-              ? const PulseEmptyState(
-                  useBrandIllustration: true,
-                  title: 'Ready when Windows is',
-                  message:
-                      'Pulse watches what Windows is doing and turns it into a clear, readable timeline.\n\n'
-                      'Start PulseService to connect — events will appear here as soon as monitoring begins.',
+              ? const ServiceOfflineRecovery(
+                  titleFallback: 'Ready when Windows is',
                 )
               : busy
                   ? const _TimelineSkeletonView()

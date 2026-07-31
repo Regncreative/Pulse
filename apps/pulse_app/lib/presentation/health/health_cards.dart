@@ -543,6 +543,10 @@ class HealthSparklineTile extends StatelessWidget {
 }
 
 /// One grouped card for Hardware / Storage / Network detail rows.
+///
+/// When [scrollBody] is true (Storage with many volumes), rows keep their
+/// intrinsic height and the body scrolls inside the fixed card height so the
+/// System Health grid does not grow and RenderFlex overflow is avoided.
 class HealthGroupedCard extends StatelessWidget {
   const HealthGroupedCard({
     super.key,
@@ -552,6 +556,7 @@ class HealthGroupedCard extends StatelessWidget {
     this.selected = false,
     this.onTap,
     this.compact = false,
+    this.scrollBody = false,
   });
 
   final String title;
@@ -560,6 +565,7 @@ class HealthGroupedCard extends StatelessWidget {
   final bool selected;
   final VoidCallback? onTap;
   final bool compact;
+  final bool scrollBody;
 
   @override
   Widget build(BuildContext context) {
@@ -590,17 +596,32 @@ class HealthGroupedCard extends StatelessWidget {
           ),
           SizedBox(height: compact ? 2 : 6),
           Expanded(
-            child: Column(
-              children: [
-                for (var i = 0; i < rows.length; i++) ...[
-                  if (i > 0)
-                    const Divider(height: 1, color: PulseTokens.strokeSubtle),
-                  Expanded(
-                    child: _DetailRow(row: rows[i], compact: compact),
+            child: scrollBody
+                ? ListView.separated(
+                    padding: EdgeInsets.zero,
+                    physics: const ClampingScrollPhysics(),
+                    itemCount: rows.length,
+                    separatorBuilder: (_, __) => const Divider(
+                      height: 1,
+                      color: PulseTokens.strokeSubtle,
+                    ),
+                    itemBuilder: (context, i) =>
+                        _DetailRow(row: rows[i], compact: compact),
+                  )
+                : Column(
+                    children: [
+                      for (var i = 0; i < rows.length; i++) ...[
+                        if (i > 0)
+                          const Divider(
+                            height: 1,
+                            color: PulseTokens.strokeSubtle,
+                          ),
+                        Expanded(
+                          child: _DetailRow(row: rows[i], compact: compact),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ],
-            ),
           ),
         ],
       ),

@@ -126,6 +126,8 @@ message HealthStaticInfo {
 }
 
 // Top process row for health detail panels (TASK-007.2).
+// CPU / memory / threads / handles come from NtQuerySystemInformation
+// (SystemProcessInformation) — same family of data Task Manager uses.
 message HealthProcessEntry {
   uint32 pid = 1;
   string name = 2;
@@ -140,6 +142,42 @@ message HealthProcessEntry {
   bool has_net_bps = 11;
   double net_bps = 12; // bytes/sec
   string path = 13; // full image path for icons (optional)
+  uint32 thread_count = 14;
+  uint32 handle_count = 15;
+}
+
+// Drive classification for volume inventory (issue #11).
+enum HealthDriveKind {
+  HEALTH_DRIVE_KIND_UNSPECIFIED = 0;
+  HEALTH_DRIVE_KIND_FIXED = 1;
+  HEALTH_DRIVE_KIND_REMOVABLE = 2;
+  HEALTH_DRIVE_KIND_REMOTE = 3;
+  HEALTH_DRIVE_KIND_CDROM = 4;
+  HEALTH_DRIVE_KIND_RAMDISK = 5;
+  HEALTH_DRIVE_KIND_UNKNOWN = 6;
+}
+
+// One mounted volume (letter / mount root).
+message HealthVolume {
+  string id = 1;              // e.g. "C:"
+  string mount_point = 2;     // e.g. "C:\\"
+  string label = 3;           // volume label when available
+  string file_system = 4;     // NTFS, FAT32, …
+  HealthDriveKind kind = 5;
+  uint64 used_bytes = 6;
+  uint64 total_bytes = 7;
+  bool has_capacity = 8;      // false when unavailable / not queried
+  bool included_in_summary = 9; // fixed volumes contribute to primary summary
+}
+
+// One PhysicalDisk PDH instance (excludes _Total).
+message HealthPhysicalDisk {
+  string id = 1;              // PDH instance name, e.g. "0 C:"
+  string name = 2;            // display name (same as id unless refined)
+  bool has_read_bps = 3;
+  double read_bps = 4;
+  bool has_write_bps = 5;
+  double write_bps = 6;
 }
 
 // One real-time sample from the service (1 Hz).
@@ -156,11 +194,11 @@ message HealthSample {
   bool has_net_upload_bps = 10;
   double net_upload_bps = 11;    // bytes/sec
   bool has_disk_read_bps = 12;
-  double disk_read_bps = 13;     // bytes/sec
+  double disk_read_bps = 13;     // bytes/sec (_Total aggregate)
   bool has_disk_write_bps = 14;
-  double disk_write_bps = 15;    // bytes/sec
-  uint64 disk_used_bytes = 16;
-  uint64 disk_total_bytes = 17;
+  double disk_write_bps = 15;    // bytes/sec (_Total aggregate)
+  uint64 disk_used_bytes = 16;   // primary / system volume (compat)
+  uint64 disk_total_bytes = 17;  // primary / system volume (compat)
   uint64 uptime_ms = 18;
   bool has_cpu_temp_c = 19;
   double cpu_temp_c = 20;
@@ -188,6 +226,9 @@ message HealthSample {
   repeated HealthProcessEntry top_network = 41;
   // Per-logical-processor utilization (Processor(*)), excludes _Total.
   repeated double cpu_core_percent = 42;
+  // Multi-disk / multi-volume inventory (issue #11). Temps not included.
+  repeated HealthVolume volumes = 43;
+  repeated HealthPhysicalDisk disks = 44;
 }
 
 message GetHealthSnapshot {}

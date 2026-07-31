@@ -89,9 +89,21 @@ No `etw` / `wmi` keys in v1 schema. Unknown keys ignored for forward compatibili
 
 ---
 
-## Install / Uninstall
+## Install / Uninstall / Control
 
-`--install` / `--uninstall` as admin. Preserve ProgramData on uninstall.
+Admin elevation is required for install and service control. The Pulse UI may launch these via an explicit UAC prompt (`runas`) — never silently.
+
+| Flag | Behavior |
+|------|----------|
+| `--install` | Create/update SCM service (auto-start, LocalService) |
+| `--install-start` | Install/update, start, wait until RUNNING |
+| `--start` | Start installed service; wait until RUNNING |
+| `--stop` | Stop service; wait until STOPPED |
+| `--restart` | Stop then start |
+| `--status` | Print SCM state (`not_installed` / `stopped` / `start_pending` / `stop_pending` / `running` / `unknown`) — no admin |
+| `--uninstall` | Stop + delete service (preserves ProgramData) |
+
+The Flutter client queries SCM state without elevation and offers Start / Stop / Restart / Repair on Diagnostics and offline recovery screens (issues #5–#7).
 
 ---
 

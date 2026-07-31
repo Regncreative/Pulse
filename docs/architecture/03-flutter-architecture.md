@@ -66,6 +66,15 @@ Disconnected → Connecting → Connected
 
 On reconnect: `QueryRange` gap fill from last seen timestamp, then `SubscribeLive`.
 
+IPC connectivity (`PulseIpcClient`) is separate from Windows SCM state (`ServiceLifecycleController`):
+
+| Layer | States | Role |
+|-------|--------|------|
+| IPC | disconnected / connecting / connected / error | Named-pipe session |
+| SCM | not installed / stopped / start_pending / stop_pending / running / unknown | PulseService lifecycle |
+
+Offline Timeline / Health / Diagnostics share `ServiceOfflineRecovery` (Start / Repair CTA). Diagnostics also exposes Start / Stop / Restart with explicit UAC elevation via `PulseService.exe --start|--stop|--restart|--install-start`.
+
 ---
 
 ## Theme

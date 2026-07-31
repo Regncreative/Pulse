@@ -19,7 +19,7 @@ Sample rate: ~1 Hz when a client enables health monitoring.
 | Cached | PDH Cache + Modified + Standby Reserve + Normal + Core/Code | Same composition (MSDN) | **Aligned** |
 | GPU % | Max of `\GPU Engine(*)\Utilization Percentage` | Max engine util on selected GPU | **Close** |
 | Disk R/W | `\PhysicalDisk(_Total)\Disk Read/Write Bytes/sec` | Same counters | **Aligned** |
-| Disk capacity | `GetDiskFreeSpaceExW(C:)` | Selected volume (often C:) | **Close** (C: only) |
+| Disk capacity | Fixed volumes + present removable; primary prefers C: | Selected volume | **Aligned** (multi-volume) |
 | Network | Single active non-virtual adapter octets / Δt | Selected adapter | **Close** |
 | CPU speed | Base `~MHz` × `% Processor Performance` | Current / base clock | **Close** |
 
@@ -99,9 +99,28 @@ Sample rate: ~1 Hz when a client enables health monitoring.
 
 | | |
 |--|--|
-| **Pulse API** | `GetDiskFreeSpaceExW(L"C:\\")` |
+| **Pulse API** | `GetLogicalDriveStringsW` + `GetDiskFreeSpaceExW` per volume |
+| **Policy** | Fixed volumes always listed with capacity. Removable/optical listed when media present. Network volumes listed by letter only — no `GetVolumeInformationW` / `GetDiskFreeSpaceExW` (avoids SMB hangs). |
+| **Primary summary** | Prefers `C:`, else first fixed volume → `disk_used_bytes` / `disk_total_bytes` |
 | **Task Manager** | Per selected volume |
-| **Difference** | Pulse is **C: only** |
+| **Difference** | Pulse shows **all** relevant volumes; TM focuses on the selected one |
+
+### Physical disk throughput (per disk)
+
+| | |
+|--|--|
+| **Pulse API** | `\PhysicalDisk(*)\Disk Read/Write Bytes/sec` (excludes `_Total` for the list; `_Total` kept for aggregate sparklines) |
+| **Task Manager** | Per selected physical disk |
+| **Difference** | Pulse lists all instances; aggregate R/W still drives the main sparkline |
+
+### Top processes (CPU / Memory)
+
+| | |
+|--|--|
+| **Pulse API** | `NtQuerySystemInformation(SystemProcessInformation)` via `ntdll` |
+| **Pulse fields** | Name, PID, CPU % (Δ Kernel+User / elapsed / logical processors), Working set, Thread count, Handle count |
+| **Task Manager** | Same system-process snapshot family (no per-process `OpenProcess`) |
+| **Difference** | Full image path / icons may be unavailable without a handle; GPU tops still use PDH engine instances |
 
 ### Network
 
@@ -136,9 +155,9 @@ Sample rate: ~1 Hz when a client enables health monitoring.
 
 - Matching Task Manager **Details** tab CPU (% Processor Time) when Performance uses Utility
 - Live VRAM **usage** without vendor SDKs
-- Multi-volume disk inventory
+- Disk / SSD **temperature** sensors (deferred; issue #10)
 - Exact adapter parity without a UI adapter picker
-- Temperatures
+- Network drive capacity sampling every second (hang risk)
 
 ## Verification
 

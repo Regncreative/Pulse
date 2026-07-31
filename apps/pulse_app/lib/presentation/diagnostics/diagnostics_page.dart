@@ -14,10 +14,12 @@ import '../components/pulse_app_bar.dart';
 import '../components/pulse_badge.dart';
 import '../components/pulse_button.dart';
 import '../components/pulse_card.dart';
-import '../components/pulse_empty_state.dart';
 import '../components/pulse_section_header.dart';
+import '../components/service_lifecycle_controls.dart';
 import '../utils/pulse_snack.dart';
 import '../utils/pulse_user_errors.dart';
+import '../../application/service_lifecycle_controller.dart';
+import '../../platform/pulse_service_scm.dart';
 
 class DiagnosticsPage extends StatefulWidget {
   const DiagnosticsPage({super.key, required this.title});
@@ -93,12 +95,9 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
         Expanded(
           child: state == IpcConnectionState.disconnected ||
                   state == IpcConnectionState.error
-              ? const PulseEmptyState(
-                  useBrandIllustration: true,
-                  title: 'Diagnostics needs PulseService',
-                  message:
-                      'This page shows service health, IPC stats, and the event pipeline so you can troubleshoot connection issues.\n\n'
-                      'Start PulseService to connect — all diagnostics stay on this PC.',
+              ? const ServiceOfflineRecovery(
+                  titleFallback: 'Diagnostics needs PulseService',
+                  showFullControls: true,
                 )
               : LayoutBuilder(
             builder: (context, constraints) {
@@ -273,6 +272,7 @@ class _ServiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final connected = status.state == IpcConnectionState.connected;
+    final life = context.watch<ServiceLifecycleController>();
     final unavailable = snap == null
         ? (error ?? 'Unavailable — waiting for PulseService')
         : null;
@@ -282,8 +282,9 @@ class _ServiceCard extends StatelessWidget {
       expand: expand,
       child: Column(
         children: [
+          _kv('Windows service', life.statusLabel),
           _kv(
-            'Status',
+            'IPC',
             connected
                 ? 'Connected'
                 : switch (status.state) {
@@ -329,6 +330,19 @@ class _ServiceCard extends StatelessWidget {
                 ? snap!.runMode
                 : unavailable ?? '—',
           ),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          const SizedBox(height: 14),
+          const ServiceLifecycleControls(compact: true),
+          if (life.state == PulseServiceScmState.running && !connected) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Service is running — waiting for the local named-pipe connection…',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: PulseTokens.textTertiary,
+                  ),
+            ),
+          ],
         ],
       ),
     );
