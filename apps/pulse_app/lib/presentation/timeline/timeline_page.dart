@@ -14,6 +14,7 @@ import '../../application/connection_controller.dart';
 import '../../application/timeline_session_controller.dart';
 import '../../features/timeline/timeline_display.dart';
 import '../../features/timeline/timeline_export.dart';
+import '../../features/timeline/timeline_query.dart';
 import '../../features/timeline/widgets/timeline_details_panel.dart';
 import '../../features/timeline/widgets/timeline_event_tile.dart';
 import '../../ipc/pulse_ipc_client.dart';
@@ -25,22 +26,6 @@ import '../components/safe_hover.dart';
 import '../components/service_lifecycle_controls.dart';
 import '../utils/pulse_snack.dart';
 import '../utils/pulse_user_errors.dart';
-
-enum _SeverityFilter { all, errors, warnings, info }
-
-enum _SourceFilter { all, system, application, security, other }
-
-enum _CategoryFilter {
-  all,
-  crash,
-  service,
-  power,
-  update,
-  device,
-  boot,
-  security,
-  storage,
-}
 
 class TimelinePage extends StatefulWidget {
   const TimelinePage({super.key, required this.title});
@@ -54,21 +39,17 @@ class TimelinePage extends StatefulWidget {
 class _TimelinePageState extends State<TimelinePage> {
   /// Stable IPC event id — selection survives filter changes when still visible.
   String? _selectedEventId;
-  _SeverityFilter _severity = _SeverityFilter.all;
-  _SourceFilter _source = _SourceFilter.all;
-  _CategoryFilter _category = _CategoryFilter.all;
-  String _searchQuery = '';
+  TimelineQuery _query = const TimelineQuery();
   final _listScrollController = ScrollController();
+  final _providerFilterController = TextEditingController();
+  final _eventIdFilterController = TextEditingController();
+  final _processFilterController = TextEditingController();
 
   TimelineSessionController? _session;
   String? _lastTopEventId;
   int _lastEventCount = 0;
 
-  bool get _filtersActive =>
-      _severity != _SeverityFilter.all ||
-      _source != _SourceFilter.all ||
-      _category != _CategoryFilter.all ||
-      _searchQuery.trim().isNotEmpty;
+  bool get _filtersActive => _query.isActive;
 
   @override
   void initState() {
@@ -102,6 +83,9 @@ class _TimelinePageState extends State<TimelinePage> {
   void dispose() {
     _listScrollController.removeListener(_onScroll);
     _listScrollController.dispose();
+    _providerFilterController.dispose();
+    _eventIdFilterController.dispose();
+    _processFilterController.dispose();
     super.dispose();
   }
 
@@ -163,33 +147,41 @@ class _TimelinePageState extends State<TimelinePage> {
   void _pruneSelection(List<TimelineEvent> events) {
     if (_selectedEventId == null) return;
     final stillVisible = events.any(
-      (e) => e.eventId == _selectedEventId && _matches(e),
+      (e) => e.eventId == _selectedEventId && _query.matches(e),
     );
     if (!stillVisible) {
       _selectedEventId = null;
     }
   }
 
-  void _onSeverity(_SeverityFilter f) {
+  void _onSeverity(TimelineSeverityFilter f) {
     final events = context.read<TimelineSessionController>().events;
     setState(() {
-      _severity = f;
+      _query = _query.copyWith(severity: f);
       _pruneSelection(events);
     });
   }
 
-  void _onSource(_SourceFilter f) {
+  void _onSource(TimelineSourceFilter f) {
     final events = context.read<TimelineSessionController>().events;
     setState(() {
-      _source = f;
+      _query = _query.copyWith(source: f);
       _pruneSelection(events);
     });
   }
 
-  void _onCategory(_CategoryFilter f) {
+  void _onCategory(TimelineCategoryFilter f) {
     final events = context.read<TimelineSessionController>().events;
     setState(() {
-      _category = f;
+      _query = _query.copyWith(category: f);
+      _pruneSelection(events);
+    });
+  }
+
+  void _onDateRange(TimelineDateRangeFilter f) {
+    final events = context.read<TimelineSessionController>().events;
+    setState(() {
+      _query = _query.copyWith(dateRange: f);
       _pruneSelection(events);
     });
   }
@@ -197,7 +189,31 @@ class _TimelinePageState extends State<TimelinePage> {
   void _onSearch(String q) {
     final events = context.read<TimelineSessionController>().events;
     setState(() {
-      _searchQuery = q;
+      _query = _query.copyWith(searchQuery: q);
+      _pruneSelection(events);
+    });
+  }
+
+  void _onProviderFilter(String v) {
+    final events = context.read<TimelineSessionController>().events;
+    setState(() {
+      _query = _query.copyWith(providerContains: v);
+      _pruneSelection(events);
+    });
+  }
+
+  void _onEventIdFilter(String v) {
+    final events = context.read<TimelineSessionController>().events;
+    setState(() {
+      _query = _query.copyWith(eventIdEquals: v);
+      _pruneSelection(events);
+    });
+  }
+
+  void _onProcessFilter(String v) {
+    final events = context.read<TimelineSessionController>().events;
+    setState(() {
+      _query = _query.copyWith(processContains: v);
       _pruneSelection(events);
     });
   }
@@ -205,10 +221,10 @@ class _TimelinePageState extends State<TimelinePage> {
   void _clearFilters() {
     final events = context.read<TimelineSessionController>().events;
     setState(() {
-      _severity = _SeverityFilter.all;
-      _source = _SourceFilter.all;
-      _category = _CategoryFilter.all;
-      _searchQuery = '';
+      _query = const TimelineQuery();
+      _providerFilterController.clear();
+      _eventIdFilterController.clear();
+      _processFilterController.clear();
       _pruneSelection(events);
     });
   }
@@ -222,7 +238,7 @@ class _TimelinePageState extends State<TimelinePage> {
   }
 
   List<TimelineEvent> _visible(List<TimelineEvent> events) {
-    return [for (final e in events) if (_matches(e)) e];
+    return [for (final e in events) if (_query.matches(e)) e];
   }
 
   TimelineEvent? _selectedEvent(List<TimelineEvent> events) {
@@ -234,62 +250,6 @@ class _TimelinePageState extends State<TimelinePage> {
     return null;
   }
 
-  bool _matches(TimelineEvent e) {
-    final sev = e.severity;
-    final severityOk = switch (_severity) {
-      _SeverityFilter.all => true,
-      _SeverityFilter.errors =>
-        sev == Severity.error || sev == Severity.critical,
-      _SeverityFilter.warnings => sev == Severity.warning,
-      _SeverityFilter.info =>
-        sev == Severity.info || sev == Severity.verbose || sev == Severity.unknown,
-    };
-    if (!severityOk) return false;
-
-    final sourceOk = switch (_source) {
-      _SourceFilter.all => true,
-      _SourceFilter.system => e.displayChannel.toLowerCase() == 'system',
-      _SourceFilter.application =>
-        e.displayChannel.toLowerCase() == 'application',
-      _SourceFilter.security => e.displayChannel.toLowerCase() == 'security',
-      _SourceFilter.other => () {
-          final ch = e.displayChannel.toLowerCase();
-          return ch != 'system' && ch != 'application' && ch != 'security';
-        }(),
-    };
-    if (!sourceOk) return false;
-
-    final categoryOk = switch (_category) {
-      _CategoryFilter.all => true,
-      _CategoryFilter.crash => e.category.toLowerCase() == 'crash',
-      _CategoryFilter.service => e.category.toLowerCase() == 'service',
-      _CategoryFilter.power => e.category.toLowerCase() == 'power',
-      _CategoryFilter.update => e.category.toLowerCase() == 'update',
-      _CategoryFilter.device =>
-        e.category.toLowerCase() == 'device' ||
-            e.category.toLowerCase() == 'driver',
-      _CategoryFilter.boot => e.category.toLowerCase() == 'boot',
-      _CategoryFilter.security => e.category.toLowerCase() == 'security',
-      _CategoryFilter.storage => e.category.toLowerCase() == 'storage',
-    };
-    if (!categoryOk) return false;
-
-    final q = _searchQuery.trim().toLowerCase();
-    if (q.isEmpty) return true;
-    final haystack = [
-      e.displayTitle,
-      e.displaySummary,
-      e.message,
-      e.technicalSummary,
-      e.providerName,
-      e.displayChannel,
-      e.category,
-      e.winEventId.toString(),
-      e.recordId.toString(),
-    ].join(' ').toLowerCase();
-    return haystack.contains(q);
-  }
-
   String _emptyMessage({required bool hasEvents, required bool mock}) {
     if (!hasEvents) {
       return mock
@@ -299,7 +259,7 @@ class _TimelinePageState extends State<TimelinePage> {
     }
     if (_filtersActive) {
       return 'No events match the current search and filters.\n\n'
-          'Clear filters or try a different severity, source, or category.';
+          'Clear filters or try a different severity, source, category, provider, or date range.';
     }
     return 'Nothing to show in this view.';
   }
@@ -379,8 +339,8 @@ class _TimelinePageState extends State<TimelinePage> {
           searchEnabled: !offline && !busy && loadError == null,
           searchHint: offline
               ? 'Connect PulseService to search events'
-              : 'Search title, summary, provider, or event ID…',
-          searchQuery: _searchQuery,
+              : 'Search provider, Event ID, computer, message, process, PID…',
+          searchQuery: _query.searchQuery,
           onSearchChanged: _onSearch,
           actions: [
             if (kUseMockTimeline)
@@ -426,9 +386,10 @@ class _TimelinePageState extends State<TimelinePage> {
                       : _TimelineBody(
                           selectedEventId: _selectedEventId,
                           selectedEvent: selectedEvent,
-                          severity: _severity,
-                          source: _source,
-                          category: _category,
+                          query: _query,
+                          providerFilterController: _providerFilterController,
+                          eventIdFilterController: _eventIdFilterController,
+                          processFilterController: _processFilterController,
                           filtersActive: _filtersActive,
                           visible: visible,
                           hasStoredEvents: events.isNotEmpty,
@@ -442,6 +403,10 @@ class _TimelinePageState extends State<TimelinePage> {
                           onSeverity: _onSeverity,
                           onSource: _onSource,
                           onCategory: _onCategory,
+                          onDateRange: _onDateRange,
+                          onProviderFilter: _onProviderFilter,
+                          onEventIdFilter: _onEventIdFilter,
+                          onProcessFilter: _onProcessFilter,
                           onClearFilters: _clearFilters,
                           onSelect: _selectEvent,
                           onClear: _clearSelection,
@@ -493,9 +458,10 @@ class _TimelineBody extends StatelessWidget {
   const _TimelineBody({
     required this.selectedEventId,
     required this.selectedEvent,
-    required this.severity,
-    required this.source,
-    required this.category,
+    required this.query,
+    required this.providerFilterController,
+    required this.eventIdFilterController,
+    required this.processFilterController,
     required this.filtersActive,
     required this.visible,
     required this.hasStoredEvents,
@@ -506,6 +472,10 @@ class _TimelineBody extends StatelessWidget {
     required this.onSeverity,
     required this.onSource,
     required this.onCategory,
+    required this.onDateRange,
+    required this.onProviderFilter,
+    required this.onEventIdFilter,
+    required this.onProcessFilter,
     required this.onClearFilters,
     required this.onSelect,
     required this.onClear,
@@ -516,9 +486,10 @@ class _TimelineBody extends StatelessWidget {
 
   final String? selectedEventId;
   final TimelineEvent? selectedEvent;
-  final _SeverityFilter severity;
-  final _SourceFilter source;
-  final _CategoryFilter category;
+  final TimelineQuery query;
+  final TextEditingController providerFilterController;
+  final TextEditingController eventIdFilterController;
+  final TextEditingController processFilterController;
   final bool filtersActive;
   final List<TimelineEvent> visible;
   final bool hasStoredEvents;
@@ -526,9 +497,13 @@ class _TimelineBody extends StatelessWidget {
   final bool showMockBanner;
   final int pendingNewCount;
   final ScrollController scrollController;
-  final ValueChanged<_SeverityFilter> onSeverity;
-  final ValueChanged<_SourceFilter> onSource;
-  final ValueChanged<_CategoryFilter> onCategory;
+  final ValueChanged<TimelineSeverityFilter> onSeverity;
+  final ValueChanged<TimelineSourceFilter> onSource;
+  final ValueChanged<TimelineCategoryFilter> onCategory;
+  final ValueChanged<TimelineDateRangeFilter> onDateRange;
+  final ValueChanged<String> onProviderFilter;
+  final ValueChanged<String> onEventIdFilter;
+  final ValueChanged<String> onProcessFilter;
   final VoidCallback onClearFilters;
   final ValueChanged<TimelineEvent> onSelect;
   final VoidCallback onClear;
@@ -565,7 +540,7 @@ class _TimelineBody extends StatelessWidget {
                             child: _FilterSection(
                               label: 'Severity',
                               child: _SeverityRow(
-                                selected: severity,
+                                selected: query.severity,
                                 onSelected: onSeverity,
                               ),
                             ),
@@ -599,7 +574,7 @@ class _TimelineBody extends StatelessWidget {
                             child: _FilterSection(
                               label: 'Source',
                               child: _SourceRow(
-                                selected: source,
+                                selected: query.source,
                                 onSelected: onSource,
                               ),
                             ),
@@ -620,9 +595,26 @@ class _TimelineBody extends StatelessWidget {
                       _FilterSection(
                         label: 'Type',
                         child: _CategoryRow(
-                          selected: category,
+                          selected: query.category,
                           onSelected: onCategory,
                         ),
+                      ),
+                      const SizedBox(height: 10),
+                      _FilterSection(
+                        label: 'When',
+                        child: _DateRangeRow(
+                          selected: query.dateRange,
+                          onSelected: onDateRange,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _AdvancedFilterFields(
+                        providerController: providerFilterController,
+                        eventIdController: eventIdFilterController,
+                        processController: processFilterController,
+                        onProvider: onProviderFilter,
+                        onEventId: onEventIdFilter,
+                        onProcess: onProcessFilter,
                       ),
                     ],
                   ),
@@ -675,10 +667,7 @@ class _TimelineBody extends StatelessWidget {
                               event: event,
                               isFirst: i == 0,
                               isLast: i == visible.length - 1,
-                              emphasize: i == 0 &&
-                                  severity == _SeverityFilter.all &&
-                                  source == _SourceFilter.all &&
-                                  category == _CategoryFilter.all,
+                              emphasize: i == 0 && !filtersActive,
                               animationIndex: i.clamp(0, 12),
                               selected: selectedEventId != null &&
                                   event.eventId == selectedEventId,
@@ -862,16 +851,16 @@ class _PreviewBanner extends StatelessWidget {
 class _SeverityRow extends StatelessWidget {
   const _SeverityRow({required this.selected, required this.onSelected});
 
-  final _SeverityFilter selected;
-  final ValueChanged<_SeverityFilter> onSelected;
+  final TimelineSeverityFilter selected;
+  final ValueChanged<TimelineSeverityFilter> onSelected;
 
   @override
   Widget build(BuildContext context) {
     const items = [
-      (_SeverityFilter.all, 'All'),
-      (_SeverityFilter.errors, 'Errors'),
-      (_SeverityFilter.warnings, 'Warnings'),
-      (_SeverityFilter.info, 'Info'),
+      (TimelineSeverityFilter.all, 'All'),
+      (TimelineSeverityFilter.errors, 'Errors'),
+      (TimelineSeverityFilter.warnings, 'Warnings'),
+      (TimelineSeverityFilter.info, 'Info'),
     ];
     return Wrap(
       spacing: 8,
@@ -891,17 +880,17 @@ class _SeverityRow extends StatelessWidget {
 class _SourceRow extends StatelessWidget {
   const _SourceRow({required this.selected, required this.onSelected});
 
-  final _SourceFilter selected;
-  final ValueChanged<_SourceFilter> onSelected;
+  final TimelineSourceFilter selected;
+  final ValueChanged<TimelineSourceFilter> onSelected;
 
   @override
   Widget build(BuildContext context) {
     const items = [
-      (_SourceFilter.all, 'All'),
-      (_SourceFilter.system, 'System'),
-      (_SourceFilter.application, 'Application'),
-      (_SourceFilter.security, 'Security'),
-      (_SourceFilter.other, 'Other'),
+      (TimelineSourceFilter.all, 'All'),
+      (TimelineSourceFilter.system, 'System'),
+      (TimelineSourceFilter.application, 'Application'),
+      (TimelineSourceFilter.security, 'Security'),
+      (TimelineSourceFilter.other, 'Other'),
     ];
     return Wrap(
       spacing: 8,
@@ -921,21 +910,21 @@ class _SourceRow extends StatelessWidget {
 class _CategoryRow extends StatelessWidget {
   const _CategoryRow({required this.selected, required this.onSelected});
 
-  final _CategoryFilter selected;
-  final ValueChanged<_CategoryFilter> onSelected;
+  final TimelineCategoryFilter selected;
+  final ValueChanged<TimelineCategoryFilter> onSelected;
 
   @override
   Widget build(BuildContext context) {
     const items = [
-      (_CategoryFilter.all, 'All'),
-      (_CategoryFilter.crash, 'Crash'),
-      (_CategoryFilter.service, 'Service'),
-      (_CategoryFilter.power, 'Power'),
-      (_CategoryFilter.update, 'Update'),
-      (_CategoryFilter.device, 'Device'),
-      (_CategoryFilter.boot, 'Boot'),
-      (_CategoryFilter.security, 'Security'),
-      (_CategoryFilter.storage, 'Storage'),
+      (TimelineCategoryFilter.all, 'All'),
+      (TimelineCategoryFilter.crash, 'Crash'),
+      (TimelineCategoryFilter.service, 'Service'),
+      (TimelineCategoryFilter.power, 'Power'),
+      (TimelineCategoryFilter.update, 'Update'),
+      (TimelineCategoryFilter.device, 'Device'),
+      (TimelineCategoryFilter.boot, 'Boot'),
+      (TimelineCategoryFilter.security, 'Security'),
+      (TimelineCategoryFilter.storage, 'Storage'),
     ];
     return Wrap(
       spacing: 8,
@@ -947,6 +936,98 @@ class _CategoryRow extends StatelessWidget {
             selected: selected == item.$1,
             onTap: () => onSelected(item.$1),
           ),
+      ],
+    );
+  }
+}
+
+class _DateRangeRow extends StatelessWidget {
+  const _DateRangeRow({required this.selected, required this.onSelected});
+
+  final TimelineDateRangeFilter selected;
+  final ValueChanged<TimelineDateRangeFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    const items = [
+      (TimelineDateRangeFilter.all, 'All time'),
+      (TimelineDateRangeFilter.lastHour, '1 hour'),
+      (TimelineDateRangeFilter.last24Hours, '24 hours'),
+      (TimelineDateRangeFilter.last7Days, '7 days'),
+    ];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final item in items)
+          _FilterChip(
+            label: item.$2,
+            selected: selected == item.$1,
+            onTap: () => onSelected(item.$1),
+          ),
+      ],
+    );
+  }
+}
+
+class _AdvancedFilterFields extends StatelessWidget {
+  const _AdvancedFilterFields({
+    required this.providerController,
+    required this.eventIdController,
+    required this.processController,
+    required this.onProvider,
+    required this.onEventId,
+    required this.onProcess,
+  });
+
+  final TextEditingController providerController;
+  final TextEditingController eventIdController;
+  final TextEditingController processController;
+  final ValueChanged<String> onProvider;
+  final ValueChanged<String> onEventId;
+  final ValueChanged<String> onProcess;
+
+  @override
+  Widget build(BuildContext context) {
+    InputDecoration deco(String label, String hint) {
+      return InputDecoration(
+        labelText: label,
+        hintText: hint,
+        isDense: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(PulseTokens.radiusMd),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          flex: 3,
+          child: TextField(
+            controller: providerController,
+            decoration: deco('Provider', 'e.g. Kernel-Power'),
+            onChanged: onProvider,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            controller: eventIdController,
+            decoration: deco('Event ID', '41'),
+            keyboardType: TextInputType.number,
+            onChanged: onEventId,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 2,
+          child: TextField(
+            controller: processController,
+            decoration: deco('Process / PID', 'explorer.exe'),
+            onChanged: onProcess,
+          ),
+        ),
       ],
     );
   }

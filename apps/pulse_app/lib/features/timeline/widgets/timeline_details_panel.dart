@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
 import 'package:pulse_protocol/pulse_wire.dart';
 
 import '../../../app/theme/pulse_theme.dart';
+import '../../../ipc/pulse_ipc_client.dart';
 import '../../../presentation/components/pulse_badge.dart';
 import '../timeline_display.dart';
 import 'detail_section.dart';
 import 'metadata_table.dart';
 
-/// Right-side Event Details panel. Uses IPC [TimelineEvent] only — no extra fetch.
-class TimelineDetailsPanel extends StatelessWidget {
+/// Right-side Event Details panel.
+/// Compact Wevtapi fields come from the list [TimelineEvent]; raw XML is lazy-loaded.
+class TimelineDetailsPanel extends StatefulWidget {
   const TimelineDetailsPanel({
     super.key,
     required this.event,
@@ -18,6 +22,148 @@ class TimelineDetailsPanel extends StatelessWidget {
 
   final TimelineEvent event;
   final VoidCallback onClose;
+
+  @override
+  State<TimelineDetailsPanel> createState() => _TimelineDetailsPanelState();
+}
+
+class _TimelineDetailsPanelState extends State<TimelineDetailsPanel> {
+  String? _rawXml;
+  bool _loadingXml = false;
+  String? _xmlError;
+  bool _xmlRequested = false;
+
+  TimelineEvent get event => widget.event;
+
+  @override
+  void didUpdateWidget(covariant TimelineDetailsPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.event.eventId != widget.event.eventId) {
+      _rawXml = widget.event.rawXml.isNotEmpty ? widget.event.rawXml : null;
+      _loadingXml = false;
+      _xmlError = null;
+      _xmlRequested = false;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (event.rawXml.isNotEmpty) {
+      _rawXml = event.rawXml;
+      _xmlRequested = true;
+    }
+  }
+
+  Future<void> _loadRawXml() async {
+    if (_xmlRequested || _loadingXml) return;
+    if (event.channel.isEmpty || event.recordId == 0) {
+      setState(() {
+        _xmlRequested = true;
+        _xmlError = 'Record ID or channel unavailable — cannot load Event XML.';
+      });
+      return;
+    }
+    setState(() {
+      _loadingXml = true;
+      _xmlError = null;
+      _xmlRequested = true;
+    });
+    try {
+      final ipc = context.read<PulseIpcClient>();
+      final detail = await ipc.getTimelineEventDetail(
+        channel: event.displayChannel,
+        recordId: event.recordId,
+      );
+      if (!mounted) return;
+      if (!detail.found) {
+        setState(() {
+          _loadingXml = false;
+          _xmlError = 'Event was not found in the Event Log (it may have been cleared).';
+        });
+        return;
+      }
+      setState(() {
+        _loadingXml = false;
+        _rawXml = detail.event.rawXml;
+        if (_rawXml == null || _rawXml!.isEmpty) {
+          _xmlError = 'Windows did not return Event XML for this record.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingXml = false;
+        _xmlError = e.toString();
+      });
+    }
+  }
+
+  List<MetadataEntry> _technicalEntries({required bool dense}) {
+    String dash(String v) => dense ? (v.isEmpty ? '—' : v) : v;
+    String hexKeywords() {
+      if (!event.hasKeywords) return '';
+      return '0x${event.keywords.toUnsigned(64).toRadixString(16)}';
+    }
+
+    return [
+      MetadataEntry('Provider', dash(event.providerName)),
+      MetadataEntry(
+        'Event ID',
+        event.winEventId == 0 ? dash('') : event.winEventId.toString(),
+      ),
+      MetadataEntry('Channel', dash(event.displayChannel)),
+      MetadataEntry('Computer', dash(event.computerName)),
+      MetadataEntry(
+        'Level',
+        dash(event.levelName.isNotEmpty
+            ? event.levelName
+            : event.severityVisual.label),
+      ),
+      MetadataEntry(
+        'Task',
+        event.hasTask ? event.task.toString() : dash(''),
+      ),
+      MetadataEntry(
+        'Opcode',
+        event.hasOpcode ? event.opcode.toString() : dash(''),
+      ),
+      MetadataEntry('Keywords', dash(hexKeywords())),
+      MetadataEntry(
+        'Process',
+        dash(event.processName),
+      ),
+      MetadataEntry(
+        'PID',
+        event.hasProcessId ? event.processId.toString() : dash(''),
+      ),
+      MetadataEntry(
+        'Thread ID',
+        event.hasThreadId ? event.threadId.toString() : dash(''),
+      ),
+      MetadataEntry('SID', dash(event.userSid)),
+      MetadataEntry(
+        'Record ID',
+        event.recordId == 0 ? dash('') : event.recordId.toString(),
+      ),
+      MetadataEntry('Activity ID', dash(event.activityId)),
+      MetadataEntry('Correlation ID', dash(event.relatedActivityId)),
+      if (dense) ...[
+        MetadataEntry(
+          'Timestamp ISO',
+          event.timestampIso.isEmpty ? '—' : event.timestampIso,
+        ),
+        MetadataEntry(
+          'Timestamp Unix',
+          event.timestampUnixMs == 0 ? '—' : event.timestampUnixMs.toString(),
+        ),
+        MetadataEntry(
+          'Stable ID',
+          event.eventId.isEmpty ? '—' : event.eventId,
+        ),
+      ],
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +177,7 @@ class TimelineDetailsPanel extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.24),
+            color: Colors.black.withValues(alpha: 0.28),
             blurRadius: 22,
             offset: const Offset(-4, 0),
           ),
@@ -40,7 +186,7 @@ class TimelineDetailsPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _DetailsHeader(onClose: onClose),
+          _DetailsHeader(onClose: widget.onClose),
           Divider(height: 1, color: PulseTokens.strokeSubtle),
           Expanded(
             child: ListView(
@@ -160,21 +306,7 @@ class TimelineDetailsPanel extends StatelessWidget {
                 DetailSection(
                   title: 'Technical Information',
                   child: MetadataTable(
-                    entries: [
-                      MetadataEntry('Provider', event.providerName),
-                      MetadataEntry(
-                        'Event ID',
-                        event.winEventId == 0
-                            ? ''
-                            : event.winEventId.toString(),
-                      ),
-                      MetadataEntry('Channel', event.displayChannel),
-                      MetadataEntry('Computer Name', event.computerName),
-                      MetadataEntry(
-                        'Record ID',
-                        event.recordId == 0 ? '' : event.recordId.toString(),
-                      ),
-                    ],
+                    entries: _technicalEntries(dense: false),
                   ),
                 ),
                 Divider(height: 1, color: PulseTokens.strokeSubtle),
@@ -184,6 +316,17 @@ class TimelineDetailsPanel extends StatelessWidget {
                     message: event.message.isNotEmpty
                         ? event.message
                         : 'No original Event Viewer message was available for this entry.',
+                  ),
+                ),
+                Divider(height: 1, color: PulseTokens.strokeSubtle),
+                DetailSection(
+                  title: 'Raw Event XML',
+                  child: _RawXmlSection(
+                    loading: _loadingXml,
+                    error: _xmlError,
+                    xml: _rawXml,
+                    onLoad: _loadRawXml,
+                    loaded: _xmlRequested && !_loadingXml,
                   ),
                 ),
                 Divider(height: 1, color: PulseTokens.strokeSubtle),
@@ -210,40 +353,7 @@ class TimelineDetailsPanel extends StatelessWidget {
                       children: [
                         MetadataTable(
                           dense: true,
-                          entries: [
-                            MetadataEntry('Provider', event.providerName),
-                            MetadataEntry(
-                              'Event ID',
-                              event.winEventId == 0
-                                  ? '—'
-                                  : event.winEventId.toString(),
-                            ),
-                            MetadataEntry('Channel', event.displayChannel),
-                            MetadataEntry(
-                              'Timestamp ISO',
-                              event.timestampIso.isEmpty
-                                  ? '—'
-                                  : event.timestampIso,
-                            ),
-                            MetadataEntry(
-                              'Timestamp Unix',
-                              event.timestampUnixMs == 0
-                                  ? '—'
-                                  : event.timestampUnixMs.toString(),
-                            ),
-                            MetadataEntry(
-                              'Computer',
-                              event.computerName.isEmpty
-                                  ? '—'
-                                  : event.computerName,
-                            ),
-                            MetadataEntry(
-                              'Record ID',
-                              event.recordId == 0
-                                  ? '—'
-                                  : event.recordId.toString(),
-                            ),
-                          ],
+                          entries: _technicalEntries(dense: true),
                         ),
                       ],
                     ),
@@ -254,6 +364,78 @@ class TimelineDetailsPanel extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RawXmlSection extends StatelessWidget {
+  const _RawXmlSection({
+    required this.loading,
+    required this.error,
+    required this.xml,
+    required this.onLoad,
+    required this.loaded,
+  });
+
+  final bool loading;
+  final String? error;
+  final String? xml;
+  final VoidCallback onLoad;
+  final bool loaded;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!loaded && !loading) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: onLoad,
+          icon: const Icon(LucideIcons.fileCode, size: 16),
+          label: const Text('Load Event XML'),
+        ),
+      );
+    }
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 10),
+            Text('Loading Event XML…'),
+          ],
+        ),
+      );
+    }
+    if (error != null && (xml == null || xml!.isEmpty)) {
+      return Text(
+        error!,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: PulseTokens.severityWarning,
+              height: 1.4,
+            ),
+      );
+    }
+    final text = xml ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: IconButton(
+            tooltip: 'Copy XML',
+            onPressed: text.isEmpty
+                ? null
+                : () => Clipboard.setData(ClipboardData(text: text)),
+            icon: const Icon(LucideIcons.copy, size: 16),
+          ),
+        ),
+        _OriginalMessageBox(message: text.isEmpty ? '(empty)' : text),
+      ],
     );
   }
 }
@@ -319,108 +501,28 @@ class _OverviewChip extends StatelessWidget {
   }
 }
 
-class _OriginalMessageBox extends StatefulWidget {
+class _OriginalMessageBox extends StatelessWidget {
   const _OriginalMessageBox({required this.message});
 
   final String message;
 
   @override
-  State<_OriginalMessageBox> createState() => _OriginalMessageBoxState();
-}
-
-class _OriginalMessageBoxState extends State<_OriginalMessageBox> {
-  final _controller = ScrollController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(maxHeight: 260, minHeight: 96),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: PulseTokens.surface.withValues(alpha: 0.92),
+        color: PulseTokens.surface.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(PulseTokens.radiusMd),
         border: Border.all(color: PulseTokens.strokeSubtle),
       ),
-      child: Scrollbar(
-        controller: _controller,
-        child: SingleChildScrollView(
-          controller: _controller,
-          padding: const EdgeInsets.all(12),
-          child: SelectableText(
-            widget.message,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontFamily: 'Consolas',
-                  color: PulseTokens.textSecondary,
-                  height: 1.55,
-                ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Animated host that expands the details panel beside the timeline list.
-class TimelineDetailsHost extends StatelessWidget {
-  const TimelineDetailsHost({
-    super.key,
-    required this.expanded,
-    required this.width,
-    required this.event,
-    required this.onClose,
-  });
-
-  final bool expanded;
-  final double width;
-  final TimelineEvent? event;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRect(
-      child: AnimatedAlign(
-        duration: PulseTokens.motionSlow,
-        curve: PulseTokens.motionEmphasized,
-        alignment: Alignment.centerRight,
-        widthFactor: expanded ? 1 : 0,
-        child: SizedBox(
-          width: width,
-          child: event == null
-              ? const SizedBox.shrink()
-              : AnimatedSwitcher(
-                  duration: PulseTokens.motionNormal,
-                  switchInCurve: PulseTokens.motionCurve,
-                  transitionBuilder: (child, animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0.04, 0),
-                          end: Offset.zero,
-                        ).animate(animation),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: KeyedSubtree(
-                    key: ValueKey(
-                      event!.eventId.isNotEmpty
-                          ? event!.eventId
-                          : event!.displayTitle,
-                    ),
-                    child: TimelineDetailsPanel(
-                      event: event!,
-                      onClose: onClose,
-                    ),
-                  ),
-                ),
-        ),
+      child: SelectableText(
+        message,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: PulseTokens.textSecondary,
+              height: 1.45,
+              fontFamily: 'Consolas',
+            ),
       ),
     );
   }

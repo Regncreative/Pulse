@@ -25,6 +25,18 @@ abstract final class TimelineExport {
       'action_required': e.actionRequired,
       'importance': e.importance,
       'category': e.category,
+      if (e.hasTask) 'task': e.task,
+      if (e.hasOpcode) 'opcode': e.opcode,
+      if (e.hasKeywords) 'keywords': e.keywords.toUnsigned(64).toString(),
+      if (e.hasProcessId) 'process_id': e.processId,
+      if (e.processName.isNotEmpty) 'process_name': e.processName,
+      if (e.hasThreadId) 'thread_id': e.threadId,
+      if (e.userSid.isNotEmpty) 'user_sid': e.userSid,
+      if (e.activityId.isNotEmpty) 'activity_id': e.activityId,
+      if (e.relatedActivityId.isNotEmpty)
+        'related_activity_id': e.relatedActivityId,
+      if (e.levelName.isNotEmpty) 'level_name': e.levelName,
+      if (e.rawXml.isNotEmpty) 'raw_xml': e.rawXml,
     };
   }
 
