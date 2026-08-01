@@ -1,6 +1,6 @@
 # 29 — System Health Quality Milestone
 
-Status: **In progress** (Phases 1–5 complete)
+Status: **Complete** (Phases 1–8; shipping as `0.1.3-beta`)
 
 ## Goal
 
@@ -20,9 +20,9 @@ Bring every System Health surface to the same quality bar as CPU and Memory:
 | **3 Hardware** | Sensors Windows can expose (SMART, Storage temp IOCTLs, D3DKMT) | **Complete** |
 | **4 Timeline** | Event-type depth (crash/BSOD/update/device/power) via Event Log channels + intelligence | **Complete** |
 | **5 Diagnostics** | Service/IPC/collector/Flutter instrumentation | **Complete** |
-| **6 UX** | Polish overflow, empty states, virtualization, a11y | Pending |
-| **7 Validation** | Compare vs Task Manager / Resource Monitor / PerfMon / System Informer | Pending |
-| **8 Docs + beta** | ADRs, release notes, package `0.1.3-beta` | Pending |
+| **6 UX** | Polish overflow, empty states, virtualization, a11y | **Complete** |
+| **7 Validation** | Compare vs Task Manager / Resource Monitor / PerfMon / System Informer | **Complete** (methodology: [30](30-health-validation.md)) |
+| **8 Docs + beta** | ADRs, release notes, package `0.1.3-beta` | **Complete** |
 
 ## Phase 1 notes
 

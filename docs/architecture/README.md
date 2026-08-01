@@ -57,6 +57,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 27 | [Service crash: client thread](27-service-crash-client-thread.md) | SCM `0xc0000409` / joinable `std::thread` |
 | 28 | [TM App grouping roadmap](28-task-manager-app-grouping.md) | Apps tree without changing PID inventory |
 | 29 | [System Health quality milestone](29-system-health-quality-milestone.md) | Phased GPU/Network/Hardware/Timeline/Diagnostics quality |
+| 30 | [Health validation methodology](30-health-validation.md) | TM / RM / PerfMon / SI comparison matrix |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 
