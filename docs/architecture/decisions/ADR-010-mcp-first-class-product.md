@@ -1,6 +1,6 @@
 # ADR-010: PulseMCP as a First-Class Product Component
 
-**Status:** Accepted (architecture finalized; implementation not started)
+**Status:** Accepted — M1 shipped (`apps/pulse_mcp`: stdio, `mcp.self`, policy gate, IPC hello); M2+ per doc 33 / roadmap R5–R7
 
 **Date:** 2026-08-01
 
@@ -158,7 +158,7 @@ Expose MCP **Resources** with subscription support for CPU, Memory, GPU, Network
 ### Follow-ups
 
 - Document 33 is the normative MCP API surface.
-- Implementation is phased (33 § Roadmap); **no code until this ADR + doc 33 are accepted** (this ADR is Accepted for architecture; coding starts on explicit go-ahead).
+- Implementation is phased (33 §15; engineering roadmap R5–R7). M1 is complete; do not expand the tool surface without matching roadmap milestones.
 
 ## References
 

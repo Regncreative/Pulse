@@ -53,8 +53,13 @@ PulseService.exe --console         Dev foreground mode (no SCM)
 
 See [26-windows-runtime-deps.md](26-windows-runtime-deps.md).
 
+## Timeline channels (current)
+
+Timeline uses the **diagnostics multi-channel set** (not System-only). Clients that still send `channel=System` receive that multi-channel diagnostics snapshot; see [21-event-viewer-integration.md](21-event-viewer-integration.md) and [07-timeline-engine.md](07-timeline-engine.md).
+
 ## Known beta limits
 
-- System Event Log channel only
 - Not code-signed yet (SmartScreen may warn)
 - `flutter build windows --release` may need ASCII staging path (`package_beta.ps1` handles this)
+- PulseMCP M1 is present in-repo; installer packaging of `PulseMCP.exe` is roadmap R6
+- Inventory beyond processes is not shipped (roadmap R3)
