@@ -446,6 +446,14 @@ class PulseIpcClient extends ChangeNotifier {
     }
   }
 
+  /// Test-only: force IPC connection state without opening a pipe.
+  @visibleForTesting
+  void debugSetStatusForTest(IpcStatus status) {
+    _prevTrackedState = status.state;
+    _status = status;
+    notifyListeners();
+  }
+
   void _setStatus(IpcStatus s) {
     if (_status == s) return;
 

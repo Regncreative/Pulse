@@ -48,6 +48,17 @@ class DiagnosticsController extends ChangeNotifier {
 
   bool get connected => ipc.status.state == IpcConnectionState.connected;
 
+  bool _freezeSnapshotForTest = false;
+
+  /// Test-only: inject a snapshot without calling the service.
+  @visibleForTesting
+  void debugSetSnapshotForTest(DiagnosticsSnapshot? value, {String? error}) {
+    snapshot = value;
+    snapshotError = error;
+    _freezeSnapshotForTest = true;
+    notifyListeners();
+  }
+
   void startPolling() {
     if (polling) return;
     polling = true;
@@ -68,6 +79,9 @@ class DiagnosticsController extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    if (_freezeSnapshotForTest) {
+      return;
+    }
     if (!connected) {
       snapshot = null;
       snapshotError =

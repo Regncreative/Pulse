@@ -7,6 +7,7 @@ import 'package:pulse_protocol/pulse_wire.dart';
 import '../../application/client_frame_metrics.dart';
 import '../../application/connection_controller.dart';
 import '../../application/diagnostics_controller.dart';
+import '../../application/settings_controller.dart';
 import '../../application/timeline_session_controller.dart';
 import '../../app/theme/pulse_theme.dart';
 import '../../ipc/pulse_ipc_client.dart';
@@ -24,6 +25,17 @@ import '../utils/pulse_snack.dart';
 import '../utils/pulse_user_errors.dart';
 import '../../application/service_lifecycle_controller.dart';
 import '../../platform/pulse_service_scm.dart';
+
+/// Product targets from AGENTS.md / architecture doc 01 — display only; never
+/// invent live values to match these.
+class PulsePerformanceBudgets {
+  static const coldStartTarget = Duration(seconds: 1);
+  static const idleUiRssBytes = 150 * 1024 * 1024;
+  static const idleCpuNearZero = 'Near zero when idle';
+  static const minFps = 60.0;
+  static const ipcRttMs = 50;
+  static const hotPathMs = 10;
+}
 
 class DiagnosticsPage extends StatefulWidget {
   const DiagnosticsPage({super.key, required this.title});
@@ -87,8 +99,11 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     final diag = context.watch<DiagnosticsController>();
     final timeline = context.watch<TimelineSessionController>();
     final ipcStatus = context.watch<PulseIpcClient>().status;
+    final advanced =
+        context.select<SettingsController, bool>((s) => s.showAdvancedDiagnostics);
     final snap = diag.snapshot;
     final busy = diag.actionBusy;
+    final frameMetrics = context.watch<ClientFrameMetrics>();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -132,6 +147,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                 status: ipcStatus,
                 error: diag.snapshotError,
                 expand: wide,
+                advanced: advanced,
               );
               final live = _LiveCard(
                 snap: snap,
@@ -145,6 +161,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                 busy: busy,
                 snapshotLatencyMs: diag.lastSnapshotLatencyMs,
                 expand: wide,
+                advanced: advanced,
                 onPing: () => _run(
                   () async => diag.ping(),
                   fallbackOk: 'Ping complete',
@@ -171,17 +188,25 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
               final perf = _PerformanceCard(
                 snap: snap,
                 error: diag.snapshotError,
-                frameMetrics: context.watch<ClientFrameMetrics>(),
+                frameMetrics: frameMetrics,
                 expand: wide,
+                advanced: advanced,
               );
               final collectors = _CollectorsCard(
                 snap: snap,
                 error: diag.snapshotError,
                 expand: wide,
               );
+              final budgets = _BudgetsCard(
+                snap: snap,
+                status: ipcStatus,
+                snapshotLatencyMs: diag.lastSnapshotLatencyMs,
+                frameMetrics: frameMetrics,
+                expand: false,
+              );
               final tools = _DeveloperToolsCard(
                 busy: busy,
-                expand: wide,
+                expand: false,
                 onTestEvent: () => _run(
                   () async {
                     await diag.injectTestEvent();
@@ -217,8 +242,9 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                 children: [
                   PulseSectionHeader(
                     title: 'Troubleshooting',
-                    subtitle:
-                        'When something looks wrong, start here. All data stays on this PC.',
+                    subtitle: advanced
+                        ? 'Advanced surfaces on. Toggle off in Settings → Diagnostics.'
+                        : 'When something looks wrong, start here. Enable advanced diagnostics in Settings for identity, throughput, and developer tools.',
                     trailing: ConnectionIndicator(
                       state: state,
                       label: connectionLabel,
@@ -259,7 +285,11 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    tools,
+                    budgets,
+                    if (advanced) ...[
+                      const SizedBox(height: 12),
+                      tools,
+                    ],
                   ] else ...[
                     service,
                     const SizedBox(height: 12),
@@ -273,7 +303,11 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                     const SizedBox(height: 12),
                     perf,
                     const SizedBox(height: 12),
-                    tools,
+                    budgets,
+                    if (advanced) ...[
+                      const SizedBox(height: 12),
+                      tools,
+                    ],
                   ],
                 ],
               );
@@ -291,12 +325,14 @@ class _ServiceCard extends StatelessWidget {
     required this.status,
     required this.error,
     this.expand = false,
+    this.advanced = false,
   });
 
   final DiagnosticsSnapshot? snap;
   final IpcStatus status;
   final String? error;
   final bool expand;
+  final bool advanced;
 
   @override
   Widget build(BuildContext context) {
@@ -346,74 +382,10 @@ class _ServiceCard extends StatelessWidget {
                     ? snap!.runMode
                     : unavailable ?? kUnavailableDash,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          HealthSpecSection(
-            title: 'Identity',
-            compact: true,
-            rows: [
               HealthSpecRow(
                 label: 'Service version',
                 value: snap?.serviceVersion.isNotEmpty == true
                     ? snap!.serviceVersion
-                    : unavailable ?? kUnavailableDash,
-              ),
-              HealthSpecRow(
-                label: 'Build version',
-                value: snap?.buildVersion.isNotEmpty == true
-                    ? snap!.buildVersion
-                    : unavailable ?? kUnavailableDash,
-              ),
-              HealthSpecRow(
-                label: 'Git commit',
-                value: snap?.gitCommit.isNotEmpty == true
-                    ? snap!.gitCommit
-                    : unavailable ?? kUnavailableDash,
-              ),
-              HealthSpecRow(
-                label: 'IPC protocol',
-                value: snap != null
-                    ? '${snap!.protocolVersion}'
-                    : unavailable ?? kUnavailableDash,
-              ),
-              HealthSpecRow(
-                label: 'Binary SHA-256',
-                value: snap?.binarySha256.isNotEmpty == true
-                    ? snap!.binarySha256
-                    : unavailable ?? kUnavailableDash,
-              ),
-              HealthSpecRow(
-                label: 'Executable path',
-                value: snap?.executablePath.isNotEmpty == true
-                    ? snap!.executablePath
-                    : unavailable ?? kUnavailableDash,
-              ),
-              HealthSpecRow(
-                label: 'Install path',
-                value: snap?.installPath.isNotEmpty == true
-                    ? snap!.installPath
-                    : (snap == null
-                        ? (unavailable ?? kUnavailableDash)
-                        : 'Not installed / no SCM ImagePath'),
-              ),
-              HealthSpecRow(
-                label: 'Paths match',
-                value: snap == null
-                    ? (unavailable ?? kUnavailableDash)
-                    : (snap!.hasPathsMatch
-                        ? (snap!.pathsMatch ? 'Yes' : 'No')
-                        : kUnavailableDash),
-              ),
-              HealthSpecRow(
-                label: 'Start time',
-                value: snap != null && snap!.serviceStartUnixMs > 0
-                    ? DateTime.fromMillisecondsSinceEpoch(
-                            snap!.serviceStartUnixMs)
-                        .toLocal()
-                        .toString()
-                        .split('.')
-                        .first
                     : unavailable ?? kUnavailableDash,
               ),
               HealthSpecRow(
@@ -424,8 +396,81 @@ class _ServiceCard extends StatelessWidget {
                       )
                     : unavailable ?? kUnavailableDash,
               ),
+              if (advanced)
+                HealthSpecRow(
+                  label: 'Connected clients',
+                  value: snap == null
+                      ? (unavailable ?? kUnavailableDash)
+                      : '${snap!.connectedClients}',
+                ),
             ],
           ),
+          if (advanced) ...[
+            const SizedBox(height: 12),
+            HealthSpecSection(
+              title: 'Identity',
+              compact: true,
+              rows: [
+                HealthSpecRow(
+                  label: 'Build version',
+                  value: snap?.buildVersion.isNotEmpty == true
+                      ? snap!.buildVersion
+                      : unavailable ?? kUnavailableDash,
+                ),
+                HealthSpecRow(
+                  label: 'Git commit',
+                  value: snap?.gitCommit.isNotEmpty == true
+                      ? snap!.gitCommit
+                      : unavailable ?? kUnavailableDash,
+                ),
+                HealthSpecRow(
+                  label: 'IPC protocol',
+                  value: snap != null
+                      ? '${snap!.protocolVersion}'
+                      : unavailable ?? kUnavailableDash,
+                ),
+                HealthSpecRow(
+                  label: 'Binary SHA-256',
+                  value: snap?.binarySha256.isNotEmpty == true
+                      ? snap!.binarySha256
+                      : unavailable ?? kUnavailableDash,
+                ),
+                HealthSpecRow(
+                  label: 'Executable path',
+                  value: snap?.executablePath.isNotEmpty == true
+                      ? snap!.executablePath
+                      : unavailable ?? kUnavailableDash,
+                ),
+                HealthSpecRow(
+                  label: 'Install path',
+                  value: snap?.installPath.isNotEmpty == true
+                      ? snap!.installPath
+                      : (snap == null
+                          ? (unavailable ?? kUnavailableDash)
+                          : 'Not installed / no SCM ImagePath'),
+                ),
+                HealthSpecRow(
+                  label: 'Paths match',
+                  value: snap == null
+                      ? (unavailable ?? kUnavailableDash)
+                      : (snap!.hasPathsMatch
+                          ? (snap!.pathsMatch ? 'Yes' : 'No')
+                          : kUnavailableDash),
+                ),
+                HealthSpecRow(
+                  label: 'Start time',
+                  value: snap != null && snap!.serviceStartUnixMs > 0
+                      ? DateTime.fromMillisecondsSinceEpoch(
+                              snap!.serviceStartUnixMs)
+                          .toLocal()
+                          .toString()
+                          .split('.')
+                          .first
+                      : unavailable ?? kUnavailableDash,
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 14),
           Divider(height: 1, color: PulseTokens.strokeSubtle),
           const SizedBox(height: 14),
@@ -524,6 +569,7 @@ class _IpcCard extends StatelessWidget {
     required this.onCopy,
     this.snapshotLatencyMs,
     this.expand = false,
+    this.advanced = false,
   });
 
   final IpcStatus status;
@@ -534,6 +580,7 @@ class _IpcCard extends StatelessWidget {
   final VoidCallback onCopy;
   final int? snapshotLatencyMs;
   final bool expand;
+  final bool advanced;
 
   @override
   Widget build(BuildContext context) {
@@ -552,7 +599,7 @@ class _IpcCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           HealthSpecSection(
-            title: 'Latency',
+            title: 'Latency & recovery',
             compact: true,
             rows: [
               HealthSpecRow(
@@ -574,73 +621,79 @@ class _IpcCard extends StatelessWidget {
                     : '$snapshotLatencyMs ms',
               ),
               HealthSpecRow(
-                label: 'Protocol version',
-                value: snap != null
-                    ? '${snap!.protocolVersion}'
-                    : '$kProtocolVersion (client)',
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          HealthSpecSection(
-            title: 'Throughput',
-            compact: true,
-            rows: [
-              HealthSpecRow(
-                label: 'Messages received',
-                value: snap == null ? kUnavailableDash : '${snap!.ipcMessagesReceived}',
-              ),
-              HealthSpecRow(
-                label: 'Messages sent',
-                value: snap == null ? kUnavailableDash : '${snap!.ipcMessagesSent}',
-              ),
-              HealthSpecRow(
-                label: 'Bytes received',
-                value: snap == null
-                    ? kUnavailableDash
-                    : formatBytesBinary(snap!.ipcBytesReceived),
-              ),
-              HealthSpecRow(
-                label: 'Bytes sent',
-                value: snap == null
-                    ? kUnavailableDash
-                    : formatBytesBinary(snap!.ipcBytesSent),
-              ),
-              HealthSpecRow(
-                label: 'Messages / sec',
-                value: snap?.hasIpcMessagesPerSec == true
-                    ? snap!.ipcMessagesPerSec.toStringAsFixed(1)
-                    : (snap == null
-                        ? kUnavailableDash
-                        : 'Measuring… (needs a second sample)'),
-              ),
-              HealthSpecRow(
-                label: 'Bytes / sec',
-                value: snap?.hasIpcBytesPerSec == true
-                    ? '${formatBytesBinary(snap!.ipcBytesPerSec.round())}/s'
-                    : (snap == null
-                        ? kUnavailableDash
-                        : 'Measuring… (needs a second sample)'),
-              ),
-              HealthSpecRow(
-                label: 'IPC errors',
-                value: snap == null ? kUnavailableDash : '${snap!.ipcErrors}',
-              ),
-              HealthSpecRow(
-                label: 'Client messages',
-                value: '${status.messagesSent}',
-              ),
-              HealthSpecRow(
-                label: 'Client failures',
-                value: '${status.messagesFailed}',
-              ),
-              HealthSpecRow(
-                label: 'Reconnect count',
+                label: 'Client reconnect count',
                 value: '${status.reconnectCount}',
               ),
+              HealthSpecRow(
+                label: 'IPC errors (service)',
+                value: snap == null ? kUnavailableDash : '${snap!.ipcErrors}',
+              ),
+              if (advanced)
+                HealthSpecRow(
+                  label: 'Protocol version',
+                  value: snap != null
+                      ? '${snap!.protocolVersion}'
+                      : '$kProtocolVersion (client)',
+                ),
             ],
           ),
-          if (history.isNotEmpty) ...[
+          if (advanced) ...[
+            const SizedBox(height: 12),
+            HealthSpecSection(
+              title: 'Throughput',
+              compact: true,
+              rows: [
+                HealthSpecRow(
+                  label: 'Messages received',
+                  value: snap == null
+                      ? kUnavailableDash
+                      : '${snap!.ipcMessagesReceived}',
+                ),
+                HealthSpecRow(
+                  label: 'Messages sent',
+                  value:
+                      snap == null ? kUnavailableDash : '${snap!.ipcMessagesSent}',
+                ),
+                HealthSpecRow(
+                  label: 'Bytes received',
+                  value: snap == null
+                      ? kUnavailableDash
+                      : formatBytesBinary(snap!.ipcBytesReceived),
+                ),
+                HealthSpecRow(
+                  label: 'Bytes sent',
+                  value: snap == null
+                      ? kUnavailableDash
+                      : formatBytesBinary(snap!.ipcBytesSent),
+                ),
+                HealthSpecRow(
+                  label: 'Messages / sec',
+                  value: snap?.hasIpcMessagesPerSec == true
+                      ? snap!.ipcMessagesPerSec.toStringAsFixed(1)
+                      : (snap == null
+                          ? kUnavailableDash
+                          : 'Measuring… (needs a second sample)'),
+                ),
+                HealthSpecRow(
+                  label: 'Bytes / sec',
+                  value: snap?.hasIpcBytesPerSec == true
+                      ? '${formatBytesBinary(snap!.ipcBytesPerSec.round())}/s'
+                      : (snap == null
+                          ? kUnavailableDash
+                          : 'Measuring… (needs a second sample)'),
+                ),
+                HealthSpecRow(
+                  label: 'Client messages',
+                  value: '${status.messagesSent}',
+                ),
+                HealthSpecRow(
+                  label: 'Client failures',
+                  value: '${status.messagesFailed}',
+                ),
+              ],
+            ),
+          ],
+          if (advanced && history.isNotEmpty) ...[
             const SizedBox(height: 12),
             HealthSpecSection(
               title: 'Reconnect history',
@@ -907,10 +960,25 @@ class _CollectorsCard extends StatelessWidget {
                     ? snap!.networkEtwLastError
                     : 'None'),
           ),
+          HealthSpecRow(
+            label: 'Live queue overflow',
+            value: snap == null
+                ? (unavailable ?? kUnavailableDash)
+                : '${snap!.liveEventsDropped} (events dropped on full outbound queues)',
+            description:
+                'Same counter as Live Monitoring → Events dropped (service). Drop-oldest per ADR-008.',
+          ),
           const HealthSpecRow(
-            label: 'Dropped samples',
+            label: 'Collector latency',
             value: kNotSupported,
-            description: 'No collector drop counter is instrumented yet',
+            description:
+                'No per-sample collector latency histogram is instrumented yet',
+          ),
+          const HealthSpecRow(
+            label: 'Dropped samples (collectors)',
+            value: kNotSupported,
+            description:
+                'Health/ETW collectors do not expose a drop counter; use live queue overflow above',
           ),
         ],
       ),
@@ -924,12 +992,14 @@ class _PerformanceCard extends StatelessWidget {
     required this.error,
     required this.frameMetrics,
     this.expand = false,
+    this.advanced = false,
   });
 
   final DiagnosticsSnapshot? snap;
   final String? error;
   final ClientFrameMetrics frameMetrics;
   final bool expand;
+  final bool advanced;
 
   @override
   Widget build(BuildContext context) {
@@ -963,22 +1033,31 @@ class _PerformanceCard extends StatelessWidget {
                       value: formatBytesBinary(snap!.workingSetBytes),
                     ),
                     HealthSpecRow(
-                      label: 'Thread count',
-                      value: '${snap!.threadCount}',
+                      label: 'Live queue depth (sum)',
+                      value: '${snap!.liveQueueDepth}',
+                      description:
+                          'Sum of outbound queued envelopes across all pipe clients',
                     ),
                     HealthSpecRow(
-                      label: 'Handle count',
-                      value: '${snap!.handleCount}',
-                    ),
-                    HealthSpecRow(
-                      label: 'Queue size',
-                      value:
-                          '${snap!.liveQueueDepth} / ${snap!.liveQueueCapacity}',
+                      label: 'Live queue capacity (per client)',
+                      value: '${snap!.liveQueueCapacity}',
+                      description:
+                          'Per-connection bound; overflow increments live events dropped',
                     ),
                     HealthSpecRow(
                       label: 'Service PID',
                       value: '${snap!.servicePid}',
                     ),
+                    if (advanced) ...[
+                      HealthSpecRow(
+                        label: 'Thread count',
+                        value: '${snap!.threadCount}',
+                      ),
+                      HealthSpecRow(
+                        label: 'Handle count',
+                        value: '${snap!.handleCount}',
+                      ),
+                    ],
                   ],
           ),
           const SizedBox(height: 12),
@@ -989,11 +1068,11 @@ class _PerformanceCard extends StatelessWidget {
               HealthSpecRow(
                 label: 'FPS',
                 value: frameMetrics.fps == null
-                    ? 'Measuring…'
+                    ? 'Measuring… (open Diagnostics while UI is animating)'
                     : frameMetrics.fps!.toStringAsFixed(1),
               ),
               HealthSpecRow(
-                label: 'Frame time',
+                label: 'Frame time (render latency)',
                 value: frameMetrics.avgTotalFrameMs == null
                     ? 'Measuring…'
                     : '${frameMetrics.avgTotalFrameMs!.toStringAsFixed(2)} ms',
@@ -1016,11 +1095,115 @@ class _PerformanceCard extends StatelessWidget {
                     ? kUnavailableDash
                     : formatBytesBinary(frameMetrics.rssBytes!),
               ),
-              HealthSpecRow(
-                label: 'Rebuild notes',
-                value: '${frameMetrics.rebuildCount}',
-              ),
+              if (advanced)
+                HealthSpecRow(
+                  label: 'Rebuild notes',
+                  value: '${frameMetrics.rebuildCount}',
+                ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BudgetsCard extends StatelessWidget {
+  const _BudgetsCard({
+    required this.snap,
+    required this.status,
+    required this.snapshotLatencyMs,
+    required this.frameMetrics,
+    this.expand = false,
+  });
+
+  final DiagnosticsSnapshot? snap;
+  final IpcStatus status;
+  final int? snapshotLatencyMs;
+  final ClientFrameMetrics frameMetrics;
+  final bool expand;
+
+  String _vsTarget({
+    required String target,
+    required String? measured,
+    required bool? ok,
+  }) {
+    if (measured == null) return 'Target $target · not measured this session';
+    final verdict = ok == null
+        ? 'observed'
+        : (ok ? 'within target' : 'over target (honest; not tuned yet)');
+    return 'Target $target · now $measured ($verdict)';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rss = frameMetrics.rssBytes;
+    final fps = frameMetrics.fps;
+    final ping = status.lastPingLatencyMs ?? status.avgPingLatencyMs?.round();
+    final snapMs = snapshotLatencyMs;
+
+    return _DiagSection(
+      title: 'Performance budgets',
+      icon: LucideIcons.clipboardCheck,
+      expand: expand,
+      child: HealthSpecSection(
+        compact: true,
+        rows: [
+          HealthSpecRow(
+            label: 'Cold start (UI)',
+            value: _vsTarget(
+              target: '< ${PulsePerformanceBudgets.coldStartTarget.inSeconds}s',
+              measured: null,
+              ok: null,
+            ),
+            description:
+                'Measure with tools/scripts/measure_performance.ps1 after a clean launch',
+          ),
+          HealthSpecRow(
+            label: 'Idle UI RSS',
+            value: _vsTarget(
+              target: '< 150 MB',
+              measured: rss == null ? null : formatBytesBinary(rss),
+              ok: rss == null
+                  ? null
+                  : rss < PulsePerformanceBudgets.idleUiRssBytes,
+            ),
+          ),
+          HealthSpecRow(
+            label: 'Idle / service CPU',
+            value:
+                'Target ${PulsePerformanceBudgets.idleCpuNearZero} · service now ${snap == null ? kUnavailableDash : (snap!.hasCpuPercent ? '${snap!.cpuPercent.toStringAsFixed(1)}%' : 'Measuring…')}',
+          ),
+          HealthSpecRow(
+            label: 'Diagnostics FPS',
+            value: _vsTarget(
+              target: '≥ ${PulsePerformanceBudgets.minFps.toStringAsFixed(0)}',
+              measured: fps?.toStringAsFixed(1),
+              ok: fps == null ? null : fps >= PulsePerformanceBudgets.minFps,
+            ),
+          ),
+          HealthSpecRow(
+            label: 'IPC ping RTT',
+            value: _vsTarget(
+              target: '< ${PulsePerformanceBudgets.ipcRttMs} ms',
+              measured: ping == null ? null : '$ping ms',
+              ok: ping == null ? null : ping < PulsePerformanceBudgets.ipcRttMs,
+            ),
+          ),
+          HealthSpecRow(
+            label: 'Snapshot RPC',
+            value: _vsTarget(
+              target: 'informational (no hard budget)',
+              measured: snapMs == null ? null : '$snapMs ms',
+              ok: null,
+            ),
+          ),
+          HealthSpecRow(
+            label: 'Service working set',
+            value: snap == null
+                ? 'Unavailable while offline'
+                : formatBytesBinary(snap!.workingSetBytes),
+            description: 'No hard AGENTS ceiling; track soak growth',
           ),
         ],
       ),

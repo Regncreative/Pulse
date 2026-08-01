@@ -322,11 +322,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   spacing: 10,
                   runSpacing: 10,
                   children: [
-                    for (final preset in const [
-                      ('blue', PulseThemeData.accentBlue),
-                      ('green', PulseThemeData.accentGreen),
-                      ('purple', PulseThemeData.accentPurple),
-                      ('orange', PulseThemeData.accentOrange),
+                    for (final preset in [
+                      ('blue', PulseThemeData.accentForPreset('blue', Theme.of(context).brightness)),
+                      ('green', PulseThemeData.accentForPreset('green', Theme.of(context).brightness)),
+                      ('purple', PulseThemeData.accentForPreset('purple', Theme.of(context).brightness)),
+                      ('orange', PulseThemeData.accentForPreset('orange', Theme.of(context).brightness)),
                     ])
                       _AccentChip(
                         label: preset.$1,
@@ -702,7 +702,8 @@ class _SettingsPageState extends State<SettingsPage> {
               _SettingsRow(
                 icon: LucideIcons.layers,
                 title: 'Show advanced diagnostics',
-                subtitle: 'Reveal extra IPC and protocol detail surfaces',
+                subtitle:
+                    'Show identity, IPC throughput, reconnect history, and developer tools on Diagnostics',
                 trailing: Switch(
                   value: settings.showAdvancedDiagnostics,
                   onChanged: (v) async {
@@ -765,8 +766,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 icon: LucideIcons.gauge,
                 title: 'Performance mode',
                 subtitle: switch (settings.performanceMode) {
-                  'performance' => 'Prefer richer UI and faster refresh',
-                  'battery' => 'Reduce motion; shorter history later',
+                  'performance' =>
+                    'Preference stored for future refresh/history tuning; UI same as Balanced today',
+                  'battery' =>
+                    'Disables animations (same as turning Animations off)',
                   _ => 'Balanced defaults for everyday use',
                 },
                 trailing: DropdownButton<String>(
