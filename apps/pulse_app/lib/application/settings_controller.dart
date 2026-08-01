@@ -26,6 +26,7 @@ class SettingsController extends ChangeNotifier {
   static const _kAccentPreset = 'appearance.accent_preset';
   static const _kCustomAccent = 'appearance.custom_accent_argb';
   static const _kAnimationSpeed = 'appearance.animation_speed';
+  static const _kTextScale = 'appearance.text_scale';
   static const _kHealthSectionsExpanded = 'health.sections.expanded';
   static const _kByteUnitBinary = 'health.byte_unit_binary';
   static const _kTemperatureCelsius = 'health.temperature_celsius';
@@ -96,6 +97,9 @@ class SettingsController extends ChangeNotifier {
 
   /// Motion scale factor in range 0.5–1.5 (1.0 = default).
   double animationSpeed = 1.0;
+
+  /// Text scale factor in range 0.9–1.3 (1.0 = default).
+  double textScale = 1.0;
 
   /// Binary (KiB/MiB) vs decimal (KB/MB) byte labels.
   bool byteUnitBinary = true;
@@ -174,6 +178,8 @@ class SettingsController extends ChangeNotifier {
     customAccentArgb = p.getInt(_kCustomAccent) ?? defaultCustomAccentArgb;
     animationSpeed =
         (p.getDouble(_kAnimationSpeed) ?? 1.0).clamp(0.5, 1.5).toDouble();
+    textScale =
+        (p.getDouble(_kTextScale) ?? 1.0).clamp(0.9, 1.3).toDouble();
     healthSectionExpanded =
         _decodeHealthSections(p.getString(_kHealthSectionsExpanded));
     dashboardWidgetOrder =
@@ -256,6 +262,12 @@ class SettingsController extends ChangeNotifier {
   Future<void> setAnimationSpeed(double value) async {
     animationSpeed = value.clamp(0.5, 1.5).toDouble();
     await _prefs?.setDouble(_kAnimationSpeed, animationSpeed);
+    notifyListeners();
+  }
+
+  Future<void> setTextScale(double value) async {
+    textScale = value.clamp(0.9, 1.3).toDouble();
+    await _prefs?.setDouble(_kTextScale, textScale);
     notifyListeners();
   }
 
@@ -406,6 +418,7 @@ class SettingsController extends ChangeNotifier {
     accentPreset = 'blue';
     customAccentArgb = defaultCustomAccentArgb;
     animationSpeed = 1.0;
+    textScale = 1.0;
     healthSectionExpanded = {};
     dashboardWidgetOrder = List<String>.from(defaultDashboardWidgetOrder);
     dashboardHiddenWidgets = {};
@@ -434,6 +447,7 @@ class SettingsController extends ChangeNotifier {
         'accent_preset': accentPreset,
         'custom_accent_argb': customAccentArgb,
         'animation_speed': animationSpeed,
+        'text_scale': textScale,
         'health_sections_expanded':
             Map<String, bool>.from(healthSectionExpanded),
         'dashboard_widget_order': List<String>.from(dashboardWidgetOrder),
@@ -485,6 +499,10 @@ class SettingsController extends ChangeNotifier {
     if (map['animation_speed'] is num) {
       animationSpeed =
           (map['animation_speed'] as num).toDouble().clamp(0.5, 1.5).toDouble();
+    }
+    if (map['text_scale'] is num) {
+      textScale =
+          (map['text_scale'] as num).toDouble().clamp(0.9, 1.3).toDouble();
     }
     if (map['health_sections_expanded'] is Map) {
       healthSectionExpanded = _decodeHealthSections(
@@ -541,6 +559,7 @@ class SettingsController extends ChangeNotifier {
       await p.setString(_kAccentPreset, accentPreset);
       await p.setInt(_kCustomAccent, customAccentArgb);
       await p.setDouble(_kAnimationSpeed, animationSpeed);
+      await p.setDouble(_kTextScale, textScale);
       await p.setString(
         _kHealthSectionsExpanded,
         jsonEncode(healthSectionExpanded),

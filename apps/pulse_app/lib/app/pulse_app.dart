@@ -31,14 +31,12 @@ class PulseApp extends StatelessWidget {
         }
 
         final media = MediaQuery.of(context);
-        // animationSpeed is persisted for later duration scaling; MediaQuery
-        // has no animation-speed factor, so we only apply enable/compact today.
+        final compactFactor = settings.compactMode ? 0.94 : 1.0;
+        final scale = (settings.textScale * compactFactor).clamp(0.85, 1.35);
         return MediaQuery(
           data: media.copyWith(
             disableAnimations: !settings.animationsEnabled,
-            textScaler: settings.compactMode
-                ? TextScaler.linear(0.94)
-                : media.textScaler,
+            textScaler: TextScaler.linear(scale.toDouble()),
           ),
           child: child ?? const SizedBox.shrink(),
         );

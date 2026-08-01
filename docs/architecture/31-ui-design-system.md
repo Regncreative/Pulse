@@ -37,7 +37,8 @@ Persisted via `SettingsController`:
 | `themeMode` | `system` \| `light` \| `dark` | `dark` |
 | `accentPreset` | preset names above | `blue` |
 | `customAccentArgb` | ARGB int | `0xFF60CDFF` |
-| `animationSpeed` | `0.5`–`1.5` | `1.0` (stored for later duration scaling) |
+| `animationSpeed` | `0.5`–`1.5` | `1.0` (scales motion durations via `PulseTokens.scaleMotion`) |
+| `textScale` | `0.9`–`1.3` | `1.0` (applied in `PulseApp` `MediaQuery.textScaler`, multiplied with compact `0.94`) |
 
 Helpers: `materialThemeMode`, `resolvedAccent`.
 
@@ -82,7 +83,7 @@ Folder: `apps/pulse_app/lib/presentation/design_system/`
 
 | Widget | Role |
 |--------|------|
-| `PulseSection` | Collapsible titled section (chevron, `AnimatedSize`, soft divider); parent owns `expanded` / optional `storageKey` persistence |
+| `PulseSection` | Collapsible titled section (chevron, `AnimatedSize`, soft divider); `builder` runs only when expanded; parent owns `expanded` / optional `storageKey` persistence |
 | `PulseMetricRow` | Label / value / optional description row |
 | `PulseMetricSection` | Titled group of metric rows |
 | `PulseStatusBadge` | Typedef / thin re-export of `PulseBadge` |
@@ -99,6 +100,15 @@ Barrel: `design_system.dart` (also re-exports key existing components).
 4. Phase B migrates System Health detail panels onto `PulseSection` with
    expand state persisted in `SettingsController` (`health.sections.expanded`).
    Appearance controls surface in Settings.
+
+## Accessibility & reduced motion
+
+- **Sidebar / command palette:** nav tiles and the palette search field expose `Semantics` labels for screen readers and automation.
+- **Focus:** primary `PulseButton`s wrap with `PulseFocus` (Windows-style focus ring) for keyboard users.
+- **Text size:** Settings → Appearance → Text size (`textScale` 0.9–1.3) multiplies with compact mode in `PulseApp`’s `MediaQuery` builder.
+- **Reduced motion:** `SettingsController.animationsEnabled` sets `MediaQuery.disableAnimations`. Page transitions (`AppShell` `AnimatedSwitcher`), command palette fade/scale, `PulseSection` expand, and sidebar selection honor that flag (duration → `Duration.zero`). Prefer `MediaQuery.disableAnimationsOf(context)` over ad-hoc checks.
+- **Motion speed:** when animations are on, shell page transitions use `PulseTokens.scaleMotion(PulseTokens.motionPage, settings.animationSpeed)`.
+- **Performance:** `PulseSection` takes a `WidgetBuilder` and builds body content only while expanded.
 
 ## Related
 

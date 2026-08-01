@@ -232,7 +232,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _SettingsCategory.general =>
         'Welcome and onboarding. Density and motion live under Appearance.',
       _SettingsCategory.appearance =>
-        'Theme, accent color, density, and motion.',
+        'Theme, accent color, density, text size, and motion.',
       _SettingsCategory.systemHealth =>
         'Units and display preferences for System Health.',
       _SettingsCategory.timeline =>
@@ -447,6 +447,28 @@ class _SettingsPageState extends State<SettingsPage> {
                       _snack(
                         context,
                         v ? 'Compact mode on' : 'Compact mode off',
+                      );
+                    }
+                  },
+                ),
+              ),
+              const SoftDivider(indent: 52),
+              _SettingsRow(
+                icon: LucideIcons.type,
+                title: 'Text size',
+                subtitle: '${settings.textScale.toStringAsFixed(2)}×',
+                trailing: _PrefDoubleSlider(
+                  value: settings.textScale,
+                  min: 0.9,
+                  max: 1.3,
+                  divisions: 8,
+                  labelBuilder: (v) => '${v.toStringAsFixed(2)}×',
+                  onCommit: (v) async {
+                    await settings.setTextScale(v);
+                    if (context.mounted) {
+                      _snack(
+                        context,
+                        'Text size ${v.toStringAsFixed(2)}×',
                       );
                     }
                   },
@@ -1229,20 +1251,11 @@ class _SettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: PulseTokens.surfaceHover,
-              borderRadius: BorderRadius.circular(PulseTokens.radiusIconWell),
-            ),
-            child: Icon(icon, size: 18, color: PulseTokens.textSecondary),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stackTrailing =
+              trailing != null && constraints.maxWidth < 440;
+          final label = Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1258,6 +1271,8 @@ class _SettingsRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontSize: 12.5,
                         height: 1.35,
@@ -1265,12 +1280,51 @@ class _SettingsRow extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-          if (trailing != null) ...[
-            const SizedBox(width: 12),
-            trailing!,
-          ],
-        ],
+          );
+          final iconWell = Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: PulseTokens.surfaceHover,
+              borderRadius: BorderRadius.circular(PulseTokens.radiusIconWell),
+            ),
+            child: Icon(icon, size: 18, color: PulseTokens.textSecondary),
+          );
+
+          if (stackTrailing) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    iconWell,
+                    const SizedBox(width: 14),
+                    label,
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: trailing!,
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              iconWell,
+              const SizedBox(width: 14),
+              label,
+              if (trailing != null) ...[
+                const SizedBox(width: 12),
+                trailing!,
+              ],
+            ],
+          );
+        },
       ),
     );
   }

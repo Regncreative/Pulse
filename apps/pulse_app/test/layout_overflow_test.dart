@@ -103,6 +103,58 @@ void main() {
     expect(find.text('Reset onboarding'), findsOneWidget);
   });
 
+  testWidgets('Settings categories render at narrow width without overflow',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(640, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(await _harness(const SettingsPage(title: 'Settings')));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    const categories = [
+      'Appearance',
+      'System Health',
+      'Timeline',
+      'Diagnostics',
+      'Performance',
+      'Privacy',
+      'Updates',
+      'Developer',
+    ];
+    for (final label in categories) {
+      await tester.ensureVisible(find.text(label).first);
+      await tester.tap(find.text(label).first);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: 'overflow in $label');
+      expect(find.text(label), findsWidgets);
+    }
+
+    await tester.tap(find.text('Appearance').first);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Text size'), findsOneWidget);
+  });
+
+  testWidgets('Reports page has no overflow at narrow width', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(480, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      await _harness(const ReportsPage(title: 'Reports')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Export report'), findsOneWidget);
+    expect(find.text('System Health snapshot'), findsOneWidget);
+    final export = find.text('Export', skipOffstage: false);
+    await tester.ensureVisible(export);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(export, findsOneWidget);
+  });
+
   testWidgets('Diagnostics offline recovery offers Start PulseService',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(640, 720));
@@ -161,7 +213,11 @@ void main() {
     expect(find.text('Reports'), findsWidgets);
     expect(find.text('Export report'), findsOneWidget);
     expect(find.text('System Health snapshot'), findsOneWidget);
-    expect(find.text('Export'), findsOneWidget);
+    final export = find.text('Export', skipOffstage: false);
+    await tester.ensureVisible(export);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(export, findsOneWidget);
   });
 
   testWidgets('Health hero grid reflows without overflow at 2-column width',

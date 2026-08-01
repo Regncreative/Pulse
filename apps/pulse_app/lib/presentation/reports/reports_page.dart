@@ -131,6 +131,33 @@ class _ReportsPageState extends State<ReportsPage> {
                     'Save System Health, Timeline, Diagnostics, or hardware '
                     'inventory as JSON, CSV, HTML, or PDF.',
               ),
+              if (state != IpcConnectionState.connected) ...[
+                const SizedBox(height: PulseTokens.spaceMd),
+                PulseCard(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        LucideIcons.unplug,
+                        size: 18,
+                        color: PulseTokens.textTertiary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'PulseService is offline. Health and Diagnostics '
+                          'exports may be incomplete; Timeline uses events '
+                          'already loaded in this session.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: PulseTokens.textSecondary,
+                                height: 1.45,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: PulseTokens.spaceLg),
               Text(
                 'Template',
@@ -202,24 +229,35 @@ class _ReportsPageState extends State<ReportsPage> {
                     ),
               ),
               const SizedBox(height: PulseTokens.spaceSm),
-              SegmentedButton<ReportFormat>(
-                segments: [
-                  for (final format in ReportFormat.values)
-                    ButtonSegment(
-                      value: format,
-                      label: Text(format.label),
-                      enabled: format != ReportFormat.csv ||
-                          _template.supportsCsv,
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final button = SegmentedButton<ReportFormat>(
+                    segments: [
+                      for (final format in ReportFormat.values)
+                        ButtonSegment(
+                          value: format,
+                          label: Text(format.label),
+                          enabled: format != ReportFormat.csv ||
+                              _template.supportsCsv,
+                        ),
+                    ],
+                    selected: {_format},
+                    onSelectionChanged: (selected) {
+                      setState(() => _format = selected.first);
+                    },
+                    style: const ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                ],
-                selected: {_format},
-                onSelectionChanged: (selected) {
-                  setState(() => _format = selected.first);
+                  );
+                  if (constraints.maxWidth >= 420) {
+                    return button;
+                  }
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: IntrinsicWidth(child: button),
+                  );
                 },
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
               ),
               const SizedBox(height: PulseTokens.spaceLg),
               Align(

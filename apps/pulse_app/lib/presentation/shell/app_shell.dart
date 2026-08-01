@@ -286,11 +286,17 @@ class _AppShellState extends State<AppShell> {
                       child: PulseMicaBackground(
                         child: PulseContentFrame(
                           child: AnimatedSwitcher(
-                            duration:
-                                MediaQuery.maybeOf(context)?.disableAnimations ==
-                                        true
-                                    ? Duration.zero
-                                    : PulseTokens.motionPage,
+                            duration: () {
+                              if (MediaQuery.disableAnimationsOf(context)) {
+                                return Duration.zero;
+                              }
+                              final speed = context.select<SettingsController,
+                                  double>((s) => s.animationSpeed);
+                              return PulseTokens.scaleMotion(
+                                PulseTokens.motionPage,
+                                speed,
+                              );
+                            }(),
                             switchInCurve: PulseTokens.motionEmphasized,
                             switchOutCurve: Curves.easeInCubic,
                             layoutBuilder: (currentChild, previousChildren) {

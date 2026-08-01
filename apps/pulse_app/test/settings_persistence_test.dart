@@ -28,6 +28,7 @@ void main() {
     await a.setAccentPreset('purple');
     await a.setCustomAccentArgb(0xFF112233);
     await a.setAnimationSpeed(1.25);
+    await a.setTextScale(1.15);
     await a.setByteUnitBinary(false);
     await a.setTemperatureCelsius(false);
     await a.setClock24h(false);
@@ -52,6 +53,7 @@ void main() {
     expect(b.accentPreset, 'purple');
     expect(b.customAccentArgb, 0xFF112233);
     expect(b.animationSpeed, 1.25);
+    expect(b.textScale, 1.15);
     expect(b.byteUnitBinary, isFalse);
     expect(b.temperatureCelsius, isFalse);
     expect(b.clock24h, isFalse);

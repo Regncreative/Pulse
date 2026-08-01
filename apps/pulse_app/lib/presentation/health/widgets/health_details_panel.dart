@@ -28,7 +28,7 @@ Widget _healthPulseSection({
   required String kind,
   required String sectionId,
   required String title,
-  required Widget child,
+  required WidgetBuilder builder,
   bool defaultExpanded = true,
 }) {
   final settings = context.watch<SettingsController>();
@@ -43,7 +43,7 @@ Widget _healthPulseSection({
     onExpandedChanged: (v) => context
         .read<SettingsController>()
         .setHealthSectionExpanded(kind, sectionId, v),
-    child: child,
+    builder: builder,
   );
 }
 
@@ -283,7 +283,7 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
                 kind: 'cpu',
                 sectionId: 'overview',
                 title: 'Overview',
-                child: Row(
+                builder: (context) => Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _UsageGauge(
@@ -317,7 +317,7 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
                 kind: 'cpu',
                 sectionId: 'performance',
                 title: 'Performance',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -343,7 +343,7 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
                 kind: 'cpu',
                 sectionId: 'topology',
                 title: 'Topology',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(label: 'Sockets', value: sockets),
@@ -362,7 +362,7 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
                 kind: 'cpu',
                 sectionId: 'cache',
                 title: 'Cache',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(label: 'L1 Cache', value: l1),
@@ -376,7 +376,7 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
                 kind: 'cpu',
                 sectionId: 'features',
                 title: 'Features',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -398,7 +398,7 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
                 title: store == null
                     ? 'Processes'
                     : 'Processes (${store.totalCount})',
-                child: SizedBox(
+                builder: (context) => SizedBox(
                   height: _kProcessInventoryHeight,
                   child: store == null
                       ? _ProcessList(
@@ -417,7 +417,7 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
                     ? 'CPU History (Per Core)'
                     : 'CPU History',
                 defaultExpanded: false,
-                child: SizedBox(
+                builder: (context) => SizedBox(
                   height: _kHistorySectionHeight,
                   child: view.coreHistories.isNotEmpty
                       ? _CoreHistoryGrid(
@@ -569,7 +569,7 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
                 kind: 'memory',
                 sectionId: 'overview',
                 title: 'Overview',
-                child: Row(
+                builder: (context) => Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _UsageGauge(
@@ -603,7 +603,7 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
                 kind: 'memory',
                 sectionId: 'commit',
                 title: 'Commit',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(label: 'Committed', value: committed),
@@ -615,7 +615,7 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
                 kind: 'memory',
                 sectionId: 'pools',
                 title: 'Pools',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(label: 'Paged Pool', value: pagedPool),
@@ -631,7 +631,7 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
                 kind: 'memory',
                 sectionId: 'compression',
                 title: 'Compression',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -656,7 +656,7 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
                 sectionId: 'modules',
                 title: 'Modules',
                 defaultExpanded: false,
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(label: 'Slots Used', value: slotsUsed),
@@ -685,7 +685,7 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
                 title: store == null
                     ? 'Processes'
                     : 'Processes (${store.totalCount})',
-                child: SizedBox(
+                builder: (context) => SizedBox(
                   height: _kProcessInventoryHeight,
                   child: store == null
                       ? _ProcessList(
@@ -707,7 +707,7 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
                 sectionId: 'history',
                 title: 'Memory History',
                 defaultExpanded: false,
-                child: SizedBox(
+                builder: (context) => SizedBox(
                   height: _kHistorySectionHeight,
                   child: _HistorySparkline(
                     values: view.memoryHistory,
@@ -780,7 +780,7 @@ class _GpuPanelBody extends StatelessWidget {
                 kind: 'gpu',
                 sectionId: 'overview',
                 title: 'Overview',
-                child: Row(
+                builder: (context) => Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     _UsageGauge(
@@ -817,7 +817,7 @@ class _GpuPanelBody extends StatelessWidget {
                 kind: 'gpu',
                 sectionId: 'adapter',
                 title: 'Adapter',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -868,7 +868,7 @@ class _GpuPanelBody extends StatelessWidget {
                 kind: 'gpu',
                 sectionId: 'driver',
                 title: 'Driver',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -895,7 +895,7 @@ class _GpuPanelBody extends StatelessWidget {
                 kind: 'gpu',
                 sectionId: 'vram',
                 title: 'VRAM',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -959,7 +959,7 @@ class _GpuPanelBody extends StatelessWidget {
                 kind: 'gpu',
                 sectionId: 'engines',
                 title: 'Engines',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -1013,7 +1013,7 @@ class _GpuPanelBody extends StatelessWidget {
                 sectionId: 'sensors',
                 title: 'Clocks & Sensors',
                 defaultExpanded: false,
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -1065,7 +1065,7 @@ class _GpuPanelBody extends StatelessWidget {
                 title: store == null
                     ? 'Processes'
                     : 'Processes (${store.totalCount})',
-                child: SizedBox(
+                builder: (context) => SizedBox(
                   height: _kProcessInventoryHeight,
                   child: store == null
                       ? _ProcessList(
@@ -1089,7 +1089,7 @@ class _GpuPanelBody extends StatelessWidget {
                     ? 'GPU History (By Engine)'
                     : 'GPU History',
                 defaultExpanded: false,
-                child: SizedBox(
+                builder: (context) => SizedBox(
                   height: _kHistorySectionHeight,
                   child: engineHistories.isNotEmpty
                       ? _CoreHistoryGrid(
@@ -1252,7 +1252,7 @@ class _DiskPanelBody extends StatelessWidget {
                 kind: 'disk',
                 sectionId: 'overview',
                 title: 'Overview',
-                child: Column(
+                builder: (context) => Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
@@ -1291,21 +1291,21 @@ class _DiskPanelBody extends StatelessWidget {
                   kind: 'disk',
                   sectionId: 'volumes',
                   title: 'Volumes',
-                  child: _SpecList(compact: true, rows: volumeSpec),
+                  builder: (context) => _SpecList(compact: true, rows: volumeSpec),
                 ),
               _healthPulseSection(
                 context: context,
                 kind: 'disk',
                 sectionId: 'smart',
                 title: 'SMART',
-                child: HealthSpecSection(compact: true, rows: smartRows),
+                builder: (context) => HealthSpecSection(compact: true, rows: smartRows),
               ),
               _healthPulseSection(
                 context: context,
                 kind: 'disk',
                 sectionId: 'performance',
                 title: 'Performance',
-                child: Column(
+                builder: (context) => Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _SpecList(
@@ -1334,7 +1334,7 @@ class _DiskPanelBody extends StatelessWidget {
                 kind: 'disk',
                 sectionId: 'processes',
                 title: 'Top Processes',
-                child: SizedBox(
+                builder: (context) => SizedBox(
                   height: _kProcessInventoryHeight,
                   child: _ProcessList(
                     processes: s?.topDisk ?? const [],
@@ -1389,7 +1389,7 @@ class _HardwarePanelBody extends StatelessWidget {
                 kind: 'hardware',
                 sectionId: 'sensors',
                 title: 'Sensors',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -1462,7 +1462,7 @@ class _HardwarePanelBody extends StatelessWidget {
                 kind: 'hardware',
                 sectionId: 'motherboard',
                 title: 'Motherboard',
-                child: const HealthSpecSection(
+                builder: (context) => const HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -1485,7 +1485,7 @@ class _HardwarePanelBody extends StatelessWidget {
                 kind: 'hardware',
                 sectionId: 'cooling',
                 title: 'Cooling',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     const HealthSpecRow(
@@ -1507,7 +1507,7 @@ class _HardwarePanelBody extends StatelessWidget {
                 kind: 'hardware',
                 sectionId: 'power',
                 title: 'Power',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     const HealthSpecRow(
@@ -1569,7 +1569,7 @@ class _NetworkPanelBody extends StatelessWidget {
                 kind: 'network',
                 sectionId: 'overview',
                 title: 'Overview',
-                child: Column(
+                builder: (context) => Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     HealthSpecSection(
@@ -1594,7 +1594,7 @@ class _NetworkPanelBody extends StatelessWidget {
                 kind: 'network',
                 sectionId: 'live_traffic',
                 title: 'Live Traffic',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -1685,7 +1685,7 @@ class _NetworkPanelBody extends StatelessWidget {
                 kind: 'network',
                 sectionId: 'connection',
                 title: 'Connection',
-                child: Column(
+                builder: (context) => Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     HealthSpecSection(
@@ -1781,7 +1781,7 @@ class _NetworkPanelBody extends StatelessWidget {
                 kind: 'network',
                 sectionId: 'adapter',
                 title: 'Adapter',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -1833,7 +1833,7 @@ class _NetworkPanelBody extends StatelessWidget {
                 kind: 'network',
                 sectionId: 'driver',
                 title: 'Driver',
-                child: HealthSpecSection(
+                builder: (context) => HealthSpecSection(
                   compact: true,
                   rows: [
                     HealthSpecRow(
@@ -1854,7 +1854,7 @@ class _NetworkPanelBody extends StatelessWidget {
                 title: store == null
                     ? 'Processes'
                     : 'Processes (${store.totalCount})',
-                child: SizedBox(
+                builder: (context) => SizedBox(
                   height: _kProcessInventoryHeight,
                   child: store == null
                       ? _ProcessList(
@@ -1876,7 +1876,7 @@ class _NetworkPanelBody extends StatelessWidget {
                 sectionId: 'activity',
                 title: 'Activity',
                 defaultExpanded: false,
-                child: SizedBox(
+                builder: (context) => SizedBox(
                   height: 100,
                   child: Row(
                     children: [

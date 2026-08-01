@@ -17,6 +17,7 @@ import '../components/pulse_button.dart';
 import '../components/pulse_card.dart';
 import '../components/pulse_section_header.dart';
 import '../components/service_lifecycle_controls.dart';
+import '../design_system/pulse_skeleton.dart';
 import '../health/health_view_models.dart';
 import '../health/widgets/health_spec_rows.dart';
 import '../utils/pulse_snack.dart';
@@ -104,7 +105,19 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                   titleFallback: 'Diagnostics needs PulseService',
                   showFullControls: true,
                 )
-              : LayoutBuilder(
+              : snap == null && diag.snapshotError == null
+                  ? ListView(
+                      padding: EdgeInsets.fromLTRB(
+                        PulseTokens.pagePadX,
+                        20,
+                        PulseTokens.pagePadX,
+                        PulseTokens.pagePadBottom,
+                      ),
+                      children: const [
+                        PulseSkeletonList(rows: 6, rowHeight: 88, spacing: 12),
+                      ],
+                    )
+                  : LayoutBuilder(
             builder: (context, constraints) {
               final wide = constraints.maxWidth >= 980;
               final pagePad = EdgeInsets.fromLTRB(

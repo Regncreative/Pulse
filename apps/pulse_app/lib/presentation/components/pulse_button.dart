@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/pulse_theme.dart';
+import 'pulse_focus.dart';
 import 'safe_hover.dart';
 
 enum PulseButtonVariant { primary, secondary, ghost, danger }
@@ -59,8 +60,10 @@ class _PulseButtonState extends State<PulseButton> with SafeHoverState {
     );
 
     // Single pointer annotation via InkWell — do not nest MouseRegion.
-    return AnimatedContainer(
-      duration: PulseTokens.motionFast,
+    final button = AnimatedContainer(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : PulseTokens.motionFast,
       curve: PulseTokens.motionCurve,
       decoration: BoxDecoration(
         color: colors.$1,
@@ -90,6 +93,16 @@ class _PulseButtonState extends State<PulseButton> with SafeHoverState {
           ),
         ),
       ),
+    );
+
+    if (widget.variant != PulseButtonVariant.primary) {
+      return button;
+    }
+    return PulseFocus(
+      enabled: enabled,
+      onPressed: enabled ? widget.onPressed : null,
+      borderRadius: BorderRadius.circular(PulseTokens.radiusMd),
+      child: button,
     );
   }
 

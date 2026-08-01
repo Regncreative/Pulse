@@ -665,6 +665,15 @@ abstract final class PulseTokens {
   static const Curve motionCurve = Curves.easeOutCubic;
   static const Curve motionEmphasized = Curves.easeOutQuint;
 
+  /// Scales a motion duration by [speed] (typically [SettingsController.animationSpeed]).
+  static Duration scaleMotion(Duration base, double speed) {
+    if (speed == 1.0) return base;
+    if (speed <= 0) return Duration.zero;
+    return Duration(
+      microseconds: (base.inMicroseconds * speed).round().clamp(0, 1 << 62),
+    );
+  }
+
   static List<BoxShadow> get elevationSoft => _t.elevationSoft();
   static List<BoxShadow> get elevation1 => _t.elevation1();
   static List<BoxShadow> get elevationLift => _t.elevationLift();

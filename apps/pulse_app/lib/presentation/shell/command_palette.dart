@@ -45,7 +45,7 @@ Future<void> showCommandPalette(
     barrierDismissible: true,
     barrierLabel: 'Dismiss command palette',
     barrierColor: Colors.black.withValues(alpha: 0.45),
-    transitionDuration: MediaQuery.maybeOf(context)?.disableAnimations == true
+    transitionDuration: MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : PulseTokens.motionFast,
     pageBuilder: (context, animation, secondaryAnimation) {
@@ -196,33 +196,37 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            focusNode: _focusNode,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyLarge
-                                ?.copyWith(
-                                  color: PulseTokens.textPrimary,
-                                  fontSize: 15,
-                                ),
-                            cursorColor: PulseTokens.accent,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              border: InputBorder.none,
-                              hintText: 'Type a command…',
-                              hintStyle: Theme.of(context)
+                          child: Semantics(
+                            label: 'Command palette search',
+                            textField: true,
+                            child: TextField(
+                              controller: _controller,
+                              focusNode: _focusNode,
+                              style: Theme.of(context)
                                   .textTheme
                                   .bodyLarge
                                   ?.copyWith(
-                                    color: PulseTokens.textTertiary,
+                                    color: PulseTokens.textPrimary,
                                     fontSize: 15,
                                   ),
+                              cursorColor: PulseTokens.accent,
+                              decoration: InputDecoration(
+                                isDense: true,
+                                border: InputBorder.none,
+                                hintText: 'Type a command…',
+                                hintStyle: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.copyWith(
+                                      color: PulseTokens.textTertiary,
+                                      fontSize: 15,
+                                    ),
+                              ),
+                              onChanged: (_) {
+                                setState(() => _selectedIndex = 0);
+                              },
+                              onSubmitted: (_) => _invokeSelected(),
                             ),
-                            onChanged: (_) {
-                              setState(() => _selectedIndex = 0);
-                            },
-                            onSubmitted: (_) => _invokeSelected(),
                           ),
                         ),
                         Text(
