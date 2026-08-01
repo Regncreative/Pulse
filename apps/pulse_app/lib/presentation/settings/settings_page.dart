@@ -345,6 +345,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       selected: settings.accentPreset == 'custom',
                       onTap: () async {
                         await settings.setAccentPreset('custom');
+                        _syncHexField(settings.customAccentArgb);
                         if (context.mounted) {
                           _snack(context, 'Accent: custom');
                         }

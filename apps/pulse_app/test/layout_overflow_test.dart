@@ -95,7 +95,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Preferences'), findsOneWidget);
+    expect(find.text('General'), findsWidgets);
+    expect(find.text('Appearance'), findsOneWidget);
+    expect(find.text('Reset onboarding'), findsOneWidget);
   });
 
   testWidgets('Diagnostics offline recovery offers Start PulseService',
