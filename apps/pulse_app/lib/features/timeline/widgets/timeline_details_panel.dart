@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:pulse_protocol/pulse_wire.dart';
 
 import '../../../app/theme/pulse_theme.dart';
+import '../../../application/timeline_library_controller.dart';
 import '../../../ipc/pulse_ipc_client.dart';
 import '../../../presentation/components/pulse_badge.dart';
 import '../timeline_display.dart';
@@ -186,7 +187,20 @@ class _TimelineDetailsPanelState extends State<TimelineDetailsPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _DetailsHeader(onClose: widget.onClose),
+          _DetailsHeader(
+            onClose: widget.onClose,
+            bookmarked: context.watch<TimelineLibraryController>()
+                .isBookmarked(event.eventId),
+            pinned: context
+                .watch<TimelineLibraryController>()
+                .isPinned(event.eventId),
+            onToggleBookmark: () => context
+                .read<TimelineLibraryController>()
+                .toggleBookmark(event.eventId),
+            onTogglePin: () => context
+                .read<TimelineLibraryController>()
+                .togglePin(event.eventId),
+          ),
           Divider(height: 1, color: PulseTokens.strokeSubtle),
           Expanded(
             child: ListView(
@@ -287,6 +301,18 @@ class _TimelineDetailsPanelState extends State<TimelineDetailsPanel> {
                           if (event.category.isNotEmpty)
                             PulseBadge(
                               label: event.category,
+                              compact: true,
+                            ),
+                          if (context.watch<TimelineLibraryController>()
+                              .isBookmarked(event.eventId))
+                            const PulseBadge(
+                              label: 'Bookmarked',
+                              compact: true,
+                            ),
+                          if (context.watch<TimelineLibraryController>()
+                              .isPinned(event.eventId))
+                            const PulseBadge(
+                              label: 'Pinned',
                               compact: true,
                             ),
                           _OverviewChip(
@@ -441,14 +467,24 @@ class _RawXmlSection extends StatelessWidget {
 }
 
 class _DetailsHeader extends StatelessWidget {
-  const _DetailsHeader({required this.onClose});
+  const _DetailsHeader({
+    required this.onClose,
+    required this.bookmarked,
+    required this.pinned,
+    required this.onToggleBookmark,
+    required this.onTogglePin,
+  });
 
   final VoidCallback onClose;
+  final bool bookmarked;
+  final bool pinned;
+  final VoidCallback onToggleBookmark;
+  final VoidCallback onTogglePin;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 8, 12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
       child: Row(
         children: [
           Text(
@@ -458,6 +494,22 @@ class _DetailsHeader extends StatelessWidget {
                 ),
           ),
           const Spacer(),
+          IconButton(
+            tooltip: bookmarked ? 'Remove bookmark' : 'Bookmark',
+            onPressed: onToggleBookmark,
+            icon: Icon(
+              bookmarked ? LucideIcons.bookmarkCheck : LucideIcons.bookmark,
+              size: 17,
+            ),
+          ),
+          IconButton(
+            tooltip: pinned ? 'Unpin' : 'Pin',
+            onPressed: onTogglePin,
+            icon: Icon(
+              pinned ? LucideIcons.pinOff : LucideIcons.pin,
+              size: 17,
+            ),
+          ),
           IconButton(
             tooltip: 'Close',
             onPressed: onClose,

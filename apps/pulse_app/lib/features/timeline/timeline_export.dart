@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:pulse_protocol/pulse_wire.dart';
 
+import '../../application/timeline_library_controller.dart';
 import 'timeline_display.dart';
+import 'timeline_query.dart';
 
 /// JSON export helpers for Timeline (local-only, no network).
 abstract final class TimelineExport {
@@ -40,14 +42,31 @@ abstract final class TimelineExport {
     };
   }
 
-  static String encodeEvents(List<TimelineEvent> events, {String? note}) {
+  static String encodeEvents(
+    List<TimelineEvent> events, {
+    String? note,
+    TimelineQuery? appliedFilters,
+    Set<String>? bookmarkedEventIds,
+    Set<String>? pinnedEventIds,
+  }) {
+    final bookmarks = bookmarkedEventIds ?? const <String>{};
+    final pins = pinnedEventIds ?? const <String>{};
     final payload = <String, dynamic>{
       'pulse_export': 'timeline_events',
-      'version': 1,
+      'version': 2,
       'exported_at_unix_ms': DateTime.now().millisecondsSinceEpoch,
       'count': events.length,
       if (note != null && note.isNotEmpty) 'note': note,
-      'events': [for (final e in events) eventToJson(e)],
+      if (appliedFilters != null)
+        'applied_filters': timelineQueryToJson(appliedFilters),
+      'events': [
+        for (final e in events)
+          {
+            ...eventToJson(e),
+            'bookmarked': bookmarks.contains(e.eventId),
+            'pinned': pins.contains(e.eventId),
+          },
+      ],
     };
     return const JsonEncoder.withIndent('  ').convert(payload);
   }

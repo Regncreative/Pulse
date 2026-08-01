@@ -4,6 +4,7 @@ import '../application/diagnostics_controller.dart';
 import '../application/health_navigation.dart';
 import '../application/service_lifecycle_controller.dart';
 import '../application/settings_controller.dart';
+import '../application/timeline_library_controller.dart';
 import '../application/timeline_session_controller.dart';
 import '../ipc/pulse_ipc_client.dart';
 import '../logging/app_logger.dart';
@@ -15,6 +16,7 @@ class AppServices {
     required this.connectionController,
     required this.settingsController,
     required this.timelineSession,
+    required this.timelineLibrary,
     required this.diagnosticsController,
     required this.serviceLifecycle,
     required this.clientFrameMetrics,
@@ -26,6 +28,7 @@ class AppServices {
   final ConnectionController connectionController;
   final SettingsController settingsController;
   final TimelineSessionController timelineSession;
+  final TimelineLibraryController timelineLibrary;
   final DiagnosticsController diagnosticsController;
   final ServiceLifecycleController serviceLifecycle;
   final ClientFrameMetrics clientFrameMetrics;
@@ -35,6 +38,8 @@ class AppServices {
     final logger = AppLogger();
     final settings = SettingsController(logger: logger);
     await settings.load();
+    final timelineLibrary = TimelineLibraryController(logger: logger);
+    await timelineLibrary.load();
 
     final ipc = PulseIpcClient();
     final frameMetrics = ClientFrameMetrics();
@@ -68,6 +73,7 @@ class AppServices {
       connectionController: connection,
       settingsController: settings,
       timelineSession: timeline,
+      timelineLibrary: timelineLibrary,
       diagnosticsController: diagnostics,
       serviceLifecycle: serviceLifecycle,
       clientFrameMetrics: frameMetrics,

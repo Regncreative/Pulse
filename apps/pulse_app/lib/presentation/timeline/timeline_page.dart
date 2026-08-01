@@ -11,6 +11,7 @@ import 'package:pulse_protocol/pulse_wire.dart';
 import '../../app/dev_flags.dart';
 import '../../app/theme/pulse_theme.dart';
 import '../../application/connection_controller.dart';
+import '../../application/timeline_library_controller.dart';
 import '../../application/timeline_session_controller.dart';
 import '../../features/timeline/timeline_display.dart';
 import '../../features/timeline/timeline_export.dart';
@@ -238,7 +239,15 @@ class _TimelinePageState extends State<TimelinePage> {
   }
 
   List<TimelineEvent> _visible(List<TimelineEvent> events) {
-    return [for (final e in events) if (_query.matches(e)) e];
+    final matched = [for (final e in events) if (_query.matches(e)) e];
+    final library = context.read<TimelineLibraryController>();
+    matched.sort((a, b) {
+      final ap = library.isPinned(a.eventId) ? 0 : 1;
+      final bp = library.isPinned(b.eventId) ? 0 : 1;
+      if (ap != bp) return ap.compareTo(bp);
+      return 0;
+    });
+    return matched;
   }
 
   TimelineEvent? _selectedEvent(List<TimelineEvent> events) {
@@ -264,6 +273,66 @@ class _TimelinePageState extends State<TimelinePage> {
     return 'Nothing to show in this view.';
   }
 
+  Future<void> _saveCurrentSearch() async {
+    if (!_query.isActive) {
+      PulseSnack.info(context, 'Set a search or filter before saving.');
+      return;
+    }
+    final controller = TextEditingController(
+      text: _query.searchQuery.trim().isNotEmpty
+          ? _query.searchQuery.trim()
+          : 'Saved search',
+    );
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Save search'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              hintText: 'e.g. Kernel-Power 41',
+            ),
+            onSubmitted: (v) => Navigator.of(ctx).pop(v),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (name == null || name.trim().isEmpty || !mounted) return;
+    await context.read<TimelineLibraryController>().saveSearch(
+          name: name,
+          query: _query,
+        );
+    if (!mounted) return;
+    PulseSnack.success(context, 'Saved search “${name.trim()}”.');
+  }
+
+  void _applySavedSearch(SavedTimelineSearch saved) {
+    final q = context.read<TimelineLibraryController>().queryFromSaved(saved);
+    if (q == null) return;
+    final events = context.read<TimelineSessionController>().events;
+    setState(() {
+      _query = q;
+      _providerFilterController.text = q.providerContains;
+      _eventIdFilterController.text = q.eventIdEquals;
+      _processFilterController.text = q.processContains;
+      _pruneSelection(events);
+    });
+  }
+
   Future<void> _exportJson(List<TimelineEvent> visible) async {
     final selected = _selectedEvent(visible);
     final toExport = selected != null ? [selected] : visible;
@@ -275,7 +344,14 @@ class _TimelinePageState extends State<TimelinePage> {
       final note = selected != null
           ? 'selected_event'
           : (_filtersActive ? 'filtered_visible' : 'visible_all');
-      final json = TimelineExport.encodeEvents(toExport, note: note);
+      final library = context.read<TimelineLibraryController>();
+      final json = TimelineExport.encodeEvents(
+        toExport,
+        note: note,
+        appliedFilters: _query,
+        bookmarkedEventIds: library.bookmarkedEventIds,
+        pinnedEventIds: library.pinnedEventIds,
+      );
       final docs = await getApplicationDocumentsDirectory();
       final dir = Directory('${docs.path}${Platform.pathSeparator}Pulse'
           '${Platform.pathSeparator}exports');
@@ -317,6 +393,7 @@ class _TimelinePageState extends State<TimelinePage> {
     final connecting = state == IpcConnectionState.connecting;
 
     final session = context.watch<TimelineSessionController>();
+    context.watch<TimelineLibraryController>();
     _handleEventsChanged(session);
 
     final events = session.events;
@@ -408,6 +485,8 @@ class _TimelinePageState extends State<TimelinePage> {
                           onEventIdFilter: _onEventIdFilter,
                           onProcessFilter: _onProcessFilter,
                           onClearFilters: _clearFilters,
+                          onSaveSearch: _saveCurrentSearch,
+                          onApplySavedSearch: _applySavedSearch,
                           onSelect: _selectEvent,
                           onClear: _clearSelection,
                           onRefresh: session.reloadSnapshot,
@@ -477,6 +556,8 @@ class _TimelineBody extends StatelessWidget {
     required this.onEventIdFilter,
     required this.onProcessFilter,
     required this.onClearFilters,
+    required this.onSaveSearch,
+    required this.onApplySavedSearch,
     required this.onSelect,
     required this.onClear,
     required this.onRefresh,
@@ -505,6 +586,8 @@ class _TimelineBody extends StatelessWidget {
   final ValueChanged<String> onEventIdFilter;
   final ValueChanged<String> onProcessFilter;
   final VoidCallback onClearFilters;
+  final VoidCallback onSaveSearch;
+  final ValueChanged<SavedTimelineSearch> onApplySavedSearch;
   final ValueChanged<TimelineEvent> onSelect;
   final VoidCallback onClear;
   final VoidCallback onRefresh;
@@ -589,6 +672,72 @@ class _TimelineBody extends StatelessWidget {
                                 textStyle: const TextStyle(fontSize: 12.5),
                               ),
                             ),
+                          if (filtersActive)
+                            TextButton.icon(
+                              onPressed: onSaveSearch,
+                              icon: const Icon(LucideIcons.save, size: 14),
+                              label: const Text('Save search'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: PulseTokens.textSecondary,
+                                textStyle: const TextStyle(fontSize: 12.5),
+                              ),
+                            ),
+                          Consumer<TimelineLibraryController>(
+                            builder: (context, library, _) {
+                              if (library.savedSearches.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return PopupMenuButton<String>(
+                                tooltip: 'Saved searches',
+                                onSelected: (id) {
+                                  if (id.startsWith('del:')) {
+                                    library.deleteSavedSearch(
+                                      id.substring(4),
+                                    );
+                                    return;
+                                  }
+                                  for (final s in library.savedSearches) {
+                                    if (s.id == id) {
+                                      onApplySavedSearch(s);
+                                      break;
+                                    }
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  for (final s in library.savedSearches) ...[
+                                    PopupMenuItem(
+                                      value: s.id,
+                                      child: Text(s.name),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'del:${s.id}',
+                                      child: Text(
+                                        'Delete “${s.name}”',
+                                        style: TextStyle(
+                                          color: PulseTokens.severityError,
+                                          fontSize: 12.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 8),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(LucideIcons.bookmark, size: 14),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Saved',
+                                        style: TextStyle(fontSize: 12.5),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ],
                       ),
                       const SizedBox(height: 10),
