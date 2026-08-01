@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../app/theme/pulse_theme.dart';
@@ -7,7 +8,13 @@ import 'safe_hover.dart';
 
 /// Native-feeling custom title bar that blends into Pulse chrome.
 class PulseTitleBar extends StatefulWidget {
-  const PulseTitleBar({super.key});
+  const PulseTitleBar({
+    super.key,
+    this.onOpenSearch,
+  });
+
+  /// Opens the global command palette (title-bar search affordance).
+  final VoidCallback? onOpenSearch;
 
   @override
   State<PulseTitleBar> createState() => _PulseTitleBarState();
@@ -88,6 +95,13 @@ class _PulseTitleBarState extends State<PulseTitleBar> with WindowListener {
                   ),
             ),
             const Spacer(),
+            if (widget.onOpenSearch != null) ...[
+              _TitleSearchButton(
+                color: fg,
+                onPressed: widget.onOpenSearch!,
+              ),
+              const SizedBox(width: 4),
+            ],
             _CaptionButton(
               tooltip: 'Minimize',
               onPressed: windowManager.minimize,
@@ -115,6 +129,80 @@ class _PulseTitleBarState extends State<PulseTitleBar> with WindowListener {
               color: fg,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TitleSearchButton extends StatefulWidget {
+  const _TitleSearchButton({
+    required this.onPressed,
+    required this.color,
+  });
+
+  final VoidCallback onPressed;
+  final Color color;
+
+  @override
+  State<_TitleSearchButton> createState() => _TitleSearchButtonState();
+}
+
+class _TitleSearchButtonState extends State<_TitleSearchButton>
+    with SafeHoverState {
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Search commands (Ctrl+K)',
+      waitDuration: const Duration(milliseconds: 500),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onPressed,
+        child: MouseRegion(
+          onEnter: (_) => setHovered(true),
+          onExit: (_) => setHovered(false),
+          child: AnimatedContainer(
+            duration: PulseTokens.motionFast,
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: hover
+                  ? PulseTokens.surfaceHover.withValues(alpha: 0.7)
+                  : PulseTokens.surface.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(PulseTokens.radiusSm),
+              border: Border.all(
+                color: PulseTokens.stroke.withValues(alpha: 0.55),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.search,
+                  size: 13,
+                  color: widget.color.withValues(alpha: 0.85),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Search',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: widget.color.withValues(alpha: 0.85),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 11.5,
+                      ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Ctrl+K',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: PulseTokens.textDisabled,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10.5,
+                      ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -1,6 +1,7 @@
 import '../application/client_frame_metrics.dart';
 import '../application/connection_controller.dart';
 import '../application/diagnostics_controller.dart';
+import '../application/health_navigation.dart';
 import '../application/service_lifecycle_controller.dart';
 import '../application/settings_controller.dart';
 import '../application/timeline_session_controller.dart';
@@ -17,6 +18,7 @@ class AppServices {
     required this.diagnosticsController,
     required this.serviceLifecycle,
     required this.clientFrameMetrics,
+    required this.healthNavigation,
   });
 
   final PulseIpcClient ipcClient;
@@ -27,6 +29,7 @@ class AppServices {
   final DiagnosticsController diagnosticsController;
   final ServiceLifecycleController serviceLifecycle;
   final ClientFrameMetrics clientFrameMetrics;
+  final HealthNavigation healthNavigation;
 
   static Future<AppServices> create() async {
     final logger = AppLogger();
@@ -51,6 +54,7 @@ class AppServices {
     );
     final serviceLifecycle = ServiceLifecycleController(logger: logger);
     serviceLifecycle.startPolling();
+    final healthNavigation = HealthNavigation();
 
     // Attach before start so the connecting→connected edge is never missed.
     // Snapshot loading always goes through TimelineSessionController.reloadSnapshot
@@ -67,6 +71,7 @@ class AppServices {
       diagnosticsController: diagnostics,
       serviceLifecycle: serviceLifecycle,
       clientFrameMetrics: frameMetrics,
+      healthNavigation: healthNavigation,
     );
   }
 }

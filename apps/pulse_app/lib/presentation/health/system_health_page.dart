@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import 'package:pulse_protocol/pulse_wire.dart';
 
 import '../../application/connection_controller.dart';
+import '../../application/health_navigation.dart';
+import '../../application/settings_controller.dart';
 import '../../app/theme/pulse_theme.dart';
 import '../../ipc/pulse_ipc_client.dart';
 import '../components/pulse_app_bar.dart';
@@ -29,6 +31,7 @@ class SystemHealthPage extends StatefulWidget {
 
 class _SystemHealthPageState extends State<SystemHealthPage> {
   PulseIpcClient? _ipc;
+  HealthNavigation? _healthNav;
   StreamSubscription<HealthUpdate>? _healthSub;
   IpcConnectionState? _lastState;
   final _view = HealthViewState();
@@ -38,6 +41,7 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
   String? _error;
   bool _monitoring = false;
   HealthPanelKind? _selectedPanel;
+  bool _customizeMode = false;
 
   @override
   void didChangeDependencies() {
@@ -51,6 +55,14 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
       _healthSub = _ipc!.healthUpdates.listen(_onHealthSample);
       _onIpcChanged();
     }
+
+    final healthNav = context.read<HealthNavigation>();
+    if (!identical(_healthNav, healthNav)) {
+      _healthNav?.removeListener(_onHealthNavigation);
+      _healthNav = healthNav;
+      _healthNav!.addListener(_onHealthNavigation);
+      _onHealthNavigation();
+    }
   }
 
   @override
@@ -58,11 +70,23 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
     _appWindowTimer?.cancel();
     _healthSub?.cancel();
     _ipc?.removeListener(_onIpcChanged);
+    _healthNav?.removeListener(_onHealthNavigation);
     _processInventory.dispose();
     if (_monitoring) {
       unawaited(_ipc?.stopHealthMonitoring());
     }
     super.dispose();
+  }
+
+  void _onHealthNavigation() {
+    final pending = _healthNav?.pendingPanel;
+    if (pending == null) return;
+    _healthNav?.consume();
+    if (!mounted) return;
+    setState(() {
+      _customizeMode = false;
+      _selectedPanel = pending;
+    });
   }
 
   void _onHealthSample(HealthUpdate update) {
@@ -166,6 +190,10 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
     final offline = state == IpcConnectionState.disconnected ||
         state == IpcConnectionState.error;
     final connecting = state == IpcConnectionState.connecting;
+    final showDashboard = !offline &&
+        !connecting &&
+        !(_loading && _view.sample == null) &&
+        !(_error != null && _view.sample == null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -174,6 +202,26 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
           title: widget.title,
           connectionState: state,
           connectionLabel: connectionLabel,
+          actions: [
+            if (showDashboard)
+              IconButton(
+                tooltip: _customizeMode
+                    ? 'Done customizing'
+                    : 'Customize dashboard',
+                onPressed: () {
+                  setState(() => _customizeMode = !_customizeMode);
+                },
+                icon: Icon(
+                  _customizeMode
+                      ? LucideIcons.check
+                      : LucideIcons.layoutDashboard,
+                  size: 18,
+                  color: _customizeMode
+                      ? PulseTokens.accent
+                      : PulseTokens.textSecondary,
+                ),
+              ),
+          ],
         ),
         Expanded(
           child: offline
@@ -196,6 +244,7 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
                           onSelect: _selectPanel,
                           onClear: _clearPanel,
                           processInventory: _processInventory,
+                          customizeMode: _customizeMode,
                         ),
         ),
       ],
@@ -213,6 +262,15 @@ HealthPanelKind? _panelKindForMetricId(String id) {
     _ => null,
   };
 }
+
+String _dashboardWidgetLabel(String id) => switch (id) {
+      'status' => 'System status',
+      'heroes' => 'Hero metrics',
+      'system' => 'System info',
+      'performance' => 'Performance',
+      'bottom' => 'Hardware, storage & network',
+      _ => id,
+    };
 
 class _HealthConnectingState extends StatelessWidget {
   const _HealthConnectingState();

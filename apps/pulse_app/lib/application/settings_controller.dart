@@ -30,6 +30,9 @@ class SettingsController extends ChangeNotifier {
   static const _kByteUnitBinary = 'health.byte_unit_binary';
   static const _kTemperatureCelsius = 'health.temperature_celsius';
   static const _kClock24h = 'health.clock_24h';
+  static const _kDashboardWidgetOrder = 'health.dashboard.widget_order';
+  static const _kDashboardHiddenWidgets = 'health.dashboard.hidden_widgets';
+  static const _kDashboardDensity = 'health.dashboard.density';
   static const _kPerformanceMode = 'performance.mode';
   static const _kShowAdvancedDiagnostics = 'diagnostics.show_advanced';
   static const _kExportDirectory = 'exports.directory';
@@ -39,6 +42,23 @@ class SettingsController extends ChangeNotifier {
   static const String defaultSettingsExportFileName = 'settings-export.json';
   static const String releasesUrl =
       'https://github.com/Regncreative/Pulse/releases';
+
+  /// Default System Health dashboard section order.
+  static const List<String> defaultDashboardWidgetOrder = [
+    'status',
+    'heroes',
+    'system',
+    'performance',
+    'bottom',
+  ];
+
+  static const Set<String> _knownDashboardWidgets = {
+    'status',
+    'heroes',
+    'system',
+    'performance',
+    'bottom',
+  };
 
   SharedPreferences? _prefs;
   bool _ready = false;
@@ -55,6 +75,16 @@ class SettingsController extends ChangeNotifier {
 
   /// Map key: `"cpu.overview"` etc. `true` = expanded.
   Map<String, bool> healthSectionExpanded = {};
+
+  /// Ordered System Health dashboard widget ids.
+  List<String> dashboardWidgetOrder =
+      List<String>.from(defaultDashboardWidgetOrder);
+
+  /// Hidden dashboard widget ids (still present in [dashboardWidgetOrder]).
+  Set<String> dashboardHiddenWidgets = {};
+
+  /// `compact` | `comfortable`
+  String dashboardDensity = 'comfortable';
 
   /// `system` | `light` | `dark`
   String themeMode = 'dark';
@@ -146,6 +176,11 @@ class SettingsController extends ChangeNotifier {
         (p.getDouble(_kAnimationSpeed) ?? 1.0).clamp(0.5, 1.5).toDouble();
     healthSectionExpanded =
         _decodeHealthSections(p.getString(_kHealthSectionsExpanded));
+    dashboardWidgetOrder =
+        _decodeDashboardOrder(p.getString(_kDashboardWidgetOrder));
+    dashboardHiddenWidgets =
+        _decodeDashboardHidden(p.getString(_kDashboardHiddenWidgets));
+    dashboardDensity = _normalizeDashboardDensity(p.getString(_kDashboardDensity));
     byteUnitBinary = p.getBool(_kByteUnitBinary) ?? true;
     temperatureCelsius = p.getBool(_kTemperatureCelsius) ?? true;
     clock24h = p.getBool(_kClock24h) ?? true;
@@ -300,6 +335,70 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool isDashboardWidgetVisible(String widgetId) =>
+      !dashboardHiddenWidgets.contains(widgetId);
+
+  Future<void> setDashboardWidgetOrder(List<String> order) async {
+    dashboardWidgetOrder = _normalizeDashboardOrder(order);
+    await _prefs?.setString(
+      _kDashboardWidgetOrder,
+      jsonEncode(dashboardWidgetOrder),
+    );
+    notifyListeners();
+  }
+
+  Future<void> reorderDashboardWidget(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 ||
+        oldIndex >= dashboardWidgetOrder.length ||
+        newIndex < 0 ||
+        newIndex > dashboardWidgetOrder.length) {
+      return;
+    }
+    var target = newIndex;
+    if (target > oldIndex) target -= 1;
+    final next = List<String>.from(dashboardWidgetOrder);
+    final item = next.removeAt(oldIndex);
+    next.insert(target, item);
+    await setDashboardWidgetOrder(next);
+  }
+
+  Future<void> setDashboardWidgetVisible(String widgetId, bool visible) async {
+    if (!_knownDashboardWidgets.contains(widgetId)) return;
+    if (visible) {
+      dashboardHiddenWidgets.remove(widgetId);
+    } else {
+      dashboardHiddenWidgets.add(widgetId);
+    }
+    await _prefs?.setString(
+      _kDashboardHiddenWidgets,
+      jsonEncode(dashboardHiddenWidgets.toList()..sort()),
+    );
+    notifyListeners();
+  }
+
+  Future<void> toggleDashboardWidgetVisibility(String widgetId) async {
+    await setDashboardWidgetVisible(
+      widgetId,
+      !isDashboardWidgetVisible(widgetId),
+    );
+  }
+
+  Future<void> setDashboardDensity(String value) async {
+    dashboardDensity = _normalizeDashboardDensity(value);
+    await _prefs?.setString(_kDashboardDensity, dashboardDensity);
+    notifyListeners();
+  }
+
+  /// Cycles theme: dark → light → system → dark.
+  Future<void> cycleThemeMode() async {
+    final next = switch (themeMode) {
+      'dark' => 'light',
+      'light' => 'system',
+      _ => 'dark',
+    };
+    await setThemeMode(next);
+  }
+
   Future<void> resetAll() async {
     maxStoredEvents = 500;
     startupSnapshotSize = 100;
@@ -314,6 +413,9 @@ class SettingsController extends ChangeNotifier {
     customAccentArgb = defaultCustomAccentArgb;
     animationSpeed = 1.0;
     healthSectionExpanded = {};
+    dashboardWidgetOrder = List<String>.from(defaultDashboardWidgetOrder);
+    dashboardHiddenWidgets = {};
+    dashboardDensity = 'comfortable';
     byteUnitBinary = true;
     temperatureCelsius = true;
     clock24h = true;
@@ -340,6 +442,10 @@ class SettingsController extends ChangeNotifier {
         'animation_speed': animationSpeed,
         'health_sections_expanded':
             Map<String, bool>.from(healthSectionExpanded),
+        'dashboard_widget_order': List<String>.from(dashboardWidgetOrder),
+        'dashboard_hidden_widgets':
+            dashboardHiddenWidgets.toList()..sort(),
+        'dashboard_density': dashboardDensity,
         'byte_unit_binary': byteUnitBinary,
         'temperature_celsius': temperatureCelsius,
         'clock_24h': clock24h,
@@ -391,6 +497,24 @@ class SettingsController extends ChangeNotifier {
         jsonEncode(map['health_sections_expanded']),
       );
     }
+    if (map['dashboard_widget_order'] is List) {
+      dashboardWidgetOrder = _normalizeDashboardOrder(
+        (map['dashboard_widget_order'] as List)
+            .whereType<String>()
+            .toList(growable: false),
+      );
+    }
+    if (map['dashboard_hidden_widgets'] is List) {
+      dashboardHiddenWidgets = _normalizeDashboardHidden(
+        (map['dashboard_hidden_widgets'] as List)
+            .whereType<String>()
+            .toSet(),
+      );
+    }
+    if (map['dashboard_density'] is String) {
+      dashboardDensity =
+          _normalizeDashboardDensity(map['dashboard_density'] as String);
+    }
     if (map['byte_unit_binary'] is bool) {
       byteUnitBinary = map['byte_unit_binary'] as bool;
     }
@@ -427,6 +551,15 @@ class SettingsController extends ChangeNotifier {
         _kHealthSectionsExpanded,
         jsonEncode(healthSectionExpanded),
       );
+      await p.setString(
+        _kDashboardWidgetOrder,
+        jsonEncode(dashboardWidgetOrder),
+      );
+      await p.setString(
+        _kDashboardHiddenWidgets,
+        jsonEncode(dashboardHiddenWidgets.toList()..sort()),
+      );
+      await p.setString(_kDashboardDensity, dashboardDensity);
       await p.setBool(_kByteUnitBinary, byteUnitBinary);
       await p.setBool(_kTemperatureCelsius, temperatureCelsius);
       await p.setBool(_kClock24h, clock24h);
@@ -545,6 +678,64 @@ class SettingsController extends ChangeNotifier {
         }
       }
       return out;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static String _normalizeDashboardDensity(String? value) {
+    switch (value) {
+      case 'compact':
+      case 'comfortable':
+        return value!;
+      default:
+        return 'comfortable';
+    }
+  }
+
+  static List<String> _normalizeDashboardOrder(List<String> order) {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final id in order) {
+      if (_knownDashboardWidgets.contains(id) && seen.add(id)) {
+        out.add(id);
+      }
+    }
+    for (final id in defaultDashboardWidgetOrder) {
+      if (seen.add(id)) out.add(id);
+    }
+    return out;
+  }
+
+  static Set<String> _normalizeDashboardHidden(Set<String> hidden) {
+    return hidden.where(_knownDashboardWidgets.contains).toSet();
+  }
+
+  static List<String> _decodeDashboardOrder(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return List<String>.from(defaultDashboardWidgetOrder);
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return List<String>.from(defaultDashboardWidgetOrder);
+      }
+      return _normalizeDashboardOrder(
+        decoded.whereType<String>().toList(growable: false),
+      );
+    } catch (_) {
+      return List<String>.from(defaultDashboardWidgetOrder);
+    }
+  }
+
+  static Set<String> _decodeDashboardHidden(String? raw) {
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return {};
+      return _normalizeDashboardHidden(
+        decoded.whereType<String>().toSet(),
+      );
     } catch (_) {
       return {};
     }
