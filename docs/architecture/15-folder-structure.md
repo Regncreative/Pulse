@@ -7,6 +7,7 @@ Pulse/
 ├── AGENTS.md
 ├── docs/architecture/          # This package
 ├── apps/pulse_app/             # Flutter UI
+├── apps/pulse_mcp/             # PulseMCP.exe (official MCP server) — see 33-mcp-bridge.md
 ├── service/pulse_service/      # C++ service (Event Log only)
 ├── shared/pulse_protocol/      # Protobuf
 ├── tools/codegen/

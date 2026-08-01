@@ -60,6 +60,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 30 | [Health validation methodology](30-health-validation.md) | TM / RM / PerfMon / SI comparison matrix |
 | 31 | [UI design system](31-ui-design-system.md) | ThemeExtension, accents, PulseSection, PulseThemeScope |
 | 32 | [UX / UI redesign milestone](32-ux-redesign-milestone.md) | Themes, Settings, Reports, Health sections, command palette |
+| 33 | [PulseMCP product & API](33-mcp-bridge.md) | First-class MCP server, tools, resources, schemas |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 
@@ -113,6 +114,7 @@ Never expose technical information first.
 | M2 | ETW consumer (see [20](20-etw-integration.md)) |
 | M3 | WMI indications (see [22](22-wmi-integration.md)) — no `WITHIN` process polling |
 | M4 | Out-of-process plugins (see [14](14-plugins-future.md)) |
+| MCP | PulseMCP first-class product (see [33](33-mcp-bridge.md), [ADR-010](decisions/ADR-010-mcp-first-class-product.md)) |
 | Later | Timeline replay, export, registry/file/network engines |
 
 ---

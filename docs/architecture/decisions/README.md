@@ -11,5 +11,6 @@
 | [ADR-007](ADR-007-event-log-only-v1.md) | Event Log Only for Timeline v1 (Health ETW: see ADR-009) | Accepted |
 | [ADR-008](ADR-008-hot-cold-live-queues.md) | Hot/Cold Path + Per-Connection Live Queues | Accepted |
 | [ADR-009](ADR-009-health-network-etw.md) | Health per-process network via scoped ETW | Accepted |
+| [ADR-010](ADR-010-mcp-first-class-product.md) | PulseMCP first-class MCP product | Accepted |
 
 To change a locked decision, add a new ADR that references the original.

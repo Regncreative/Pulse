@@ -1,0 +1,31 @@
+{
+  "name": "@pulse/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PulseMCP — official Model Context Protocol server for Pulse Windows diagnostics",
+  "type": "module",
+  "main": "dist/main.js",
+  "bin": {
+    "pulsemcp": "dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "dev": "tsx src/main.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}
