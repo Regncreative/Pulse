@@ -2,6 +2,7 @@
 
 #include "collectors/gpu_adapter_info.hpp"
 #include "collectors/process_metrics.hpp"
+#include "collectors/network_etw_engine.hpp"
 #include "pulse_wire.hpp"
 
 #include <cstdint>
@@ -64,7 +65,7 @@ class HealthMetricsCollector {
   void SampleProcessesCombined(ipc::HealthSample* sample_out,
                                ipc::HealthProcessInventoryUpdate* inv_out);
   void SamplePerProcessNetwork(
-      std::unordered_map<uint32_t, uint64_t>* tcp_bytes_by_pid);
+      std::unordered_map<uint32_t, NetworkPidBytes>* bytes_by_pid);
 
   /// Per-PID GPU engine util + process dedicated/shared memory (LUID-filtered).
   struct GpuByPid {
@@ -136,11 +137,14 @@ class HealthMetricsCollector {
   };
   std::unordered_map<ProcessKey, ProcCpuPrev, ProcessKeyHash> prev_proc_cpu_;
   std::unordered_map<ProcessKey, ProcIoPrev, ProcessKeyHash> prev_proc_io_;
-  std::unordered_map<ProcessKey, uint64_t, ProcessKeyHash> prev_tcp_bytes_;
+  /// Cumulative ETW send/recv totals (NetworkEtwEngine snapshot).
+  std::unordered_map<ProcessKey, NetworkPidBytes, ProcessKeyHash> prev_net_bytes_;
   /// Last create_time_100ns seen for a PID (detect recycle for TCP map).
   std::unordered_map<uint32_t, uint64_t> prev_pid_create_time_;
   uint64_t prev_proc_tick_ms_ = 0;
   bool have_proc_baseline_ = false;
+
+  NetworkEtwEngine network_etw_;
 
   struct InvRowPrev {
     ProcessKey key;
@@ -156,6 +160,12 @@ class HealthMetricsCollector {
     bool has_disk = false;
     double net_bps = 0.0;
     bool has_net = false;
+    double net_upload_bps = 0.0;
+    bool has_net_upload = false;
+    double net_download_bps = 0.0;
+    bool has_net_download = false;
+    uint64_t net_bytes_total = 0;
+    bool has_net_bytes_total = false;
     bool has_gpu = false;
     double gpu_percent = 0.0;
     std::string gpu_engine;

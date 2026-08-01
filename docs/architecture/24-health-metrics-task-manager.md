@@ -174,7 +174,7 @@ This matches the usual Task Manager Details relationship without `OpenProcess` /
 | **Rates** | Δ In/Out octets / Δt; peak/avg since monitoring start; util % vs link speed |
 | **Counters** | `GetIfEntry2` bytes/packets/errors/discards |
 | **Wi‑Fi** | Native WLAN (`wlanapi`) SSID / signal / channel / security when IEEE80211 |
-| **Per-process** | **Deferred** — UI: “Per-process network not available yet.” (ETW milestone) |
+| **Per-process** | **ETW** `NetworkEtwEngine` (`PulseHealthNet` + Microsoft-Windows-Kernel-Network) — upload/download/total when session starts; else `—` |
 
 ### CPU / Memory / Disk overview enrichment
 
@@ -279,7 +279,7 @@ See expanded Network section above for static identity fields.
 | CPU | Time-based SPI (default); cycle optional | SI cycle default; TM may use Utility | Default ≠ Utility |
 | Memory | **Private** WS from SPI | Private WS | Aligned when private ≠ 0 |
 | Disk | Read+Write+Other / Δt | IoCounters-style | Not exclusive physical disk |
-| Network | **Deferred** (ESTATS removed) | TM / SI use **ETW** kernel TCP/UDP | See network API decision below |
+| Network | **ETW** Kernel-Network send/recv (ADR-009) | TM / SI use **ETW** kernel TCP/UDP | Rates unset if session fails |
 | Lifetime | PID + CreateTime | SI CreateTime records | Aligned |
 
 ### Per-process network — API decision (ESTATS removed)
@@ -293,11 +293,11 @@ Runtime investigation (2026-08) proved `GetPerTcpConnectionEStats` is **not** a 
 | **PDH / Perf Counters** | Process(*) has no Network Bytes | N/A | N/A | **Cannot** do per-process net | System adapter only |
 | **ETW** kernel `TcpIp`/`UdpIp` (NetworkTCPIP) | Event PID + size | Typically admin / privileged session | Needs design (service account + session) | **Best** — what TM / Resource Monitor / System Informer use | Mature monitors |
 
-**Recommendation:** Do **not** filter ESTATS garbage. Leave per-process `net_bps` unset (`—`) until an **ETW** Network Engine milestone (see [20-etw-integration.md](20-etw-integration.md)). Keep system-adapter rates via `GetIfTable2`.
+**Recommendation:** Do **not** filter ESTATS garbage. Use the **ETW** Network Engine ([20-etw-integration.md](20-etw-integration.md), [ADR-009](decisions/ADR-009-health-network-etw.md)). Keep system-adapter rates via `GetIfTable2`. Leave per-process `has_net_*` unset when the session cannot start.
 
-### Future — process network via ETW
+### Process network via ETW (Phase 2)
 
-Ship when ready: real-time session on kernel TCP/UDP send/recv, aggregate bytes by `(PID, CreateTime)`, publish rates on the existing `HealthProcessEntry.net_bps` fields. Privilege model must stay explicit (user consent / capable account) — never bypass Windows security.
+Real-time Pulse-owned session `PulseHealthNet` on `Microsoft-Windows-Kernel-Network` send/recv events; aggregate cumulative bytes by PID; publish rates on `HealthProcessEntry` (`net_bps`, `net_upload_bps`, `net_download_bps`, `net_bytes_total`). Privilege model stays explicit — never bypass Windows security. Timeline remains Event Log–only.
 
 ### Temperatures
 
@@ -313,7 +313,7 @@ Not collected (never fabricated). No stable public Win32 package-temp API.
 - Exact adapter / GPU picker parity with Task Manager UI selection
 - Network drive capacity every second
 - TM App tree / UWP grouping beyond Phase A ([28-task-manager-app-grouping.md](28-task-manager-app-grouping.md))
-- Per-process net without ETW
+- Per-process net without a working ETW session (leave unset — never invent)
 - NVAPI / ADL / Intel IGCL for board sensors beyond what D3DKMT exposes
 
 ## Verification
@@ -327,7 +327,7 @@ Compare Pulse with **Task Manager** and **System Informer** (~30 s idle + light 
 | Process Memory | Near TM/SI private WS; groups = sum of private WS |
 | Process CPU | Track SI time-based; may diverge from TM Processes Utility |
 | Process Disk | Same order of magnitude as SI I/O |
-| Process Network | `—` until ETW milestone (never invent rates) |
+| Process Network | Match order of magnitude with SI/TM when `PulseHealthNet` is up; `—` if ETW start failed |
 | PID recycle | Relaunch same image: metrics reset (no stuck baseline) |
 | Inventory UI | CPU: stable name order; Memory: private-WS sort within sections |
 

@@ -218,6 +218,12 @@ std::vector<uint8_t> EncodeHealthProcessEntry(const HealthProcessEntry& m) {
   WriteBool(30, m.has_gpu_shared_bytes, &out);
   WriteU64(31, m.gpu_shared_bytes, &out);
   WriteString(32, m.gpu_engine, &out);
+  WriteBool(33, m.has_net_upload_bps, &out);
+  WriteDouble(34, m.net_upload_bps, &out);
+  WriteBool(35, m.has_net_download_bps, &out);
+  WriteDouble(36, m.net_download_bps, &out);
+  WriteBool(37, m.has_net_bytes_total, &out);
+  WriteU64(38, m.net_bytes_total, &out);
   return out;
 }
 
@@ -1036,6 +1042,26 @@ bool DecodeHealthProcessEntry(const uint8_t* data, size_t len,
       m->gpu_shared_bytes = v;
     } else if (field == 32 && wire == 2) {
       if (!DecodeString(p, end, &m->gpu_engine)) return false;
+    } else if (field == 33 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_upload_bps = v != 0;
+    } else if (field == 34 && wire == 1) {
+      if (!ReadDouble(p, end, &m->net_upload_bps)) return false;
+    } else if (field == 35 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_download_bps = v != 0;
+    } else if (field == 36 && wire == 1) {
+      if (!ReadDouble(p, end, &m->net_download_bps)) return false;
+    } else if (field == 37 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_bytes_total = v != 0;
+    } else if (field == 38 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_bytes_total = v;
     } else if (!SkipField(wire, p, end)) {
       return false;
     }

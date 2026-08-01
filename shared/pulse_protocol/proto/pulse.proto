@@ -244,6 +244,13 @@ message HealthProcessEntry {
   bool has_gpu_shared_bytes = 30;
   uint64 gpu_shared_bytes = 31;
   string gpu_engine = 32;              // engtype label e.g. 3D, Compute
+  // Per-process network (ETW Kernel-Network) — upload=send, download=recv.
+  bool has_net_upload_bps = 33;
+  double net_upload_bps = 34;          // bytes/sec sent
+  bool has_net_download_bps = 35;
+  double net_download_bps = 36;        // bytes/sec received
+  bool has_net_bytes_total = 37;
+  uint64 net_bytes_total = 38;         // cumulative send+recv since session start
 }
 
 // Full / delta process inventory for Task Manager–style CPU panel.

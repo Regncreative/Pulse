@@ -3,7 +3,12 @@ import 'package:pulse_protocol/pulse_wire.dart';
 import 'process_display_name.dart';
 import 'process_inventory_store.dart';
 
-enum ProcessGroupSort { nameAscending, memoryDescending, gpuDescending }
+enum ProcessGroupSort {
+  nameAscending,
+  memoryDescending,
+  gpuDescending,
+  networkDescending,
+}
 
 /// Presentation-only application group over flat PID inventory.
 ///
@@ -26,6 +31,12 @@ class ProcessAppGroup {
     required this.diskBps,
     required this.hasNet,
     required this.netBps,
+    required this.hasNetUpload,
+    required this.netUploadBps,
+    required this.hasNetDownload,
+    required this.netDownloadBps,
+    required this.hasNetBytesTotal,
+    required this.netBytesTotal,
     required this.hasGpu,
     required this.gpuPercent,
     required this.gpuDedicatedBytes,
@@ -56,6 +67,12 @@ class ProcessAppGroup {
   final double diskBps;
   final bool hasNet;
   final double netBps;
+  final bool hasNetUpload;
+  final double netUploadBps;
+  final bool hasNetDownload;
+  final double netDownloadBps;
+  final bool hasNetBytesTotal;
+  final int netBytesTotal;
 
   final bool hasGpu;
   /// Sum of per-PID GPU util (same aggregation style as CPU).
@@ -112,6 +129,12 @@ class AppGroupEngine {
       var hasDisk = false;
       var net = 0.0;
       var hasNet = false;
+      var netUpload = 0.0;
+      var hasNetUpload = false;
+      var netDownload = 0.0;
+      var hasNetDownload = false;
+      var netBytesTotal = 0;
+      var hasNetBytesTotal = false;
       var gpu = 0.0;
       var hasGpu = false;
       var gpuDedicated = 0;
@@ -136,6 +159,18 @@ class AppGroupEngine {
         if (m.hasNetBps) {
           hasNet = true;
           net += m.netBps;
+        }
+        if (m.hasNetUploadBps) {
+          hasNetUpload = true;
+          netUpload += m.netUploadBps;
+        }
+        if (m.hasNetDownloadBps) {
+          hasNetDownload = true;
+          netDownload += m.netDownloadBps;
+        }
+        if (m.hasNetBytesTotal) {
+          hasNetBytesTotal = true;
+          netBytesTotal += m.netBytesTotal;
         }
         if (m.hasGpuPercent) {
           hasGpu = true;
@@ -172,6 +207,12 @@ class AppGroupEngine {
           diskBps: disk,
           hasNet: hasNet,
           netBps: net,
+          hasNetUpload: hasNetUpload,
+          netUploadBps: netUpload,
+          hasNetDownload: hasNetDownload,
+          netDownloadBps: netDownload,
+          hasNetBytesTotal: hasNetBytesTotal,
+          netBytesTotal: netBytesTotal,
           hasGpu: hasGpu,
           gpuPercent: gpu,
           gpuDedicatedBytes: gpuDedicated,
@@ -214,6 +255,16 @@ class AppGroupEngine {
           if (byGpu != 0) return byGpu;
           final byDed = b.gpuDedicatedBytes.compareTo(a.gpuDedicatedBytes);
           if (byDed != 0) return byDed;
+          return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+        });
+      case ProcessGroupSort.networkDescending:
+        copy.sort((a, b) {
+          final byNet = b.netBps.compareTo(a.netBps);
+          if (byNet != 0) return byNet;
+          final byDown = b.netDownloadBps.compareTo(a.netDownloadBps);
+          if (byDown != 0) return byDown;
+          final byUp = b.netUploadBps.compareTo(a.netUploadBps);
+          if (byUp != 0) return byUp;
           return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
         });
     }

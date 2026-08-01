@@ -351,6 +351,12 @@ class HealthProcessEntry {
     this.hasGpuSharedBytes = false,
     this.gpuSharedBytes = 0,
     this.gpuEngine = '',
+    this.hasNetUploadBps = false,
+    this.netUploadBps = 0.0,
+    this.hasNetDownloadBps = false,
+    this.netDownloadBps = 0.0,
+    this.hasNetBytesTotal = false,
+    this.netBytesTotal = 0,
   });
   int pid;
   String name;
@@ -384,6 +390,12 @@ class HealthProcessEntry {
   bool hasGpuSharedBytes;
   int gpuSharedBytes;
   String gpuEngine;
+  bool hasNetUploadBps;
+  double netUploadBps;
+  bool hasNetDownloadBps;
+  double netDownloadBps;
+  bool hasNetBytesTotal;
+  int netBytesTotal;
 }
 
 class HealthProcessInventoryUpdate {
@@ -1030,6 +1042,12 @@ Uint8List _encodeHealthProcessEntry(HealthProcessEntry m) {
   _writeBool(30, m.hasGpuSharedBytes, out);
   _writeU64(31, m.gpuSharedBytes, out);
   _writeString(32, m.gpuEngine, out);
+  _writeBool(33, m.hasNetUploadBps, out);
+  _writeDouble(34, m.netUploadBps, out);
+  _writeBool(35, m.hasNetDownloadBps, out);
+  _writeDouble(36, m.netDownloadBps, out);
+  _writeBool(37, m.hasNetBytesTotal, out);
+  _writeU64(38, m.netBytesTotal, out);
   return out.toBytes();
 }
 
@@ -1836,6 +1854,18 @@ HealthProcessEntry _decodeHealthProcessEntry(Uint8List data) {
       m.gpuSharedBytes = r.readVarint();
     } else if (field == 32 && wire == 2) {
       m.gpuEngine = r.readString();
+    } else if (field == 33 && wire == 0) {
+      m.hasNetUploadBps = r.readVarint() != 0;
+    } else if (field == 34 && wire == 1) {
+      m.netUploadBps = r.readDouble();
+    } else if (field == 35 && wire == 0) {
+      m.hasNetDownloadBps = r.readVarint() != 0;
+    } else if (field == 36 && wire == 1) {
+      m.netDownloadBps = r.readDouble();
+    } else if (field == 37 && wire == 0) {
+      m.hasNetBytesTotal = r.readVarint() != 0;
+    } else if (field == 38 && wire == 0) {
+      m.netBytesTotal = r.readVarint();
     } else {
       r.skip(wire);
     }

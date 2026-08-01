@@ -83,7 +83,10 @@ class HealthDetailsPanel extends StatelessWidget {
             inventory: processInventory,
           ),
       HealthPanelKind.disk => _DiskPanelBody(view: view),
-      HealthPanelKind.network => _NetworkPanelBody(view: view),
+      HealthPanelKind.network => _NetworkPanelBody(
+            view: view,
+            inventory: processInventory,
+          ),
     };
   }
 
@@ -1204,13 +1207,15 @@ extension on String {
 }
 
 class _NetworkPanelBody extends StatelessWidget {
-  const _NetworkPanelBody({required this.view});
+  const _NetworkPanelBody({required this.view, this.inventory});
   final HealthViewState view;
+  final ProcessInventoryStore? inventory;
 
   @override
   Widget build(BuildContext context) {
     final s = view.sample;
     final i = view.info;
+    final store = inventory;
     final adapter = i?.activeNetworkAdapter.trim() ?? '';
     final downloadValue = s?.hasNetDownloadBps == true
         ? formatThroughputBps(s!.netDownloadBps)
@@ -1510,10 +1515,23 @@ class _NetworkPanelBody extends StatelessWidget {
         Expanded(
           flex: 3,
           child: DetailSection(
-            title: 'Processes',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            title: store == null
+                ? 'Processes'
+                : 'Processes (${store.totalCount})',
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
             expandChild: true,
-            child: const _NetworkProcessesPlaceholder(),
+            child: store == null
+                ? _ProcessList(
+                    processes: s?.topNetwork ?? const [],
+                    kind: HealthPanelKind.network,
+                    compact: true,
+                  )
+                : ProcessInventoryList(
+                    store: store,
+                    compact: true,
+                    groupSort: ProcessGroupSort.networkDescending,
+                    metrics: ProcessListMetrics.network,
+                  ),
           ),
         ),
         const Divider(height: 1, color: PulseTokens.strokeSubtle),
@@ -1545,39 +1563,6 @@ class _NetworkPanelBody extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Per-process network attribution requires the ETW milestone; the topology
-/// exists in the wire format but no collector populates it yet.
-class _NetworkProcessesPlaceholder extends StatelessWidget {
-  const _NetworkProcessesPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Per-process network not available yet.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: PulseTokens.textTertiary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Requires ETW milestone',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: PulseTokens.textDisabled,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

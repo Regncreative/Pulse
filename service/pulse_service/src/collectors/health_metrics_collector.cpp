@@ -1,6 +1,7 @@
 ﻿#include "collectors/health_metrics_collector.hpp"
 
 #include "collectors/gpu_adapter_info.hpp"
+#include "collectors/network_etw_engine.hpp"
 #include "collectors/process_metrics.hpp"
 #include "collectors/system_overview_info.hpp"
 #include "logging/logger.hpp"
@@ -461,12 +462,23 @@ bool HealthMetricsCollector::Initialize() {
   net_sum_upload_bps_ = 0;
   net_rate_samples_ = 0;
   initialized_ = true;
+
+  // Start PulseHealthNet outside inventing rates: failure → has_net_* unset.
+  if (!network_etw_.Start()) {
+    Logger::Instance().Warn(
+        "HealthMetrics",
+        "Network ETW unavailable; per-process net metrics unset. " +
+            network_etw_.last_error());
+  }
+
   Logger::Instance().Info("HealthMetrics",
                           "Collector initialized (Task Manager–aligned counters)");
   return true;
 }
 
 void HealthMetricsCollector::Shutdown() {
+  network_etw_.Stop();
+
   std::lock_guard lock(mu_);
   if (pdh_query_ != nullptr) {
     PdhCloseQuery(static_cast<PDH_HQUERY>(pdh_query_));
@@ -1379,18 +1391,11 @@ void HealthMetricsCollector::SampleNetworkAddresses(ipc::HealthSample* out) {
 }
 
 void HealthMetricsCollector::SamplePerProcessNetwork(
-    std::unordered_map<uint32_t, uint64_t>* tcp_bytes_by_pid) {
-  if (tcp_bytes_by_pid == nullptr) return;
-  tcp_bytes_by_pid->clear();
-
-  // Per-process network rates are intentionally not collected here.
-  // GetPerTcpConnectionEStats is unsuitable for PulseService under
-  // LocalService: MSDN requires SetPerTcpConnectionEStats enable-first,
-  // admin rights, and checking EnableCollection — otherwise ROD data is
-  // undefined. Runtime proved multi-GB/s garbage rates on the wire.
-  // See docs/architecture/24-health-metrics-task-manager.md (network APIs).
-  // Future: ETW Microsoft-Windows-TCPIP / Win32 Networking (PID-tagged).
-  (void)tcp_bytes_by_pid;
+    std::unordered_map<uint32_t, NetworkPidBytes>* bytes_by_pid) {
+  if (bytes_by_pid == nullptr) return;
+  bytes_by_pid->clear();
+  if (!network_etw_.running()) return;
+  network_etw_.Snapshot(bytes_by_pid);
 }
 
 std::wstring Utf8ToWide(const std::string& utf8) {
@@ -1662,8 +1667,8 @@ void HealthMetricsCollector::SampleProcessesCombined(
   }
   if (st != kStatusSuccess || buffer.empty()) return;
 
-  std::unordered_map<uint32_t, uint64_t> tcp_bytes_by_pid;
-  SamplePerProcessNetwork(&tcp_bytes_by_pid);
+  std::unordered_map<uint32_t, NetworkPidBytes> net_bytes_by_pid;
+  SamplePerProcessNetwork(&net_bytes_by_pid);
 
   std::optional<uint64_t> idle_cycle_delta;
   if (cpu_mode == ProcessCpuMode::CycleBased) {
@@ -1676,7 +1681,7 @@ void HealthMetricsCollector::SampleProcessesCombined(
     uint64_t cpu_100ns = 0;
     uint64_t cycle_time = 0;
     uint64_t io_bytes = 0;
-    uint64_t tcp_bytes = 0;
+    NetworkPidBytes net_bytes;
     uint32_t parent_pid = 0;
   };
 
@@ -1704,8 +1709,8 @@ void HealthMetricsCollector::SampleProcessesCombined(
                      static_cast<uint64_t>(info->OtherTransferCount.QuadPart);
       row.parent_pid = static_cast<uint32_t>(
           reinterpret_cast<uintptr_t>(info->InheritedFromUniqueProcessId));
-      const auto tcp_it = tcp_bytes_by_pid.find(pid);
-      if (tcp_it != tcp_bytes_by_pid.end()) row.tcp_bytes = tcp_it->second;
+      const auto net_it = net_bytes_by_pid.find(pid);
+      if (net_it != net_bytes_by_pid.end()) row.net_bytes = net_it->second;
 
       row.entry.pid = pid;
       row.entry.name = ProcessNameFromSpi(*info);
@@ -1764,7 +1769,7 @@ void HealthMetricsCollector::SampleProcessesCombined(
 
   std::unordered_map<ProcessKey, ProcCpuPrev, ProcessKeyHash> next_cpu;
   std::unordered_map<ProcessKey, ProcIoPrev, ProcessKeyHash> next_io;
-  std::unordered_map<ProcessKey, uint64_t, ProcessKeyHash> next_tcp;
+  std::unordered_map<ProcessKey, NetworkPidBytes, ProcessKeyHash> next_net;
   std::unordered_map<ProcessKey, InvRowPrev, ProcessKeyHash> next_inv;
   std::unordered_map<ProcessKey, ipc::HealthProcessEntry, ProcessKeyHash>
       current;
@@ -1772,6 +1777,7 @@ void HealthMetricsCollector::SampleProcessesCombined(
   std::vector<ipc::HealthProcessEntry> cpu_rows;
   std::vector<ipc::HealthProcessEntry> mem_rows;
   std::vector<ipc::HealthProcessEntry> disk_rows;
+  std::vector<ipc::HealthProcessEntry> net_rows;
 
   std::unordered_map<uint32_t, GpuByPid> gpu_by_pid;
   SampleGpuMetricsByPid(&gpu_by_pid);
@@ -1786,7 +1792,7 @@ void HealthMetricsCollector::SampleProcessesCombined(
     const ProcessKey& key = row.key;
     next_cpu[key] = ProcCpuPrev{row.cpu_100ns, row.cycle_time};
     next_io[key] = ProcIoPrev{row.io_bytes};
-    next_tcp[key] = row.tcp_bytes;
+    next_net[key] = row.net_bytes;
     next_pid_create[key.pid] = key.create_time_100ns;
 
     auto& e = row.entry;
@@ -1823,15 +1829,38 @@ void HealthMetricsCollector::SampleProcessesCombined(
         }
       }
 
-      const auto net_it = prev_tcp_bytes_.find(key);
-      if (net_it != prev_tcp_bytes_.end() && row.tcp_bytes >= net_it->second) {
-        const double bps =
-            static_cast<double>(row.tcp_bytes - net_it->second) / dt_s;
-        if (bps >= 1.0 && bps <= kMaxPlausibleBps && std::isfinite(bps)) {
+      const auto net_it = prev_net_bytes_.find(key);
+      if (net_it != prev_net_bytes_.end()) {
+        const auto& prev = net_it->second;
+        if (row.net_bytes.send_bytes >= prev.send_bytes) {
+          const double up =
+              static_cast<double>(row.net_bytes.send_bytes - prev.send_bytes) /
+              dt_s;
+          if (up >= 1.0 && up <= kMaxPlausibleBps && std::isfinite(up)) {
+            e.has_net_upload_bps = true;
+            e.net_upload_bps = up;
+          }
+        }
+        if (row.net_bytes.recv_bytes >= prev.recv_bytes) {
+          const double down =
+              static_cast<double>(row.net_bytes.recv_bytes - prev.recv_bytes) /
+              dt_s;
+          if (down >= 1.0 && down <= kMaxPlausibleBps && std::isfinite(down)) {
+            e.has_net_download_bps = true;
+            e.net_download_bps = down;
+          }
+        }
+        if (e.has_net_upload_bps || e.has_net_download_bps) {
           e.has_net_bps = true;
-          e.net_bps = bps;
+          e.net_bps = (e.has_net_upload_bps ? e.net_upload_bps : 0.0) +
+                      (e.has_net_download_bps ? e.net_download_bps : 0.0);
         }
       }
+    }
+
+    if (row.net_bytes.total() > 0) {
+      e.has_net_bytes_total = true;
+      e.net_bytes_total = row.net_bytes.total();
     }
 
     const bool is_new = prev_inventory_.find(key) == prev_inventory_.end();
@@ -1861,6 +1890,7 @@ void HealthMetricsCollector::SampleProcessesCombined(
 
     if (e.has_cpu_percent && e.cpu_percent > 0.01) cpu_rows.push_back(e);
     if (e.has_disk_bps && e.disk_bps > 1024.0) disk_rows.push_back(e);
+    if (e.has_net_bps && e.net_bps > 1024.0) net_rows.push_back(e);
     if (e.memory_bytes > 1024 * 1024) mem_rows.push_back(e);
 
     InvRowPrev snap;
@@ -1877,6 +1907,12 @@ void HealthMetricsCollector::SampleProcessesCombined(
     snap.has_disk = e.has_disk_bps;
     snap.net_bps = e.net_bps;
     snap.has_net = e.has_net_bps;
+    snap.net_upload_bps = e.net_upload_bps;
+    snap.has_net_upload = e.has_net_upload_bps;
+    snap.net_download_bps = e.net_download_bps;
+    snap.has_net_download = e.has_net_download_bps;
+    snap.net_bytes_total = e.net_bytes_total;
+    snap.has_net_bytes_total = e.has_net_bytes_total;
     snap.has_gpu = e.has_gpu_percent;
     snap.gpu_percent = e.gpu_percent;
     snap.gpu_engine = e.gpu_engine;
@@ -1896,7 +1932,7 @@ void HealthMetricsCollector::SampleProcessesCombined(
 
   prev_proc_cpu_ = std::move(next_cpu);
   prev_proc_io_ = std::move(next_io);
-  prev_tcp_bytes_ = std::move(next_tcp);
+  prev_net_bytes_ = std::move(next_net);
   prev_pid_create_time_ = std::move(next_pid_create);
   prev_proc_tick_ms_ = now_ms;
   have_proc_baseline_ = true;
@@ -1909,14 +1945,17 @@ void HealthMetricsCollector::SampleProcessesCombined(
            });
   KeepTopN(&disk_rows, kTopProcessLimit,
            [](const ipc::HealthProcessEntry& e) { return e.disk_bps; });
+  KeepTopN(&net_rows, kTopProcessLimit,
+           [](const ipc::HealthProcessEntry& e) { return e.net_bps; });
   FillExecutablePaths(&cpu_rows);
   FillExecutablePaths(&mem_rows);
   FillExecutablePaths(&disk_rows);
+  FillExecutablePaths(&net_rows);
   if (sample_out != nullptr) {
     sample_out->top_cpu = std::move(cpu_rows);
     sample_out->top_memory = std::move(mem_rows);
     sample_out->top_disk = std::move(disk_rows);
-    sample_out->top_network.clear();
+    sample_out->top_network = std::move(net_rows);
   }
 
   if (inv_out != nullptr) {
@@ -1941,6 +1980,17 @@ void HealthMetricsCollector::SampleProcessesCombined(
       if (a.has_disk && std::fabs(a.disk_bps - b.disk_bps) > 256.0) return true;
       if (a.has_net != b.has_net_bps) return true;
       if (a.has_net && std::fabs(a.net_bps - b.net_bps) > 256.0) return true;
+      if (a.has_net_upload != b.has_net_upload_bps) return true;
+      if (a.has_net_upload &&
+          std::fabs(a.net_upload_bps - b.net_upload_bps) > 256.0)
+        return true;
+      if (a.has_net_download != b.has_net_download_bps) return true;
+      if (a.has_net_download &&
+          std::fabs(a.net_download_bps - b.net_download_bps) > 256.0)
+        return true;
+      if (a.has_net_bytes_total != b.has_net_bytes_total) return true;
+      if (a.has_net_bytes_total && a.net_bytes_total != b.net_bytes_total)
+        return true;
       if (a.has_gpu != b.has_gpu_percent) return true;
       if (a.has_gpu && std::fabs(a.gpu_percent - b.gpu_percent) > 0.05)
         return true;

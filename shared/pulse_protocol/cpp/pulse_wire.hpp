@@ -222,6 +222,12 @@ struct HealthProcessEntry {
   bool has_gpu_shared_bytes = false;
   uint64_t gpu_shared_bytes = 0;
   std::string gpu_engine;
+  bool has_net_upload_bps = false;
+  double net_upload_bps = 0.0;
+  bool has_net_download_bps = false;
+  double net_download_bps = 0.0;
+  bool has_net_bytes_total = false;
+  uint64_t net_bytes_total = 0;
 };
 
 struct HealthProcessInventoryUpdate {

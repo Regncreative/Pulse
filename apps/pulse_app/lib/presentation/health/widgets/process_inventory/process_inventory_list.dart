@@ -8,7 +8,7 @@ import 'app_group_engine.dart';
 import 'process_inventory_store.dart';
 
 /// Which metric columns the process list shows.
-enum ProcessListMetrics { standard, memory, gpu }
+enum ProcessListMetrics { standard, memory, gpu, network }
 
 /// Column geometry shared by header + rows (keeps metrics aligned).
 class _ProcessColumns {
@@ -20,6 +20,9 @@ class _ProcessColumns {
   static const double memory = 72;
   static const double disk = 72;
   static const double network = 76;
+  static const double netDown = 72;
+  static const double netUp = 72;
+  static const double netTotal = 72;
   static const double gpu = 56;
   static const double gpuDed = 72;
   static const double gpuShared = 72;
@@ -213,6 +216,10 @@ class _ColumnHeader extends StatelessWidget {
             _metricHeader('GPU', _ProcessColumns.gpu, style),
             _metricHeader('Ded.', _ProcessColumns.gpuDed, style),
             _metricHeader('Shared', _ProcessColumns.gpuShared, style),
+          ] else if (metrics == ProcessListMetrics.network) ...[
+            _metricHeader('Down', _ProcessColumns.netDown, style),
+            _metricHeader('Up', _ProcessColumns.netUp, style),
+            _metricHeader('Total', _ProcessColumns.netTotal, style),
           ] else ...[
             _metricHeader('CPU', _ProcessColumns.cpu, style),
             _metricHeader('Memory', _ProcessColumns.memory, style),
@@ -363,6 +370,23 @@ class _AppGroupRow extends StatelessWidget {
       ];
     }
 
+    if (metrics == ProcessListMetrics.network) {
+      final down = group.hasNetDownload
+          ? formatTransferRate(group.netDownloadBps)
+          : kUnavailableDash;
+      final up = group.hasNetUpload
+          ? formatTransferRate(group.netUploadBps)
+          : kUnavailableDash;
+      final total = group.hasNet
+          ? formatTransferRate(group.netBps)
+          : kUnavailableDash;
+      return [
+        _metricCell(down, _ProcessColumns.netDown, metricStyle),
+        _metricCell(up, _ProcessColumns.netUp, metricStyle),
+        _metricCell(total, _ProcessColumns.netTotal, metricStyle),
+      ];
+    }
+
     final cpu = group.hasCpu
         ? formatCpuPercent(group.cpuPercent)
         : kUnavailableDash;
@@ -472,6 +496,23 @@ class _ProcessChildRow extends StatelessWidget {
         _metricCell(gpu, _ProcessColumns.gpu, metricStyle),
         _metricCell(ded, _ProcessColumns.gpuDed, metricStyle),
         _metricCell(shared, _ProcessColumns.gpuShared, metricStyle),
+      ];
+    }
+
+    if (metrics == ProcessListMetrics.network) {
+      final down = entry.hasNetDownloadBps
+          ? formatTransferRate(entry.netDownloadBps)
+          : kUnavailableDash;
+      final up = entry.hasNetUploadBps
+          ? formatTransferRate(entry.netUploadBps)
+          : kUnavailableDash;
+      final total = entry.hasNetBps
+          ? formatTransferRate(entry.netBps)
+          : kUnavailableDash;
+      return [
+        _metricCell(down, _ProcessColumns.netDown, metricStyle),
+        _metricCell(up, _ProcessColumns.netUp, metricStyle),
+        _metricCell(total, _ProcessColumns.netTotal, metricStyle),
       ];
     }
 
