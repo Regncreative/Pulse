@@ -2,7 +2,7 @@
 
 Professional architecture documentation for Pulse — a read-only Windows diagnostics platform.
 
-**Status:** v1 design (documentation only; no production code)
+**Status:** Living architecture — product code in tree; remaining work follows frozen [34-engineering-roadmap.md](34-engineering-roadmap.md)
 
 **Windows baseline:** Windows 10 version 1809 (October 2018 Update) and later, Windows 11
 
@@ -61,6 +61,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 31 | [UI design system](31-ui-design-system.md) | ThemeExtension, accents, PulseSection, PulseThemeScope |
 | 32 | [UX / UI redesign milestone](32-ux-redesign-milestone.md) | Themes, Settings, Reports, Health sections, command palette |
 | 33 | [PulseMCP product & API](33-mcp-bridge.md) | First-class MCP server, tools, resources, schemas |
+| 34 | [Engineering roadmap (remaining)](34-engineering-roadmap.md) | **Frozen** R0–R17; theme redesign excluded; ADR to change |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 
