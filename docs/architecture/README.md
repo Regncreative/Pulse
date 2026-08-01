@@ -62,6 +62,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 32 | [UX / UI redesign milestone](32-ux-redesign-milestone.md) | Themes, Settings, Reports, Health sections, command palette |
 | 33 | [PulseMCP product & API](33-mcp-bridge.md) | First-class MCP server, tools, resources, schemas |
 | 34 | [Engineering roadmap (remaining)](34-engineering-roadmap.md) | **Frozen** R0–R17; theme redesign excluded; ADR to change |
+| 35 | [Product stability (R1)](35-product-stability.md) | Budgets, diagnostics truthfulness, soak, validation |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 

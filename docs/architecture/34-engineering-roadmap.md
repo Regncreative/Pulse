@@ -168,15 +168,17 @@ flowchart TD
 
 **Success metrics (all required):**
 
-- [ ] Cold-start time and idle RSS recorded in release notes (honest vs AGENTS targets)
-- [ ] Diagnostics (or docs) exposes a budgets checklist: startup, RSS, FPS when Diagnostics open
-- [ ] Overnight soak (≥8 h) of PulseService + UI with no unexpected process exit; log archived
-- [ ] Dropped-sample or live-queue overflow counters visible where architecture requires them
-- [ ] `showAdvancedDiagnostics` actually toggles advanced Diagnostics rows
-- [ ] Layout overflow tests still green; any new overflow fixed
-- [ ] Clean-VM install smoke of current Setup.exe documented and passed once this train
+- [x] Cold-start time and idle RSS recorded in release notes (honest vs AGENTS targets)
+- [x] Diagnostics (or docs) exposes a budgets checklist: startup, RSS, FPS when Diagnostics open
+- [ ] Overnight soak (≥8 h) of PulseService + UI with no unexpected process exit; log archived — **maintainer runs** `tools/scripts/soak_overnight.ps1`
+- [x] Dropped-sample or live-queue overflow counters visible where architecture requires them
+- [x] `showAdvancedDiagnostics` actually toggles advanced Diagnostics rows
+- [x] Layout overflow tests still green; any new overflow fixed
+- [ ] Clean-VM install smoke of current Setup.exe documented and passed once this train — **maintainer runs** checklist in [35](35-product-stability.md) / [25](25-beta-release.md)
 
-**Wave A exit:** R0 + R1 success metrics complete → platforms may start.
+**R1 engineering delivered:** budgets card, advanced gating, drop-oldest live queues, soak/measure scripts, doc 35. Close remaining checkboxes after soak + installer smoke.
+
+**Wave A exit:** R0 complete + all R1 success metrics checked → platforms may start (do not begin R2 until soak + clean-VM boxes are checked).
 
 ---
 

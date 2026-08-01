@@ -25,6 +25,7 @@ build-ninja/
 apps/pulse_app/windows/flutter/ephemeral/
 
 # Compiled / packaged artifacts
+artifacts/
 *.exe
 *.dll
 *.pdb

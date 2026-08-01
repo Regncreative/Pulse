@@ -38,8 +38,12 @@ Prerequisites: Flutter, VS C++ Build Tools, [Inno Setup 6](https://jrsoftware.or
 3. Finish wizard (Launch Pulse checked)
 4. Confirm tray/status shows Connected / Live within a few seconds
 5. If Offline: use in-app **Start PulseService** / **Repair / Install** (UAC) — do not require Services.msc
-6. Timeline and System Health populate
+6. Timeline and System Health populate (multi-channel Timeline — see below)
 7. Reboot → PulseService still Running (auto-start) → Pulse reconnects
+8. Open **Diagnostics** → confirm Performance budgets card; optional: enable advanced diagnostics
+9. Record cold-start / idle RSS in [r1-stability-measurements.md](r1-stability-measurements.md) when validating an R1 train
+
+Full stability procedures: [35-product-stability.md](35-product-stability.md).
 
 ## Service CLI (developers)
 

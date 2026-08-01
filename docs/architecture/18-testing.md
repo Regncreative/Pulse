@@ -49,6 +49,7 @@ Service `ctest` targets today include `pulse_wire_tests`, `event_humanizer_tests
 - Kill service → reconnect + gap fill
 - Idle CPU near zero with Event Log only
 - Multi-channel Timeline populates (not System-only)
+- R1: Diagnostics budgets card; advanced toggle; soak script dry-run sample; see [35](35-product-stability.md)
 
 ## Related Documents
 

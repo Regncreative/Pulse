@@ -138,13 +138,16 @@ Diagnostics surfaces **real** service, IPC, collector, and Flutter client metric
 
 Per-stage status + detail strings (`stage_*_detail`) from live subscribe / queue pressure / intelligence in-process. No fabricated stage timings.
 
-### Intentional Not supported (Phase 5)
+### Intentional Not supported (Phase 5 / R1)
 
 | Metric | Reason |
 |--------|--------|
-| Collector dropped samples | No drop counter exists |
+| Collector dropped samples | No drop counter exists on health/ETW collectors |
+| Collector latency histogram | Not instrumented |
 | Service-side ping RTT in snapshot | Requires synchronized clocks; client measures RTT instead |
 | Structured collector log tail | Skipped (heavy); export zip already includes recent app logs |
+
+Live **queue overflow** is instrumented as `live_events_dropped` (drop **oldest** per connection — ADR-008 / doc 05). See [35-product-stability.md](35-product-stability.md).
 
 ## Related
 
