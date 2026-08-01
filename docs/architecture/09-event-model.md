@@ -48,6 +48,10 @@ enum SourceType {
 
 `PulseEventSummary`: id, timestamp, source, severity, category, summary (Level 1), optional process_name. **No Level 3.**
 
+### Wire `TimelineEvent` (current)
+
+IPC carries Level 1 title/summary from the Event Intelligence Engine, plus channel, provider, Win32 event id, record id, message, recommendation, importance, and `category` string (e.g. `Crash`, `Power`, `Update`).
+
 ---
 
 ## Event Log metadata
@@ -61,7 +65,25 @@ message EventLogMetadata {
 }
 ```
 
-Used for dedup and lazy raw re-fetch.
+Used for dedup and lazy raw re-fetch. Stable Timeline ids include channel + record id + event id + timestamp.
+
+---
+
+## Intelligence categories (Phase 4)
+
+| Category | Typical diagnostics |
+|----------|---------------------|
+| Crash | Application Error 1000, Hang 1002, bug check / WER 1001 |
+| Service | SCM 7036 / 7040 / 7023 / 7031 / 7034 |
+| Power | Kernel-Power 41/42/107, EventLog 6008, Power-Troubleshooter 1 |
+| Boot | Kernel-General 12/13, EventLog 6005/6006, User32 1074 |
+| Update | WindowsUpdateClient 19/20/43/44 |
+| Device / Driver | Kernel-PnP 400/410/411, SCM 7045 |
+| Security | Security-Auditing 4624/4634 (when channel readable) |
+| Storage | disk 7 / 51 |
+| Network / COM / HTTP / Time | Existing rules |
+
+Rules use Microsoft-documented Event IDs only. Uncertain IDs are omitted.
 
 ---
 
@@ -73,9 +95,12 @@ Used for dedup and lazy raw re-fetch.
 | Detail body | 2 |
 | Raw expand | 3 (fetch if needed) |
 
+Flutter Timeline filters by severity, channel/source, and category without changing the live stream.
+
 ---
 
 ## Related Documents
 
 - [06 — Event Engine](06-event-engine.md)
 - [10 — Storage](10-storage.md)
+- [21 — Event Viewer Integration](21-event-viewer-integration.md)

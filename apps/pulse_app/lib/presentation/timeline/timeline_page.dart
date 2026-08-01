@@ -28,7 +28,19 @@ import '../utils/pulse_user_errors.dart';
 
 enum _SeverityFilter { all, errors, warnings, info }
 
-enum _SourceFilter { all, system }
+enum _SourceFilter { all, system, application, security, other }
+
+enum _CategoryFilter {
+  all,
+  crash,
+  service,
+  power,
+  update,
+  device,
+  boot,
+  security,
+  storage,
+}
 
 class TimelinePage extends StatefulWidget {
   const TimelinePage({super.key, required this.title});
@@ -44,6 +56,7 @@ class _TimelinePageState extends State<TimelinePage> {
   String? _selectedEventId;
   _SeverityFilter _severity = _SeverityFilter.all;
   _SourceFilter _source = _SourceFilter.all;
+  _CategoryFilter _category = _CategoryFilter.all;
   String _searchQuery = '';
   final _listScrollController = ScrollController();
 
@@ -54,6 +67,7 @@ class _TimelinePageState extends State<TimelinePage> {
   bool get _filtersActive =>
       _severity != _SeverityFilter.all ||
       _source != _SourceFilter.all ||
+      _category != _CategoryFilter.all ||
       _searchQuery.trim().isNotEmpty;
 
   @override
@@ -172,6 +186,14 @@ class _TimelinePageState extends State<TimelinePage> {
     });
   }
 
+  void _onCategory(_CategoryFilter f) {
+    final events = context.read<TimelineSessionController>().events;
+    setState(() {
+      _category = f;
+      _pruneSelection(events);
+    });
+  }
+
   void _onSearch(String q) {
     final events = context.read<TimelineSessionController>().events;
     setState(() {
@@ -185,6 +207,7 @@ class _TimelinePageState extends State<TimelinePage> {
     setState(() {
       _severity = _SeverityFilter.all;
       _source = _SourceFilter.all;
+      _category = _CategoryFilter.all;
       _searchQuery = '';
       _pruneSelection(events);
     });
@@ -226,8 +249,30 @@ class _TimelinePageState extends State<TimelinePage> {
     final sourceOk = switch (_source) {
       _SourceFilter.all => true,
       _SourceFilter.system => e.displayChannel.toLowerCase() == 'system',
+      _SourceFilter.application =>
+        e.displayChannel.toLowerCase() == 'application',
+      _SourceFilter.security => e.displayChannel.toLowerCase() == 'security',
+      _SourceFilter.other => () {
+          final ch = e.displayChannel.toLowerCase();
+          return ch != 'system' && ch != 'application' && ch != 'security';
+        }(),
     };
     if (!sourceOk) return false;
+
+    final categoryOk = switch (_category) {
+      _CategoryFilter.all => true,
+      _CategoryFilter.crash => e.category.toLowerCase() == 'crash',
+      _CategoryFilter.service => e.category.toLowerCase() == 'service',
+      _CategoryFilter.power => e.category.toLowerCase() == 'power',
+      _CategoryFilter.update => e.category.toLowerCase() == 'update',
+      _CategoryFilter.device =>
+        e.category.toLowerCase() == 'device' ||
+            e.category.toLowerCase() == 'driver',
+      _CategoryFilter.boot => e.category.toLowerCase() == 'boot',
+      _CategoryFilter.security => e.category.toLowerCase() == 'security',
+      _CategoryFilter.storage => e.category.toLowerCase() == 'storage',
+    };
+    if (!categoryOk) return false;
 
     final q = _searchQuery.trim().toLowerCase();
     if (q.isEmpty) return true;
@@ -249,12 +294,12 @@ class _TimelinePageState extends State<TimelinePage> {
     if (!hasEvents) {
       return mock
           ? 'No sample events are loaded. Rebuild with PULSE_MOCK_TIMELINE or connect PulseService.'
-          : 'Pulse is connected and listening for Windows System Event Log activity.\n\n'
+          : 'Pulse is connected and listening across diagnostics Event Log channels.\n\n'
               'New events appear here as Windows works. Use Refresh if you expect a historical snapshot.';
     }
     if (_filtersActive) {
       return 'No events match the current search and filters.\n\n'
-          'Clear filters or try a different severity / source.';
+          'Clear filters or try a different severity, source, or category.';
     }
     return 'Nothing to show in this view.';
   }
@@ -383,6 +428,7 @@ class _TimelinePageState extends State<TimelinePage> {
                           selectedEvent: selectedEvent,
                           severity: _severity,
                           source: _source,
+                          category: _category,
                           filtersActive: _filtersActive,
                           visible: visible,
                           hasStoredEvents: events.isNotEmpty,
@@ -395,6 +441,7 @@ class _TimelinePageState extends State<TimelinePage> {
                           scrollController: _listScrollController,
                           onSeverity: _onSeverity,
                           onSource: _onSource,
+                          onCategory: _onCategory,
                           onClearFilters: _clearFilters,
                           onSelect: _selectEvent,
                           onClear: _clearSelection,
@@ -448,6 +495,7 @@ class _TimelineBody extends StatelessWidget {
     required this.selectedEvent,
     required this.severity,
     required this.source,
+    required this.category,
     required this.filtersActive,
     required this.visible,
     required this.hasStoredEvents,
@@ -457,6 +505,7 @@ class _TimelineBody extends StatelessWidget {
     required this.scrollController,
     required this.onSeverity,
     required this.onSource,
+    required this.onCategory,
     required this.onClearFilters,
     required this.onSelect,
     required this.onClear,
@@ -469,6 +518,7 @@ class _TimelineBody extends StatelessWidget {
   final TimelineEvent? selectedEvent;
   final _SeverityFilter severity;
   final _SourceFilter source;
+  final _CategoryFilter category;
   final bool filtersActive;
   final List<TimelineEvent> visible;
   final bool hasStoredEvents;
@@ -478,6 +528,7 @@ class _TimelineBody extends StatelessWidget {
   final ScrollController scrollController;
   final ValueChanged<_SeverityFilter> onSeverity;
   final ValueChanged<_SourceFilter> onSource;
+  final ValueChanged<_CategoryFilter> onCategory;
   final VoidCallback onClearFilters;
   final ValueChanged<TimelineEvent> onSelect;
   final VoidCallback onClear;
@@ -557,6 +608,14 @@ class _TimelineBody extends StatelessWidget {
                             ),
                         ],
                       ),
+                      const SizedBox(height: 10),
+                      _FilterSection(
+                        label: 'Type',
+                        child: _CategoryRow(
+                          selected: category,
+                          onSelected: onCategory,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -597,7 +656,7 @@ class _TimelineBody extends StatelessWidget {
                     },
                     child: KeyedSubtree(
                       key: ValueKey(
-                        '${severity.name}-${source.name}-${visible.length}-$filtersActive',
+                        '${severity.name}-${source.name}-${category.name}-${visible.length}-$filtersActive',
                       ),
                       child: visible.isEmpty
                           ? Padding(
@@ -629,7 +688,8 @@ class _TimelineBody extends StatelessWidget {
                                     isLast: i == visible.length - 1,
                                     emphasize: i == 0 &&
                                         severity == _SeverityFilter.all &&
-                                        source == _SourceFilter.all,
+                                        source == _SourceFilter.all &&
+                                        category == _CategoryFilter.all,
                                     animationIndex: i.clamp(0, 12),
                                     selected: selectedEventId != null &&
                                         visible[i].eventId == selectedEventId,
@@ -794,7 +854,7 @@ class _PreviewBanner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Mock timeline enabled (PULSE_MOCK_TIMELINE). Real System Event Log snapshots are used when this flag is off.',
+              'Mock timeline enabled (PULSE_MOCK_TIMELINE). Real multi-channel Event Log snapshots are used when this flag is off.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: PulseTokens.textSecondary,
                     height: 1.45,
@@ -847,6 +907,43 @@ class _SourceRow extends StatelessWidget {
     const items = [
       (_SourceFilter.all, 'All'),
       (_SourceFilter.system, 'System'),
+      (_SourceFilter.application, 'Application'),
+      (_SourceFilter.security, 'Security'),
+      (_SourceFilter.other, 'Other'),
+    ];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final item in items)
+          _FilterChip(
+            label: item.$2,
+            selected: selected == item.$1,
+            onTap: () => onSelected(item.$1),
+          ),
+      ],
+    );
+  }
+}
+
+class _CategoryRow extends StatelessWidget {
+  const _CategoryRow({required this.selected, required this.onSelected});
+
+  final _CategoryFilter selected;
+  final ValueChanged<_CategoryFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    const items = [
+      (_CategoryFilter.all, 'All'),
+      (_CategoryFilter.crash, 'Crash'),
+      (_CategoryFilter.service, 'Service'),
+      (_CategoryFilter.power, 'Power'),
+      (_CategoryFilter.update, 'Update'),
+      (_CategoryFilter.device, 'Device'),
+      (_CategoryFilter.boot, 'Boot'),
+      (_CategoryFilter.security, 'Security'),
+      (_CategoryFilter.storage, 'Storage'),
     ];
     return Wrap(
       spacing: 8,

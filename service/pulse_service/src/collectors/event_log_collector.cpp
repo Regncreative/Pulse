@@ -215,6 +215,72 @@ CollectResult<std::vector<EventRecord>> EventLogCollector::CollectLatest(
   return CollectResult<std::vector<EventRecord>>::Success(std::move(events));
 }
 
+CollectResult<std::vector<EventRecord>> EventLogCollector::CollectLatestMulti(
+    const std::vector<std::wstring>& channels,
+    std::size_t limit) const {
+  if (limit == 0) {
+    return CollectResult<std::vector<EventRecord>>::Success({});
+  }
+  if (channels.empty()) {
+    return CollectResult<std::vector<EventRecord>>::Failure(
+        "No Event Log channels requested");
+  }
+
+  // Fair share so Application/WU cannot drown System (and vice versa).
+  // Over-collect slightly per channel, then trim after merge.
+  const std::size_t per_channel =
+      std::max<std::size_t>(16, (limit + channels.size() - 1) / channels.size());
+
+  std::vector<EventRecord> merged;
+  merged.reserve(std::min(limit * 2, per_channel * channels.size()));
+  std::vector<std::string> failures;
+  std::size_t ok_channels = 0;
+
+  for (const std::wstring& channel : channels) {
+    auto collected = CollectLatest(channel, per_channel);
+    if (!collected) {
+      failures.push_back(wevt::WideToUtf8(channel) + ": " + collected.error());
+      continue;
+    }
+    ++ok_channels;
+    for (EventRecord& record : collected.value()) {
+      merged.push_back(std::move(record));
+    }
+  }
+
+  if (ok_channels == 0) {
+    std::string detail = "All Event Log channels failed";
+    if (!failures.empty()) {
+      detail += " — " + failures.front();
+    }
+    return CollectResult<std::vector<EventRecord>>::Failure(std::move(detail));
+  }
+
+  std::sort(merged.begin(), merged.end(),
+            [](const EventRecord& a, const EventRecord& b) {
+              const auto am = a.timestamp_unix_ms.value_or(0);
+              const auto bm = b.timestamp_unix_ms.value_or(0);
+              if (am != bm) {
+                return am > bm;
+              }
+              const auto ar = a.record_id.value_or(0);
+              const auto br = b.record_id.value_or(0);
+              return ar > br;
+            });
+
+  if (merged.size() > limit) {
+    merged.resize(limit);
+  }
+
+  Logger::Instance().Info(
+      "EventLogCollector",
+      "Multi-channel snapshot events=" + std::to_string(merged.size()) +
+          " channels_ok=" + std::to_string(ok_channels) + "/" +
+          std::to_string(channels.size()));
+
+  return CollectResult<std::vector<EventRecord>>::Success(std::move(merged));
+}
+
 std::optional<EventRecord> EventLogCollector::ParseEvtHandle(
     void* event_handle,
     void* system_render_context) {

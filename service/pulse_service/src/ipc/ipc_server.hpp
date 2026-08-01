@@ -53,6 +53,7 @@ class IpcServer {
   void* CreatePipeInstance();
 
   void EnsureLiveSubscriber();
+  void StopLiveSubscribers();
   void OnLiveEventRecord(EventRecord record);
   void PushLiveEvent(const ipc::TimelineEvent& event);
   void EnableLiveForClient(const std::shared_ptr<ClientConnection>& conn);
@@ -76,7 +77,8 @@ class IpcServer {
   std::vector<std::shared_ptr<ClientConnection>> clients_;
 
   std::mutex live_mu_;
-  EventLogSubscriber live_subscriber_;
+  std::vector<std::unique_ptr<EventLogSubscriber>> live_subscribers_;
+  std::string live_channels_label_;
   bool live_subscriber_started_ = false;
 
   std::mutex health_mu_;

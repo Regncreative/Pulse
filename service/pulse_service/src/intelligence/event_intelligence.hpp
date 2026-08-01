@@ -21,6 +21,13 @@ enum class InsightCategory : std::int32_t {
   Boot = 4,
   Time = 5,
   Http = 6,
+  Crash = 7,
+  Power = 8,
+  Update = 9,
+  Device = 10,
+  Driver = 11,
+  Security = 12,
+  Storage = 13,
 };
 
 /// User-facing interpretation of a timeline event (TASK-005).

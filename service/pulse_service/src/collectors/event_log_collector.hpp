@@ -53,6 +53,14 @@ class EventLogCollector {
       const std::wstring& channel,
       std::size_t limit = 100) const;
 
+  /// Collect from multiple channels, merge by timestamp (newest first), bound to
+  /// `limit`. Per-channel budget is fair-shared so one busy log cannot starve
+  /// the snapshot. Inaccessible channels are skipped (logged); if every channel
+  /// fails, returns Failure.
+  [[nodiscard]] CollectResult<std::vector<EventRecord>> CollectLatestMulti(
+      const std::vector<std::wstring>& channels,
+      std::size_t limit = 100) const;
+
   /// Parse a single EVT_HANDLE into EventRecord (shared by snapshot + live).
   /// `system_context` must be from EvtCreateRenderContext(..., System).
   [[nodiscard]] static std::optional<EventRecord> ParseEvtHandle(

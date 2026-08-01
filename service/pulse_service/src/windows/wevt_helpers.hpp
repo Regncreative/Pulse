@@ -76,6 +76,10 @@ class EvtHandle {
 /// Reads one EVT_VARIANT string field safely (null / wrong type → empty).
 [[nodiscard]] std::string VariantToUtf8String(const EVT_VARIANT& variant);
 
+/// Probe channel readability via EvtOpenLog (does not read events).
+/// Returns true when the log opens; closes the handle immediately.
+[[nodiscard]] bool TryOpenChannel(const std::wstring& channel, DWORD* out_error);
+
 /// Query a channel for events (newest first when reverse is true).
 [[nodiscard]] EvtHandle QueryChannel(const std::wstring& channel,
                                      bool reverse_direction,

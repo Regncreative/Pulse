@@ -207,6 +207,28 @@ std::string VariantToUtf8String(const EVT_VARIANT& variant) {
   return {};
 }
 
+bool TryOpenChannel(const std::wstring& channel, DWORD* out_error) {
+  if (channel.empty()) {
+    if (out_error != nullptr) {
+      *out_error = ERROR_INVALID_PARAMETER;
+    }
+    return false;
+  }
+  EVT_HANDLE raw =
+      EvtOpenLog(nullptr, channel.c_str(), EvtOpenChannelPath);
+  if (raw == nullptr) {
+    if (out_error != nullptr) {
+      *out_error = GetLastError();
+    }
+    return false;
+  }
+  EvtClose(raw);
+  if (out_error != nullptr) {
+    *out_error = ERROR_SUCCESS;
+  }
+  return true;
+}
+
 EvtHandle QueryChannel(const std::wstring& channel, bool reverse_direction,
                        DWORD* out_error) {
   DWORD flags = EvtQueryChannelPath;

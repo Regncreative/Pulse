@@ -1,13 +1,16 @@
 #include "ipc/ipc_server.hpp"
 
+#include "collectors/event_log_channels.hpp"
 #include "collectors/event_log_collector.hpp"
 #include "ipc/event_mapper.hpp"
 #include "logging/logger.hpp"
 #include "pulse/constants.hpp"
 #include "pulse/version.hpp"
+#include "windows/wevt_helpers.hpp"
 
 #include <algorithm>
 #include <chrono>
+#include <sstream>
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -56,11 +59,7 @@ void IpcServer::Stop() {
     health_thread_.join();
   }
 
-  {
-    std::lock_guard lock(live_mu_);
-    live_subscriber_.Stop();
-    live_subscriber_started_ = false;
-  }
+  StopLiveSubscribers();
 
   {
     std::lock_guard lock(health_mu_);
@@ -266,16 +265,58 @@ void IpcServer::FlushOutbound(const std::shared_ptr<ClientConnection>& conn) {
   }
 }
 
+void IpcServer::StopLiveSubscribers() {
+  std::lock_guard lock(live_mu_);
+  for (auto& sub : live_subscribers_) {
+    if (sub) {
+      sub->Stop();
+    }
+  }
+  live_subscribers_.clear();
+  live_channels_label_.clear();
+  live_subscriber_started_ = false;
+}
+
 void IpcServer::EnsureLiveSubscriber() {
   std::lock_guard lock(live_mu_);
   if (live_subscriber_started_) {
     return;
   }
-  const bool ok = live_subscriber_.Start(
-      L"System", [this](EventRecord record) { OnLiveEventRecord(std::move(record)); });
-  live_subscriber_started_ = ok;
-  if (!ok) {
-    Logger::Instance().Error("IpcServer", "Failed to start live Event Log subscriber");
+
+  const std::vector<std::wstring> channels = AccessibleDiagnosticsChannels();
+  if (channels.empty()) {
+    Logger::Instance().Error(
+        "IpcServer", "No accessible Event Log channels for live monitoring");
+    return;
+  }
+
+  std::ostringstream label;
+  for (const std::wstring& channel : channels) {
+    auto sub = std::make_unique<EventLogSubscriber>();
+    const bool ok = sub->Start(
+        channel, [this](EventRecord record) { OnLiveEventRecord(std::move(record)); });
+    if (!ok) {
+      Logger::Instance().Warn(
+          "IpcServer",
+          "Live subscribe skipped for " + wevt::WideToUtf8(channel));
+      continue;
+    }
+    if (!label.str().empty()) {
+      label << ',';
+    }
+    label << wevt::WideToUtf8(channel);
+    live_subscribers_.push_back(std::move(sub));
+  }
+
+  live_channels_label_ = label.str();
+  live_subscriber_started_ = !live_subscribers_.empty();
+  if (!live_subscriber_started_) {
+    Logger::Instance().Error("IpcServer",
+                             "Failed to start any live Event Log subscriber");
+  } else {
+    Logger::Instance().Info(
+        "IpcServer",
+        "Live Event Log subscribers active on: " + live_channels_label_);
   }
 }
 
@@ -458,18 +499,40 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
     if (limit > 500) {
       limit = 500;
     }
-    if (!req.channel.empty() && req.channel != "System") {
-      ipc::Envelope err;
-      err.request_id = env.request_id;
-      err.body = ipc::ErrorResponse{
-          2, "Only the System channel is supported in this milestone",
-          "requested=" + req.channel, "IpcServer"};
-      WriteEnvelopeLocked(conn, err);
-      return;
-    }
 
     EventLogCollector collector;
-    auto collected = collector.CollectLatest(L"System", limit);
+    CollectResult<std::vector<EventRecord>> collected =
+        CollectResult<std::vector<EventRecord>>::Failure("uninitialized");
+    std::string snapshot_channel;
+
+    if (IsDiagnosticsChannelRequest(req.channel)) {
+      const std::vector<std::wstring> channels =
+          AccessibleDiagnosticsChannels();
+      if (channels.empty()) {
+        ipc::Envelope err;
+        err.request_id = env.request_id;
+        err.body = ipc::ErrorResponse{
+            3, "No accessible Event Log channels for diagnostics snapshot",
+            "LocalService may lack channel rights", "EventLogChannels"};
+        WriteEnvelopeLocked(conn, err);
+        return;
+      }
+      collected = collector.CollectLatestMulti(channels, limit);
+      std::ostringstream label;
+      for (std::size_t i = 0; i < channels.size(); ++i) {
+        if (i > 0) {
+          label << ',';
+        }
+        label << wevt::WideToUtf8(channels[i]);
+      }
+      snapshot_channel = label.str();
+    } else {
+      // Explicit single-channel request (UTF-8 channel name from client).
+      const std::wstring wide(req.channel.begin(), req.channel.end());
+      collected = collector.CollectLatest(wide, limit);
+      snapshot_channel = req.channel;
+    }
+
     if (!collected) {
       ipc::Envelope err;
       err.request_id = env.request_id;
@@ -480,7 +543,7 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
     }
 
     ipc::TimelineSnapshot snapshot;
-    snapshot.channel = "System";
+    snapshot.channel = std::move(snapshot_channel);
     snapshot.requested_limit = limit;
     snapshot.collected_unix_ms = NowUnixMs();
     snapshot.events.reserve(collected.value().size());
@@ -497,7 +560,8 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
     }
     Logger::Instance().Info(
         "IpcServer",
-        "TimelineSnapshot events=" + std::to_string(collected.value().size()));
+        "TimelineSnapshot events=" + std::to_string(collected.value().size()) +
+            " channel=" + snapshot_channel);
 
     // Live subscribe is explicit (StartLiveMonitoring) so snapshot always
     // completes before live pushes are enabled for this client.
@@ -507,11 +571,14 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
   if (std::holds_alternative<ipc::StartLiveMonitoring>(env.body)) {
     Logger::Instance().Info("IpcServer", "StartLiveMonitoring received");
     const auto& req = std::get<ipc::StartLiveMonitoring>(env.body);
-    if (!req.channel.empty() && req.channel != "System") {
+    // Phase 4: default diagnostics set. Explicit non-default channel names are
+    // reserved; clients historically send "System".
+    if (!req.channel.empty() && !IsDiagnosticsChannelRequest(req.channel)) {
       ipc::Envelope err;
       err.request_id = env.request_id;
       err.body = ipc::ErrorResponse{
-          2, "Only the System channel is supported for live monitoring",
+          2,
+          "Live monitoring uses the diagnostics Event Log channel set",
           "requested=" + req.channel, "IpcServer"};
       WriteEnvelopeLocked(conn, err);
       return;
@@ -795,9 +862,20 @@ ipc::DiagnosticsSnapshot IpcServer::BuildDiagnosticsSnapshot() {
 
   {
     std::lock_guard lock(live_mu_);
-    snap.live_subscribed = live_subscriber_.running();
-    snap.live_channel = live_subscriber_started_ ? "System" : "";
-    snap.live_subscriber_reconnects = live_subscriber_.reconnect_count();
+    uint64_t reconnects = 0;
+    bool any_running = false;
+    for (const auto& sub : live_subscribers_) {
+      if (!sub) {
+        continue;
+      }
+      if (sub->running()) {
+        any_running = true;
+      }
+      reconnects += sub->reconnect_count();
+    }
+    snap.live_subscribed = any_running;
+    snap.live_channel = live_subscriber_started_ ? live_channels_label_ : "";
+    snap.live_subscriber_reconnects = reconnects;
   }
   if (any_live && !snap.live_subscribed) {
     // Client asked for live but subscriber failed.

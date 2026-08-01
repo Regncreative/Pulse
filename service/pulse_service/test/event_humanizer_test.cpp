@@ -31,6 +31,15 @@ int main() {
 
   {
     EventRecord r;
+    r.provider_name = "Service Control Manager";
+    r.event_id = 7031;
+    const auto h = humanizer.Humanize(r);
+    assert(h.title == "Service Crashed");
+    assert(h.category == "Service");
+  }
+
+  {
+    EventRecord r;
     r.provider_name = "Microsoft-Windows-Kernel-General";
     r.event_id = 12;
     const auto h = humanizer.Humanize(r);
@@ -43,6 +52,67 @@ int main() {
     r.event_id = 13;
     const auto h = humanizer.Humanize(r);
     assert(h.title == "Windows Shutdown");
+  }
+
+  {
+    EventRecord r;
+    r.provider_name = "Microsoft-Windows-Kernel-Power";
+    r.event_id = 41;
+    const auto h = humanizer.Humanize(r);
+    assert(h.title == "Windows Restarted Unexpectedly");
+    assert(h.category == "Power");
+  }
+
+  {
+    EventRecord r;
+    r.provider_name = "Microsoft-Windows-Kernel-Power";
+    r.event_id = 42;
+    const auto h = humanizer.Humanize(r);
+    assert(h.title == "Windows Entered Sleep");
+  }
+
+  {
+    EventRecord r;
+    r.provider_name = "Microsoft-Windows-WER-SystemErrorReporting";
+    r.event_id = 1001;
+    const auto h = humanizer.Humanize(r);
+    assert(h.title == "Windows Stopped Unexpectedly");
+    assert(h.category == "Crash");
+  }
+
+  {
+    EventRecord r;
+    r.provider_name = "Application Error";
+    r.event_id = 1000;
+    const auto h = humanizer.Humanize(r);
+    assert(h.title == "Application Crashed");
+  }
+
+  {
+    EventRecord r;
+    r.provider_name = "Microsoft-Windows-WindowsUpdateClient";
+    r.event_id = 20;
+    const auto h = humanizer.Humanize(r);
+    assert(h.title == "Windows Update Installation Failed");
+    assert(h.category == "Update");
+  }
+
+  {
+    EventRecord r;
+    r.provider_name = "Microsoft-Windows-Kernel-PnP";
+    r.event_id = 410;
+    const auto h = humanizer.Humanize(r);
+    assert(h.title == "Device Started");
+    assert(h.category == "Device");
+  }
+
+  {
+    EventRecord r;
+    r.provider_name = "Microsoft-Windows-Security-Auditing";
+    r.event_id = 4624;
+    const auto h = humanizer.Humanize(r);
+    assert(h.title == "User Signed In");
+    assert(h.category == "Security");
   }
 
   {

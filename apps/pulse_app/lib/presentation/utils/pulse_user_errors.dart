@@ -27,7 +27,9 @@ abstract final class PulseUserErrors {
     if (lower.contains('protocol') || lower.contains('version')) {
       return 'Pulse and PulseService protocol versions do not match.';
     }
-    if (lower.contains('unsupported') || lower.contains('only the system')) {
+    if (lower.contains('unsupported') ||
+        lower.contains('only the system') ||
+        lower.contains('diagnostics event log channel set')) {
       return 'That channel is not available in this build.';
     }
     if (lower.contains('another diagnostics action') ||

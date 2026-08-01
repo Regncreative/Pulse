@@ -24,6 +24,7 @@ add_executable(PulseService WIN32
   src/collector/collector.cpp
   src/collectors/event_log_collector.cpp
   src/collectors/event_log_subscriber.cpp
+  src/collectors/event_log_channels.cpp
   src/collectors/health_metrics_collector.cpp
   src/collectors/hardware_sensors_collector.cpp
   src/collectors/network_etw_engine.cpp

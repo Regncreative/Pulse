@@ -1,6 +1,6 @@
 # 29 — System Health Quality Milestone
 
-Status: **In progress** (Phases 1–3 complete)
+Status: **In progress** (Phases 1–4 complete)
 
 ## Goal
 
@@ -18,7 +18,7 @@ Bring every System Health surface to the same quality bar as CPU and Memory:
 | **1 GPU** | WDDM/PCI/engines/VRAM/process inventory grouping + D3DKMT telemetry when non-zero | **Complete** |
 | **2 Network** | Overview polish + per-process ETW (ADR-009) | **Complete** |
 | **3 Hardware** | Sensors Windows can expose (SMART, Storage temp IOCTLs, D3DKMT) | **Complete** |
-| **4 Timeline** | Event-type depth (crash/BSOD/update/device/power) via Event Log channels + intelligence | Pending |
+| **4 Timeline** | Event-type depth (crash/BSOD/update/device/power) via Event Log channels + intelligence | **Complete** |
 | **5 Diagnostics** | Service/IPC/collector/Flutter instrumentation | Pending |
 | **6 UX** | Polish overflow, empty states, virtualization, a11y | Pending |
 | **7 Validation** | Compare vs Task Manager / Resource Monitor / PerfMon / System Informer | Pending |
@@ -64,6 +64,33 @@ Collector: `hardware_sensors_collector.*`, called from `HealthMetricsCollector::
 | Motherboard temp / chassis fans / VRM | No documented Win32 path without vendor APIs |
 
 Open `\\.\PhysicalDriveN` with `GENERIC_READ` + share read/write. Leave `has_*` false when IOCTL fails or values are out of range.
+
+## Phase 4 notes
+
+Timeline remains **Windows Event Log only** (Wevtapi) — no ETW Timeline ingest (ADR-007).
+
+### Channels attempted
+
+| Channel | Behavior |
+|---------|----------|
+| System | Required attempt |
+| Application | Optional |
+| Setup | Optional |
+| Microsoft-Windows-WindowsUpdateClient/Operational | Optional |
+| Microsoft-Windows-Kernel-PnP/Configuration | Optional |
+| Microsoft-Windows-Kernel-Power/Thermal-Operational | Optional (events may appear; thermal-specific humanizer rules omitted unless documented) |
+| Microsoft-Windows-Kernel-Boot/Operational | Optional |
+| Security | `EvtOpenLog` probe first — **often inaccessible under LocalService**; skip + log |
+
+Snapshots merge newest-first with a fair per-channel budget and IPC limit ≤500. Live monitoring starts one `EvtSubscribe` per accessible channel.
+
+### Intelligence / humanizer
+
+Documented Event IDs only (Kernel-Power 41/42/107, EventLog 6008, WER/BugCheck 1001, Application Error 1000 / Hang 1002, SCM 7023/7031/7034/7036/7040/7045, WindowsUpdateClient 19/20/43/44, Kernel-PnP 400/410/411, Security 4624/4634, disk 7/51, plus existing COM/network/boot/time rules).
+
+### Flutter
+
+Timeline filters: severity, source (System / Application / Security / Other), type/category chips (Crash, Service, Power, Update, Device, Boot, Security, Storage). Empty states when filters match nothing. Live stream unchanged.
 
 ## Related
 
