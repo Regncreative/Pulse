@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:ffi/ffi.dart';
@@ -11,30 +12,27 @@ import 'package:win32/win32.dart';
 
 import '../../../app/theme/pulse_theme.dart';
 
-/// Loads a Windows shell file icon for a process (read-only, presentation-only).
+/// Loads a native Windows shell icon for a process (read-only).
 ///
-/// Prefer [path] from IPC (`HealthProcessEntry.path` / executable path). When
-/// empty, optionally resolve via [pid] in the UI session — LocalService often
-/// cannot [OpenProcess] interactive user apps, so the service may leave path
-/// blank for Chrome/Cursor/etc.
+/// Prefer [path] from IPC. When empty, resolve via [pid] then known SystemRoot
+/// binaries. Letter avatar is the last fallback only.
 ///
-/// If the path is still unknown (or icon extraction fails), try a well-known
-/// `%SystemRoot%` location for common system binaries, then the letter avatar.
+/// Icons are extracted at the device-pixel size (via [PrivateExtractIcons]) so
+/// HiDPI displays stay sharp without upscaling a 16×16 bitmap.
 class ProcessAppIcon extends StatefulWidget {
   const ProcessAppIcon({
     super.key,
     required this.path,
     required this.name,
     this.pid = 0,
-    this.size = 28,
+    this.size = 16,
   });
 
-  /// Executable path from PulseService when available.
   final String path;
   final String name;
-
-  /// Used only when [path] is empty (LocalService gap). Prefer service paths.
   final int pid;
+
+  /// Logical CSS pixels. Prefer 16 for list rows.
   final double size;
 
   @override
@@ -48,7 +46,9 @@ class _ProcessAppIconState extends State<ProcessAppIcon> {
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
   }
 
   @override
@@ -56,7 +56,8 @@ class _ProcessAppIconState extends State<ProcessAppIcon> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.path != widget.path ||
         oldWidget.pid != widget.pid ||
-        oldWidget.name != widget.name) {
+        oldWidget.name != widget.name ||
+        oldWidget.size != widget.size) {
       setState(() => _image = null);
       _load();
     }
@@ -64,8 +65,13 @@ class _ProcessAppIconState extends State<ProcessAppIcon> {
 
   Future<void> _load() async {
     final generation = ++_loadGeneration;
-    final candidates = <String>[];
+    final dpr =
+        MediaQuery.maybeDevicePixelRatioOf(context) ??
+            View.of(context).devicePixelRatio;
+    final targetPx =
+        math.max(16, (widget.size * dpr).round()).clamp(16, 64);
 
+    final candidates = <String>[];
     void addCandidate(String? p) {
       final t = p?.trim() ?? '';
       if (t.isEmpty) return;
@@ -82,7 +88,7 @@ class _ProcessAppIconState extends State<ProcessAppIcon> {
 
     ui.Image? img;
     for (final path in candidates) {
-      img = await _ProcessIconCache.load(path);
+      img = await _ProcessIconCache.load(path, targetPx);
       if (img != null) break;
     }
 
@@ -95,13 +101,16 @@ class _ProcessAppIconState extends State<ProcessAppIcon> {
     final size = widget.size;
     final img = _image;
     if (img != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(PulseTokens.radiusProcessIcon),
+      return SizedBox(
+        width: size,
+        height: size,
         child: RawImage(
           image: img,
           width: size,
           height: size,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.medium,
+          alignment: Alignment.center,
         ),
       );
     }
@@ -110,9 +119,6 @@ class _ProcessAppIconState extends State<ProcessAppIcon> {
 }
 
 /// Maps common system process names to on-disk executables under SystemRoot.
-///
-/// Returns null when the name is not a known system binary.
-@visibleForTesting
 String? knownSystemExecutablePath(String name) {
   final file = _baseFileName(name).toLowerCase();
   if (file.isEmpty) return null;
@@ -138,6 +144,12 @@ String? knownSystemExecutablePath(String name) {
     'sihost.exe',
     'taskhostw.exe',
     'runtimebroker.exe',
+    'conhost.exe',
+    'taskmgr.exe',
+    'dllhost.exe',
+    'ctfmon.exe',
+    'searchindexer.exe',
+    'spoolsv.exe',
   };
   if (system32.contains(file)) {
     return '$sys\\$file';
@@ -158,7 +170,6 @@ String? _systemRoot() {
   if (fromEnv != null && fromEnv.trim().isNotEmpty) {
     return fromEnv.trim();
   }
-  // Fallback: parent of GetSystemDirectoryW (…\Windows\System32 → …\Windows).
   final buf = wsalloc(MAX_PATH);
   try {
     final n = GetSystemDirectory(buf, MAX_PATH);
@@ -173,9 +184,6 @@ String? _systemRoot() {
   }
 }
 
-/// Resolves process image paths by PID (cached).
-///
-/// Fallback for when PulseService (LocalService) cannot open the process.
 class _ProcessPathCache {
   static final Map<String, String?> _paths = {};
 
@@ -221,22 +229,22 @@ String? _queryProcessImagePath(int pid) {
   return null;
 }
 
-/// Process-wide icon cache + single-flight extractor queue.
+/// Process-wide icon cache keyed by path + pixel size.
 class _ProcessIconCache {
   static final Map<String, ui.Image?> _images = {};
   static final Map<String, Future<ui.Image?>> _inflight = {};
   static Future<void> _tail = Future<void>.value();
 
-  static Future<ui.Image?> load(String path) {
-    final key = path.trim().toLowerCase();
-    if (key.isEmpty) return Future<ui.Image?>.value(null);
+  static Future<ui.Image?> load(String path, int targetPx) {
+    final key = '${path.trim().toLowerCase()}@$targetPx';
+    if (key.startsWith('@')) return Future<ui.Image?>.value(null);
     if (_images.containsKey(key)) {
       return Future<ui.Image?>.value(_images[key]);
     }
     final existing = _inflight[key];
     if (existing != null) return existing;
 
-    final future = _enqueue(path).then((img) {
+    final future = _enqueue(path, targetPx).then((img) {
       _images[key] = img;
       _inflight.remove(key);
       return img;
@@ -245,12 +253,11 @@ class _ProcessIconCache {
     return future;
   }
 
-  /// One extraction at a time — SHGetFileInfo is not thread-safe.
-  static Future<ui.Image?> _enqueue(String path) {
+  static Future<ui.Image?> _enqueue(String path, int targetPx) {
     final completer = Completer<ui.Image?>();
     _tail = _tail.then((_) async {
       try {
-        final packed = await compute(_extractIconBytes, path);
+        final packed = await compute(_extractIconBytes, <Object>[path, targetPx]);
         if (packed == null || packed.length < 3) {
           completer.complete(null);
           return;
@@ -299,7 +306,7 @@ class _FallbackGlyph extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: PulseTokens.accentSoft,
-        borderRadius: BorderRadius.circular(PulseTokens.radiusProcessIcon),
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(color: PulseTokens.strokeSubtle),
       ),
       alignment: Alignment.center,
@@ -308,7 +315,8 @@ class _FallbackGlyph extends StatelessWidget {
         style: TextStyle(
           color: PulseTokens.accent,
           fontWeight: FontWeight.w700,
-          fontSize: size * 0.42,
+          fontSize: size * 0.55,
+          height: 1,
         ),
       ),
     );
@@ -316,11 +324,10 @@ class _FallbackGlyph extends StatelessWidget {
 }
 
 /// Returns `[Uint8List bytes, int width, int height]` or null.
-///
-/// Runs inside [compute]; must initialize COM on this isolate first.
-List<Object>? _extractIconBytes(String path) {
-  final trimmed = path.trim();
-  if (trimmed.isEmpty) return null;
+List<Object>? _extractIconBytes(List<Object> args) {
+  final path = (args[0] as String).trim();
+  final targetPx = args[1] as int;
+  if (path.isEmpty) return null;
 
   final hr = CoInitializeEx(
     nullptr,
@@ -329,47 +336,67 @@ List<Object>? _extractIconBytes(String path) {
   final comReady = hr == S_OK || hr == S_FALSE || hr == RPC_E_CHANGED_MODE;
   if (!comReady) return null;
 
-  final pathPtr = trimmed.toNativeUtf16();
   try {
-    final fromShell = _iconFromShell(pathPtr);
-    if (fromShell != null) return fromShell;
-    return _iconFromExtractIconEx(trimmed);
+    final fromPrivate = _iconFromPrivateExtract(path, targetPx);
+    if (fromPrivate != null) return fromPrivate;
+
+    final pathPtr = path.toNativeUtf16();
+    try {
+      // Prefer small shell icons — never pull LARGE just to stretch it.
+      final fromShell = _iconFromShell(pathPtr, small: true);
+      if (fromShell != null) return fromShell;
+      return _iconFromExtractIconEx(path, preferSmall: true);
+    } finally {
+      calloc.free(pathPtr);
+    }
   } catch (_) {
     return null;
   } finally {
-    calloc.free(pathPtr);
     if (hr == S_OK) {
       CoUninitialize();
     }
   }
 }
 
-List<Object>? _iconFromShell(Pointer<Utf16> pathPtr) {
-  final sfi = calloc<SHFILEINFO>();
+List<Object>? _iconFromPrivateExtract(String path, int px) {
+  final pathPtr = path.toNativeUtf16();
+  final icons = calloc<IntPtr>();
   try {
-    var result = SHGetFileInfo(
+    final count = PrivateExtractIcons(
       pathPtr,
       0,
-      sfi,
-      sizeOf<SHFILEINFO>(),
-      SHGFI_ICON | SHGFI_SMALLICON,
+      px,
+      px,
+      icons,
+      nullptr,
+      1,
+      0,
     );
-    if (result == 0) {
-      result = SHGetFileInfo(
-        pathPtr,
-        0,
-        sfi,
-        sizeOf<SHFILEINFO>(),
-        SHGFI_ICON | SHGFI_LARGEICON,
-      );
+    if (count == 0 || icons.value == 0) return null;
+    final hIcon = icons.value;
+    try {
+      return _hiconToBytes(hIcon);
+    } finally {
+      DestroyIcon(hIcon);
     }
+  } finally {
+    calloc.free(pathPtr);
+    calloc.free(icons);
+  }
+}
+
+List<Object>? _iconFromShell(Pointer<Utf16> pathPtr, {required bool small}) {
+  final sfi = calloc<SHFILEINFO>();
+  try {
+    final flags = SHGFI_ICON | (small ? SHGFI_SMALLICON : SHGFI_LARGEICON);
+    var result = SHGetFileInfo(pathPtr, 0, sfi, sizeOf<SHFILEINFO>(), flags);
     if (result == 0) {
       result = SHGetFileInfo(
         pathPtr,
         FILE_ATTRIBUTE_NORMAL,
         sfi,
         sizeOf<SHFILEINFO>(),
-        SHGFI_ICON | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES,
+        flags | SHGFI_USEFILEATTRIBUTES,
       );
     }
     if (result == 0) return null;
@@ -400,9 +427,10 @@ typedef _ExtractIconExWDart = int Function(
   int nIcons,
 );
 
-List<Object>? _iconFromExtractIconEx(String path) {
+List<Object>? _iconFromExtractIconEx(String path, {required bool preferSmall}) {
   final shell32 = DynamicLibrary.open('shell32.dll');
-  final extractIconEx = shell32.lookupFunction<_ExtractIconExWNative, _ExtractIconExWDart>(
+  final extractIconEx =
+      shell32.lookupFunction<_ExtractIconExWNative, _ExtractIconExWDart>(
     'ExtractIconExW',
   );
   final pathPtr = path.toNativeUtf16();
@@ -413,7 +441,9 @@ List<Object>? _iconFromExtractIconEx(String path) {
     if (count <= 0) return null;
     final hSmall = small.value;
     final hLarge = large.value;
-    final hIcon = hSmall != 0 ? hSmall : hLarge;
+    final hIcon = preferSmall
+        ? (hSmall != 0 ? hSmall : hLarge)
+        : (hLarge != 0 ? hLarge : hSmall);
     if (hIcon == 0) return null;
     try {
       return _hiconToBytes(hIcon);
@@ -476,8 +506,6 @@ List<Object>? _hiconToBytes(int hIcon) {
           final g = bits[i + 1];
           final r = bits[i + 2];
           var a = bits[i + 3];
-          // Some GDI icon bitmaps report alpha as 0 for every pixel even when
-          // color data is valid — treat fully-zero alpha as opaque.
           if (a == 0 && (r | g | b) != 0) {
             a = 255;
           }

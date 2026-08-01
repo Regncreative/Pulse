@@ -147,8 +147,26 @@ void IpcServer::AcceptLoop() {
       break;
     }
 
+    // Custom deleter must never destroy a joinable std::thread — that calls
+    // std::terminate() (0xc0000409 / FAST_FAIL_FATAL_APP_EXIT). The reader
+    // thread holds the last shared_ptr and would otherwise delete itself.
     auto conn = std::shared_ptr<ClientConnection>(
         new ClientConnection(), [](ClientConnection* c) {
+          if (c == nullptr) return;
+          if (c->reader.joinable()) {
+            if (c->reader.get_id() == std::this_thread::get_id()) {
+              c->reader.detach();
+            } else {
+              c->alive = false;
+              if (c->wake_event) {
+                SetEvent(static_cast<HANDLE>(c->wake_event));
+              }
+              if (c->pipe_handle) {
+                CancelIoEx(static_cast<HANDLE>(c->pipe_handle), nullptr);
+              }
+              c->reader.join();
+            }
+          }
           if (c->wake_event) {
             CloseHandle(static_cast<HANDLE>(c->wake_event));
             c->wake_event = nullptr;
@@ -346,10 +364,10 @@ void IpcServer::DisableHealthForClient(
   conn->health_enabled = false;
 }
 
-void IpcServer::PushHealthUpdate(const ipc::HealthSample& sample) {
+void IpcServer::PushHealthUpdate(const ipc::HealthUpdate& update) {
   ipc::Envelope push;
   push.request_id = 0;
-  push.body = ipc::HealthUpdate{sample};
+  push.body = update;
 
   std::vector<std::shared_ptr<ClientConnection>> targets;
   {
@@ -381,14 +399,14 @@ void IpcServer::HealthPushLoop() {
     }
 
     if (any) {
-      ipc::HealthSample sample;
+      ipc::HealthUpdate update;
       {
         std::lock_guard lock(health_mu_);
         if (health_collector_ready_) {
-          sample = health_collector_.CollectSample();
+          update = health_collector_.CollectHealthUpdate();
         }
       }
-      PushHealthUpdate(sample);
+      PushHealthUpdate(update);
     }
 
     for (int i = 0; i < 10 && health_thread_running_ && running_; ++i) {
@@ -552,6 +570,21 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
     return;
   }
 
+  if (std::holds_alternative<ipc::GetProcessDetails>(env.body)) {
+    const auto& req = std::get<ipc::GetProcessDetails>(env.body);
+    EnsureHealthCollector();
+    ipc::ProcessDetails details;
+    {
+      std::lock_guard lock(health_mu_);
+      details = health_collector_.QueryProcessDetails(req.pid);
+    }
+    ipc::Envelope reply;
+    reply.request_id = env.request_id;
+    reply.body = std::move(details);
+    WriteEnvelopeLocked(conn, reply);
+    return;
+  }
+
   if (std::holds_alternative<ipc::GetDiagnosticsSnapshot>(env.body)) {
     Logger::Instance().Info("IpcServer", "GetDiagnosticsSnapshot");
     ipc::Envelope reply;
@@ -664,6 +697,10 @@ void IpcServer::ClientReader(std::shared_ptr<ClientConnection> conn) {
                    clients_.end());
   }
   Logger::Instance().Info("IpcServer", "Client disconnected");
+
+  // Drop the last shared_ptr from this thread only after the connection is
+  // erased. The deleter detaches when destroy runs on the reader thread.
+  conn.reset();
 }
 
 void IpcServer::FillServiceProcessMetrics(ipc::DiagnosticsSnapshot* out) {

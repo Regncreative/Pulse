@@ -201,6 +201,74 @@ std::vector<uint8_t> EncodeHealthProcessEntry(const HealthProcessEntry& m) {
   WriteString(13, m.path, &out);
   WriteU32(14, m.thread_count, &out);
   WriteU32(15, m.handle_count, &out);
+  WriteBool(16, m.has_create_time, &out);
+  WriteU64(17, m.create_time_unix_ms, &out);
+  WriteBool(18, m.has_is_critical, &out);
+  WriteBool(19, m.is_critical, &out);
+  WriteBool(20, m.has_working_set_bytes, &out);
+  WriteU64(21, m.working_set_bytes, &out);
+  WriteBool(22, m.has_commit_bytes, &out);
+  WriteU64(23, m.commit_bytes, &out);
+  WriteBool(24, m.has_paged_pool_bytes, &out);
+  WriteU64(25, m.paged_pool_bytes, &out);
+  WriteBool(26, m.has_nonpaged_pool_bytes, &out);
+  WriteU64(27, m.nonpaged_pool_bytes, &out);
+  WriteBool(28, m.has_gpu_dedicated_bytes, &out);
+  WriteU64(29, m.gpu_dedicated_bytes, &out);
+  WriteBool(30, m.has_gpu_shared_bytes, &out);
+  WriteU64(31, m.gpu_shared_bytes, &out);
+  WriteString(32, m.gpu_engine, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeHealthProcessInventoryUpdate(
+    const HealthProcessInventoryUpdate& m) {
+  std::vector<uint8_t> out;
+  WriteU64(1, m.seq, &out);
+  WriteBool(2, m.full_resync, &out);
+  for (const auto& e : m.upserts) {
+    WriteBytesField(3, EncodeHealthProcessEntry(e), &out);
+  }
+  for (const uint32_t pid : m.removed_pids) {
+    WriteU32(4, pid, &out);
+  }
+  return out;
+}
+
+std::vector<uint8_t> EncodeGetProcessDetails(const GetProcessDetails& m) {
+  std::vector<uint8_t> out;
+  WriteU32(1, m.pid, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeProcessDetails(const ProcessDetails& m) {
+  std::vector<uint8_t> out;
+  WriteU32(1, m.pid, &out);
+  WriteString(2, m.name, &out);
+  WriteString(3, m.path, &out);
+  WriteString(4, m.company, &out);
+  WriteString(5, m.command_line, &out);
+  WriteBool(6, m.has_create_time, &out);
+  WriteU64(7, m.create_time_unix_ms, &out);
+  WriteU32(8, m.thread_count, &out);
+  WriteU32(9, m.handle_count, &out);
+  WriteBool(10, m.has_path, &out);
+  WriteBool(11, m.has_company, &out);
+  WriteBool(12, m.has_command_line, &out);
+  WriteU32(13, m.parent_pid, &out);
+  WriteBool(14, m.has_parent_pid, &out);
+  WriteString(15, m.parent_name, &out);
+  WriteBool(16, m.has_parent_name, &out);
+  WriteString(17, m.user, &out);
+  WriteBool(18, m.has_user, &out);
+  WriteString(19, m.integrity_level, &out);
+  WriteBool(20, m.has_integrity_level, &out);
+  WriteBool(21, m.elevated, &out);
+  WriteBool(22, m.has_elevated, &out);
+  WriteString(23, m.architecture, &out);
+  WriteBool(24, m.has_architecture, &out);
+  WriteString(25, m.product_name, &out);
+  WriteBool(26, m.has_product_name, &out);
   return out;
 }
 
@@ -245,6 +313,77 @@ std::vector<uint8_t> EncodeHealthStaticInfo(const HealthStaticInfo& m) {
   WriteBool(12, m.cpu_virtualization_enabled, &out);
   WriteU64(13, m.gpu_dedicated_bytes, &out);
   WriteU64(14, m.gpu_shared_bytes, &out);
+  WriteString(15, m.cpu_architecture, &out);
+  WriteString(16, m.cpu_instruction_set, &out);
+  WriteU32(17, m.cpu_numa_nodes, &out);
+  WriteBool(18, m.has_cpu_smt, &out);
+  WriteBool(19, m.cpu_smt_enabled, &out);
+  WriteBool(20, m.has_cpu_l1_cache, &out);
+  WriteU64(21, m.cpu_l1_cache_bytes, &out);
+  WriteBool(22, m.has_cpu_l2_cache, &out);
+  WriteU64(23, m.cpu_l2_cache_bytes, &out);
+  WriteBool(24, m.has_cpu_l3_cache, &out);
+  WriteU64(25, m.cpu_l3_cache_bytes, &out);
+  WriteString(26, m.cpu_virtualization_vendor, &out);
+  WriteString(27, m.gpu_vendor, &out);
+  WriteString(28, m.gpu_driver_version, &out);
+  WriteString(29, m.gpu_driver_date, &out);
+  WriteBool(30, m.has_gpu_luid, &out);
+  WriteI32(31, m.gpu_luid_high, &out);
+  WriteU32(32, m.gpu_luid_low, &out);
+  WriteString(33, m.gpu_directx_version, &out);
+  WriteString(34, m.gpu_wddm_version, &out);
+  WriteBool(35, m.has_gpu_hardware_scheduling, &out);
+  WriteBool(36, m.gpu_hardware_scheduling, &out);
+  WriteString(37, m.gpu_pcie_link_speed, &out);
+  WriteString(38, m.gpu_pcie_link_width, &out);
+  WriteString(39, m.net_manufacturer, &out);
+  WriteString(40, m.net_description, &out);
+  WriteString(41, m.net_mac_address, &out);
+  WriteString(42, m.net_driver_version, &out);
+  WriteString(43, m.net_driver_date, &out);
+  WriteString(44, m.net_connection_type, &out);
+  WriteString(45, m.net_duplex, &out);
+  WriteBool(46, m.has_net_mtu, &out);
+  WriteU32(47, m.net_mtu, &out);
+  WriteBool(48, m.has_net_if_index, &out);
+  WriteU32(49, m.net_if_index, &out);
+  WriteBool(50, m.has_net_link_speed_bps, &out);
+  WriteU64(51, m.net_link_speed_bps, &out);
+  WriteBool(52, m.has_net_dhcp, &out);
+  WriteBool(53, m.net_dhcp_enabled, &out);
+  WriteString(54, m.net_dhcp_server, &out);
+  WriteBool(55, m.has_net_lease_obtained, &out);
+  WriteI64(56, m.net_lease_obtained_unix_ms, &out);
+  WriteBool(57, m.has_net_lease_expires, &out);
+  WriteI64(58, m.net_lease_expires_unix_ms, &out);
+  WriteBool(59, m.has_mem_slots_used, &out);
+  WriteU32(60, m.mem_slots_used, &out);
+  WriteBool(61, m.has_mem_module_count, &out);
+  WriteU32(62, m.mem_module_count, &out);
+  WriteString(63, m.mem_ddr_generation, &out);
+  WriteBool(64, m.has_mem_speed_mhz, &out);
+  WriteU32(65, m.mem_speed_mhz, &out);
+  WriteString(66, m.mem_form_factor, &out);
+  WriteBool(67, m.has_mem_ecc, &out);
+  WriteBool(68, m.mem_ecc, &out);
+  WriteBool(69, m.has_mem_channels, &out);
+  WriteU32(70, m.mem_channels, &out);
+  WriteString(71, m.mem_dimm_vendor, &out);
+  WriteString(72, m.mem_dimm_part_number, &out);
+  WriteString(73, m.mem_dimm_serial, &out);
+  WriteString(74, m.disk_interface, &out);
+  WriteString(75, m.disk_bus, &out);
+  WriteString(76, m.disk_model, &out);
+  WriteString(77, m.disk_serial, &out);
+  WriteString(78, m.disk_firmware, &out);
+  WriteString(79, m.disk_partition_style, &out);
+  WriteBool(80, m.has_disk_sector_size, &out);
+  WriteU32(81, m.disk_sector_size, &out);
+  WriteBool(82, m.has_disk_rotation_rate, &out);
+  WriteU32(83, m.disk_rotation_rate, &out);
+  WriteBool(84, m.has_disk_trim, &out);
+  WriteBool(85, m.disk_trim_supported, &out);
   return out;
 }
 
@@ -310,6 +449,68 @@ std::vector<uint8_t> EncodeHealthSample(const HealthSample& m) {
   for (const auto& d : m.disks) {
     WriteBytesField(44, EncodeHealthPhysicalDisk(d), &out);
   }
+  WriteBool(45, m.has_memory_compressed, &out);
+  WriteU64(46, m.memory_compressed_bytes, &out);
+  WriteBool(47, m.has_memory_hardware_reserved, &out);
+  WriteU64(48, m.memory_hardware_reserved_bytes, &out);
+  WriteBool(49, m.has_memory_paged_pool, &out);
+  WriteU64(50, m.memory_paged_pool_bytes, &out);
+  WriteBool(51, m.has_memory_nonpaged_pool, &out);
+  WriteU64(52, m.memory_nonpaged_pool_bytes, &out);
+  WriteBool(53, m.has_memory_page_faults_per_sec, &out);
+  WriteDouble(54, m.memory_page_faults_per_sec, &out);
+  WriteBool(55, m.has_gpu_util_3d, &out);
+  WriteDouble(56, m.gpu_util_3d, &out);
+  WriteBool(57, m.has_gpu_util_compute, &out);
+  WriteDouble(58, m.gpu_util_compute, &out);
+  WriteBool(59, m.has_gpu_util_copy, &out);
+  WriteDouble(60, m.gpu_util_copy, &out);
+  WriteBool(61, m.has_gpu_util_video_decode, &out);
+  WriteDouble(62, m.gpu_util_video_decode, &out);
+  WriteBool(63, m.has_gpu_util_video_encode, &out);
+  WriteDouble(64, m.gpu_util_video_encode, &out);
+  WriteBool(65, m.has_gpu_dedicated_used, &out);
+  WriteU64(66, m.gpu_dedicated_used_bytes, &out);
+  WriteBool(67, m.has_gpu_shared_used, &out);
+  WriteU64(68, m.gpu_shared_used_bytes, &out);
+  WriteBool(69, m.has_gpu_clock_mhz, &out);
+  WriteDouble(70, m.gpu_clock_mhz, &out);
+  WriteBool(71, m.has_gpu_memory_clock_mhz, &out);
+  WriteDouble(72, m.gpu_memory_clock_mhz, &out);
+  WriteBool(73, m.has_gpu_fan_rpm, &out);
+  WriteDouble(74, m.gpu_fan_rpm, &out);
+  WriteBool(75, m.has_gpu_power_percent, &out);
+  WriteDouble(76, m.gpu_power_percent, &out);
+  WriteBool(77, m.has_net_peak_download_bps, &out);
+  WriteDouble(78, m.net_peak_download_bps, &out);
+  WriteBool(79, m.has_net_peak_upload_bps, &out);
+  WriteDouble(80, m.net_peak_upload_bps, &out);
+  WriteBool(81, m.has_net_avg_download_bps, &out);
+  WriteDouble(82, m.net_avg_download_bps, &out);
+  WriteBool(83, m.has_net_avg_upload_bps, &out);
+  WriteDouble(84, m.net_avg_upload_bps, &out);
+  WriteBool(85, m.has_net_utilization_percent, &out);
+  WriteDouble(86, m.net_utilization_percent, &out);
+  WriteBool(87, m.has_net_connection_ms, &out);
+  WriteU64(88, m.net_connection_ms, &out);
+  WriteBool(89, m.has_net_bytes_sent, &out);
+  WriteU64(90, m.net_bytes_sent, &out);
+  WriteBool(91, m.has_net_bytes_received, &out);
+  WriteU64(92, m.net_bytes_received, &out);
+  WriteBool(93, m.has_net_packets_sent, &out);
+  WriteU64(94, m.net_packets_sent, &out);
+  WriteBool(95, m.has_net_packets_received, &out);
+  WriteU64(96, m.net_packets_received, &out);
+  WriteBool(97, m.has_net_errors, &out);
+  WriteU64(98, m.net_errors, &out);
+  WriteBool(99, m.has_net_drops, &out);
+  WriteU64(100, m.net_drops, &out);
+  WriteString(101, m.net_ssid, &out);
+  WriteBool(102, m.has_net_signal_percent, &out);
+  WriteDouble(103, m.net_signal_percent, &out);
+  WriteString(104, m.net_wifi_channel, &out);
+  WriteString(105, m.net_wifi_frequency, &out);
+  WriteString(106, m.net_wifi_security, &out);
   return out;
 }
 
@@ -327,6 +528,8 @@ std::vector<uint8_t> EncodeHealthSnapshot(const HealthSnapshot& m) {
 std::vector<uint8_t> EncodeHealthUpdate(const HealthUpdate& m) {
   std::vector<uint8_t> out;
   WriteBytesField(1, EncodeHealthSample(m.sample), &out);
+  WriteBytesField(2, EncodeHealthProcessInventoryUpdate(m.process_inventory),
+                  &out);
   return out;
 }
 
@@ -762,6 +965,229 @@ bool DecodeHealthProcessEntry(const uint8_t* data, size_t len,
       uint64_t v = 0;
       if (!ReadVarint(p, end, &v)) return false;
       m->handle_count = static_cast<uint32_t>(v);
+    } else if (field == 16 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_create_time = v != 0;
+    } else if (field == 17 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->create_time_unix_ms = v;
+    } else if (field == 18 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_is_critical = v != 0;
+    } else if (field == 19 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->is_critical = v != 0;
+    } else if (field == 20 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_working_set_bytes = v != 0;
+    } else if (field == 21 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->working_set_bytes = v;
+    } else if (field == 22 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_commit_bytes = v != 0;
+    } else if (field == 23 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->commit_bytes = v;
+    } else if (field == 24 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_paged_pool_bytes = v != 0;
+    } else if (field == 25 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->paged_pool_bytes = v;
+    } else if (field == 26 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_nonpaged_pool_bytes = v != 0;
+    } else if (field == 27 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->nonpaged_pool_bytes = v;
+    } else if (field == 28 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_dedicated_bytes = v != 0;
+    } else if (field == 29 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->gpu_dedicated_bytes = v;
+    } else if (field == 30 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_shared_bytes = v != 0;
+    } else if (field == 31 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->gpu_shared_bytes = v;
+    } else if (field == 32 && wire == 2) {
+      if (!DecodeString(p, end, &m->gpu_engine)) return false;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeHealthProcessInventoryUpdate(const uint8_t* data, size_t len,
+                                        HealthProcessInventoryUpdate* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->seq = v;
+    } else if (field == 2 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->full_resync = v != 0;
+    } else if (field == 3 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      HealthProcessEntry e;
+      if (!DecodeHealthProcessEntry(p, static_cast<size_t>(blen), &e)) return false;
+      p += static_cast<size_t>(blen);
+      m->upserts.push_back(std::move(e));
+    } else if (field == 4 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->removed_pids.push_back(static_cast<uint32_t>(v));
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeGetProcessDetails(const uint8_t* data, size_t len,
+                             GetProcessDetails* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->pid = static_cast<uint32_t>(v);
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeProcessDetails(const uint8_t* data, size_t len, ProcessDetails* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->pid = static_cast<uint32_t>(v);
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->name)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->path)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->company)) return false;
+    } else if (field == 5 && wire == 2) {
+      if (!DecodeString(p, end, &m->command_line)) return false;
+    } else if (field == 6 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_create_time = v != 0;
+    } else if (field == 7 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->create_time_unix_ms = v;
+    } else if (field == 8 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->thread_count = static_cast<uint32_t>(v);
+    } else if (field == 9 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->handle_count = static_cast<uint32_t>(v);
+    } else if (field == 10 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_path = v != 0;
+    } else if (field == 11 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_company = v != 0;
+    } else if (field == 12 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_command_line = v != 0;
+    } else if (field == 13 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->parent_pid = static_cast<uint32_t>(v);
+    } else if (field == 14 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_parent_pid = v != 0;
+    } else if (field == 15 && wire == 2) {
+      if (!DecodeString(p, end, &m->parent_name)) return false;
+    } else if (field == 16 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_parent_name = v != 0;
+    } else if (field == 17 && wire == 2) {
+      if (!DecodeString(p, end, &m->user)) return false;
+    } else if (field == 18 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_user = v != 0;
+    } else if (field == 19 && wire == 2) {
+      if (!DecodeString(p, end, &m->integrity_level)) return false;
+    } else if (field == 20 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_integrity_level = v != 0;
+    } else if (field == 21 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->elevated = v != 0;
+    } else if (field == 22 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_elevated = v != 0;
+    } else if (field == 23 && wire == 2) {
+      if (!DecodeString(p, end, &m->architecture)) return false;
+    } else if (field == 24 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_architecture = v != 0;
+    } else if (field == 25 && wire == 2) {
+      if (!DecodeString(p, end, &m->product_name)) return false;
+    } else if (field == 26 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_product_name = v != 0;
     } else if (!SkipField(wire, p, end)) {
       return false;
     }
@@ -898,6 +1324,232 @@ bool DecodeHealthStaticInfo(const uint8_t* data, size_t len, HealthStaticInfo* m
       uint64_t v = 0;
       if (!ReadVarint(p, end, &v)) return false;
       m->gpu_shared_bytes = v;
+    } else if (field == 15 && wire == 2) {
+      if (!DecodeString(p, end, &m->cpu_architecture)) return false;
+    } else if (field == 16 && wire == 2) {
+      if (!DecodeString(p, end, &m->cpu_instruction_set)) return false;
+    } else if (field == 17 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->cpu_numa_nodes = static_cast<uint32_t>(v);
+    } else if (field == 18 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_cpu_smt = v != 0;
+    } else if (field == 19 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->cpu_smt_enabled = v != 0;
+    } else if (field == 20 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_cpu_l1_cache = v != 0;
+    } else if (field == 21 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->cpu_l1_cache_bytes = v;
+    } else if (field == 22 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_cpu_l2_cache = v != 0;
+    } else if (field == 23 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->cpu_l2_cache_bytes = v;
+    } else if (field == 24 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_cpu_l3_cache = v != 0;
+    } else if (field == 25 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->cpu_l3_cache_bytes = v;
+    } else if (field == 26 && wire == 2) {
+      if (!DecodeString(p, end, &m->cpu_virtualization_vendor)) return false;
+    } else if (field == 27 && wire == 2) {
+      if (!DecodeString(p, end, &m->gpu_vendor)) return false;
+    } else if (field == 28 && wire == 2) {
+      if (!DecodeString(p, end, &m->gpu_driver_version)) return false;
+    } else if (field == 29 && wire == 2) {
+      if (!DecodeString(p, end, &m->gpu_driver_date)) return false;
+    } else if (field == 30 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_luid = v != 0;
+    } else if (field == 31 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->gpu_luid_high = static_cast<int32_t>(static_cast<uint32_t>(v));
+    } else if (field == 32 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->gpu_luid_low = static_cast<uint32_t>(v);
+    } else if (field == 33 && wire == 2) {
+      if (!DecodeString(p, end, &m->gpu_directx_version)) return false;
+    } else if (field == 34 && wire == 2) {
+      if (!DecodeString(p, end, &m->gpu_wddm_version)) return false;
+    } else if (field == 35 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_hardware_scheduling = v != 0;
+    } else if (field == 36 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->gpu_hardware_scheduling = v != 0;
+    } else if (field == 37 && wire == 2) {
+      if (!DecodeString(p, end, &m->gpu_pcie_link_speed)) return false;
+    } else if (field == 38 && wire == 2) {
+      if (!DecodeString(p, end, &m->gpu_pcie_link_width)) return false;
+    } else if (field == 39 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_manufacturer)) return false;
+    } else if (field == 40 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_description)) return false;
+    } else if (field == 41 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_mac_address)) return false;
+    } else if (field == 42 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_driver_version)) return false;
+    } else if (field == 43 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_driver_date)) return false;
+    } else if (field == 44 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_connection_type)) return false;
+    } else if (field == 45 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_duplex)) return false;
+    } else if (field == 46 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_mtu = v != 0;
+    } else if (field == 47 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_mtu = static_cast<uint32_t>(v);
+    } else if (field == 48 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_if_index = v != 0;
+    } else if (field == 49 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_if_index = static_cast<uint32_t>(v);
+    } else if (field == 50 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_link_speed_bps = v != 0;
+    } else if (field == 51 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_link_speed_bps = v;
+    } else if (field == 52 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_dhcp = v != 0;
+    } else if (field == 53 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_dhcp_enabled = v != 0;
+    } else if (field == 54 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_dhcp_server)) return false;
+    } else if (field == 55 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_lease_obtained = v != 0;
+    } else if (field == 56 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_lease_obtained_unix_ms = static_cast<int64_t>(v);
+    } else if (field == 57 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_lease_expires = v != 0;
+    } else if (field == 58 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_lease_expires_unix_ms = static_cast<int64_t>(v);
+    } else if (field == 59 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_mem_slots_used = v != 0;
+    } else if (field == 60 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->mem_slots_used = static_cast<uint32_t>(v);
+    } else if (field == 61 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_mem_module_count = v != 0;
+    } else if (field == 62 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->mem_module_count = static_cast<uint32_t>(v);
+    } else if (field == 63 && wire == 2) {
+      if (!DecodeString(p, end, &m->mem_ddr_generation)) return false;
+    } else if (field == 64 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_mem_speed_mhz = v != 0;
+    } else if (field == 65 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->mem_speed_mhz = static_cast<uint32_t>(v);
+    } else if (field == 66 && wire == 2) {
+      if (!DecodeString(p, end, &m->mem_form_factor)) return false;
+    } else if (field == 67 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_mem_ecc = v != 0;
+    } else if (field == 68 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->mem_ecc = v != 0;
+    } else if (field == 69 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_mem_channels = v != 0;
+    } else if (field == 70 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->mem_channels = static_cast<uint32_t>(v);
+    } else if (field == 71 && wire == 2) {
+      if (!DecodeString(p, end, &m->mem_dimm_vendor)) return false;
+    } else if (field == 72 && wire == 2) {
+      if (!DecodeString(p, end, &m->mem_dimm_part_number)) return false;
+    } else if (field == 73 && wire == 2) {
+      if (!DecodeString(p, end, &m->mem_dimm_serial)) return false;
+    } else if (field == 74 && wire == 2) {
+      if (!DecodeString(p, end, &m->disk_interface)) return false;
+    } else if (field == 75 && wire == 2) {
+      if (!DecodeString(p, end, &m->disk_bus)) return false;
+    } else if (field == 76 && wire == 2) {
+      if (!DecodeString(p, end, &m->disk_model)) return false;
+    } else if (field == 77 && wire == 2) {
+      if (!DecodeString(p, end, &m->disk_serial)) return false;
+    } else if (field == 78 && wire == 2) {
+      if (!DecodeString(p, end, &m->disk_firmware)) return false;
+    } else if (field == 79 && wire == 2) {
+      if (!DecodeString(p, end, &m->disk_partition_style)) return false;
+    } else if (field == 80 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_disk_sector_size = v != 0;
+    } else if (field == 81 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->disk_sector_size = static_cast<uint32_t>(v);
+    } else if (field == 82 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_disk_rotation_rate = v != 0;
+    } else if (field == 83 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->disk_rotation_rate = static_cast<uint32_t>(v);
+    } else if (field == 84 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_disk_trim = v != 0;
+    } else if (field == 85 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->disk_trim_supported = v != 0;
     } else if (!SkipField(wire, p, end)) {
       return false;
     }
@@ -1101,6 +1753,214 @@ bool DecodeHealthSample(const uint8_t* data, size_t len, HealthSample* m) {
       }
       m->disks.push_back(std::move(disk));
       p += blen;
+    } else if (field == 45 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_memory_compressed = v != 0;
+    } else if (field == 46 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->memory_compressed_bytes = v;
+    } else if (field == 47 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_memory_hardware_reserved = v != 0;
+    } else if (field == 48 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->memory_hardware_reserved_bytes = v;
+    } else if (field == 49 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_memory_paged_pool = v != 0;
+    } else if (field == 50 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->memory_paged_pool_bytes = v;
+    } else if (field == 51 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_memory_nonpaged_pool = v != 0;
+    } else if (field == 52 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->memory_nonpaged_pool_bytes = v;
+    } else if (field == 53 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_memory_page_faults_per_sec = v != 0;
+    } else if (field == 54 && wire == 1) {
+      if (!ReadDouble(p, end, &m->memory_page_faults_per_sec)) return false;
+    } else if (field == 55 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_util_3d = v != 0;
+    } else if (field == 56 && wire == 1) {
+      if (!ReadDouble(p, end, &m->gpu_util_3d)) return false;
+    } else if (field == 57 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_util_compute = v != 0;
+    } else if (field == 58 && wire == 1) {
+      if (!ReadDouble(p, end, &m->gpu_util_compute)) return false;
+    } else if (field == 59 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_util_copy = v != 0;
+    } else if (field == 60 && wire == 1) {
+      if (!ReadDouble(p, end, &m->gpu_util_copy)) return false;
+    } else if (field == 61 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_util_video_decode = v != 0;
+    } else if (field == 62 && wire == 1) {
+      if (!ReadDouble(p, end, &m->gpu_util_video_decode)) return false;
+    } else if (field == 63 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_util_video_encode = v != 0;
+    } else if (field == 64 && wire == 1) {
+      if (!ReadDouble(p, end, &m->gpu_util_video_encode)) return false;
+    } else if (field == 65 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_dedicated_used = v != 0;
+    } else if (field == 66 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->gpu_dedicated_used_bytes = v;
+    } else if (field == 67 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_shared_used = v != 0;
+    } else if (field == 68 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->gpu_shared_used_bytes = v;
+    } else if (field == 69 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_clock_mhz = v != 0;
+    } else if (field == 70 && wire == 1) {
+      if (!ReadDouble(p, end, &m->gpu_clock_mhz)) return false;
+    } else if (field == 71 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_memory_clock_mhz = v != 0;
+    } else if (field == 72 && wire == 1) {
+      if (!ReadDouble(p, end, &m->gpu_memory_clock_mhz)) return false;
+    } else if (field == 73 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_fan_rpm = v != 0;
+    } else if (field == 74 && wire == 1) {
+      if (!ReadDouble(p, end, &m->gpu_fan_rpm)) return false;
+    } else if (field == 75 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_power_percent = v != 0;
+    } else if (field == 76 && wire == 1) {
+      if (!ReadDouble(p, end, &m->gpu_power_percent)) return false;
+    } else if (field == 77 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_peak_download_bps = v != 0;
+    } else if (field == 78 && wire == 1) {
+      if (!ReadDouble(p, end, &m->net_peak_download_bps)) return false;
+    } else if (field == 79 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_peak_upload_bps = v != 0;
+    } else if (field == 80 && wire == 1) {
+      if (!ReadDouble(p, end, &m->net_peak_upload_bps)) return false;
+    } else if (field == 81 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_avg_download_bps = v != 0;
+    } else if (field == 82 && wire == 1) {
+      if (!ReadDouble(p, end, &m->net_avg_download_bps)) return false;
+    } else if (field == 83 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_avg_upload_bps = v != 0;
+    } else if (field == 84 && wire == 1) {
+      if (!ReadDouble(p, end, &m->net_avg_upload_bps)) return false;
+    } else if (field == 85 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_utilization_percent = v != 0;
+    } else if (field == 86 && wire == 1) {
+      if (!ReadDouble(p, end, &m->net_utilization_percent)) return false;
+    } else if (field == 87 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_connection_ms = v != 0;
+    } else if (field == 88 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_connection_ms = v;
+    } else if (field == 89 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_bytes_sent = v != 0;
+    } else if (field == 90 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_bytes_sent = v;
+    } else if (field == 91 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_bytes_received = v != 0;
+    } else if (field == 92 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_bytes_received = v;
+    } else if (field == 93 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_packets_sent = v != 0;
+    } else if (field == 94 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_packets_sent = v;
+    } else if (field == 95 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_packets_received = v != 0;
+    } else if (field == 96 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_packets_received = v;
+    } else if (field == 97 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_errors = v != 0;
+    } else if (field == 98 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_errors = v;
+    } else if (field == 99 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_drops = v != 0;
+    } else if (field == 100 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->net_drops = v;
+    } else if (field == 101 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_ssid)) return false;
+    } else if (field == 102 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_net_signal_percent = v != 0;
+    } else if (field == 103 && wire == 1) {
+      if (!ReadDouble(p, end, &m->net_signal_percent)) return false;
+    } else if (field == 104 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_wifi_channel)) return false;
+    } else if (field == 105 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_wifi_frequency)) return false;
+    } else if (field == 106 && wire == 2) {
+      if (!DecodeString(p, end, &m->net_wifi_security)) return false;
     } else if (!SkipField(wire, p, end)) {
       return false;
     }
@@ -1161,6 +2021,15 @@ bool DecodeHealthUpdate(const uint8_t* data, size_t len, HealthUpdate* m) {
       if (!ReadVarint(p, end, &blen)) return false;
       if (p + blen > end) return false;
       if (!DecodeHealthSample(p, static_cast<size_t>(blen), &m->sample)) return false;
+      p += static_cast<size_t>(blen);
+    } else if (field == 2 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      if (!DecodeHealthProcessInventoryUpdate(
+              p, static_cast<size_t>(blen), &m->process_inventory)) {
+        return false;
+      }
       p += static_cast<size_t>(blen);
     } else if (!SkipField(wire, p, end)) {
       return false;
@@ -1400,6 +2269,11 @@ bool EncodeEnvelope(const Envelope& env, std::vector<uint8_t>* out) {
         32,
         EncodeInjectDiagnosticsTestEvent(std::get<InjectDiagnosticsTestEvent>(env.body)),
         out);
+  } else if (std::holds_alternative<GetProcessDetails>(env.body)) {
+    WriteBytesField(33, EncodeGetProcessDetails(std::get<GetProcessDetails>(env.body)),
+                    out);
+  } else if (std::holds_alternative<ProcessDetails>(env.body)) {
+    WriteBytesField(34, EncodeProcessDetails(std::get<ProcessDetails>(env.body)), out);
   } else if (std::holds_alternative<ErrorResponse>(env.body)) {
     WriteBytesField(99, EncodeError(std::get<ErrorResponse>(env.body)), out);
   }
@@ -1425,7 +2299,8 @@ bool DecodeEnvelope(const uint8_t* data, size_t len, Envelope* out) {
                 field == 14 || field == 20 || field == 21 || field == 22 ||
                 field == 23 || field == 24 || field == 25 || field == 26 ||
                 field == 27 || field == 28 || field == 29 || field == 30 ||
-                field == 31 || field == 32 || field == 99)) {
+                field == 31 || field == 32 || field == 33 || field == 34 ||
+                field == 99)) {
       uint64_t blen = 0;
       if (!ReadVarint(p, end, &blen)) return false;
       if (p + blen > end) return false;
@@ -1504,6 +2379,14 @@ bool DecodeEnvelope(const uint8_t* data, size_t len, Envelope* out) {
         if (!DecodeInjectDiagnosticsTestEvent(sub, static_cast<size_t>(blen), &m)) {
           return false;
         }
+        out->body = std::move(m);
+      } else if (field == 33) {
+        GetProcessDetails m;
+        if (!DecodeGetProcessDetails(sub, static_cast<size_t>(blen), &m)) return false;
+        out->body = std::move(m);
+      } else if (field == 34) {
+        ProcessDetails m;
+        if (!DecodeProcessDetails(sub, static_cast<size_t>(blen), &m)) return false;
         out->body = std::move(m);
       } else if (field == 99) {
         ErrorResponse m;

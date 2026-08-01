@@ -113,6 +113,77 @@ struct HealthStaticInfo {
   bool cpu_virtualization_enabled = false;
   uint64_t gpu_dedicated_bytes = 0;
   uint64_t gpu_shared_bytes = 0;
+  std::string cpu_architecture;
+  std::string cpu_instruction_set;
+  uint32_t cpu_numa_nodes = 0;
+  bool has_cpu_smt = false;
+  bool cpu_smt_enabled = false;
+  bool has_cpu_l1_cache = false;
+  uint64_t cpu_l1_cache_bytes = 0;
+  bool has_cpu_l2_cache = false;
+  uint64_t cpu_l2_cache_bytes = 0;
+  bool has_cpu_l3_cache = false;
+  uint64_t cpu_l3_cache_bytes = 0;
+  std::string cpu_virtualization_vendor;
+  std::string gpu_vendor;
+  std::string gpu_driver_version;
+  std::string gpu_driver_date;
+  bool has_gpu_luid = false;
+  int32_t gpu_luid_high = 0;
+  uint32_t gpu_luid_low = 0;
+  std::string gpu_directx_version;
+  std::string gpu_wddm_version;
+  bool has_gpu_hardware_scheduling = false;
+  bool gpu_hardware_scheduling = false;
+  std::string gpu_pcie_link_speed;
+  std::string gpu_pcie_link_width;
+  std::string net_manufacturer;
+  std::string net_description;
+  std::string net_mac_address;
+  std::string net_driver_version;
+  std::string net_driver_date;
+  std::string net_connection_type;
+  std::string net_duplex;
+  bool has_net_mtu = false;
+  uint32_t net_mtu = 0;
+  bool has_net_if_index = false;
+  uint32_t net_if_index = 0;
+  bool has_net_link_speed_bps = false;
+  uint64_t net_link_speed_bps = 0;
+  bool has_net_dhcp = false;
+  bool net_dhcp_enabled = false;
+  std::string net_dhcp_server;
+  bool has_net_lease_obtained = false;
+  int64_t net_lease_obtained_unix_ms = 0;
+  bool has_net_lease_expires = false;
+  int64_t net_lease_expires_unix_ms = 0;
+  bool has_mem_slots_used = false;
+  uint32_t mem_slots_used = 0;
+  bool has_mem_module_count = false;
+  uint32_t mem_module_count = 0;
+  std::string mem_ddr_generation;
+  bool has_mem_speed_mhz = false;
+  uint32_t mem_speed_mhz = 0;
+  std::string mem_form_factor;
+  bool has_mem_ecc = false;
+  bool mem_ecc = false;
+  bool has_mem_channels = false;
+  uint32_t mem_channels = 0;
+  std::string mem_dimm_vendor;
+  std::string mem_dimm_part_number;
+  std::string mem_dimm_serial;
+  std::string disk_interface;
+  std::string disk_bus;
+  std::string disk_model;
+  std::string disk_serial;
+  std::string disk_firmware;
+  std::string disk_partition_style;
+  bool has_disk_sector_size = false;
+  uint32_t disk_sector_size = 0;
+  bool has_disk_rotation_rate = false;
+  uint32_t disk_rotation_rate = 0;
+  bool has_disk_trim = false;
+  bool disk_trim_supported = false;
 };
 
 struct HealthProcessEntry {
@@ -131,6 +202,63 @@ struct HealthProcessEntry {
   std::string path;
   uint32_t thread_count = 0;
   uint32_t handle_count = 0;
+  bool has_create_time = false;
+  uint64_t create_time_unix_ms = 0;
+  bool has_is_critical = false;
+  bool is_critical = false;
+  bool has_working_set_bytes = false;
+  uint64_t working_set_bytes = 0;
+  bool has_commit_bytes = false;
+  uint64_t commit_bytes = 0;
+  bool has_paged_pool_bytes = false;
+  uint64_t paged_pool_bytes = 0;
+  bool has_nonpaged_pool_bytes = false;
+  uint64_t nonpaged_pool_bytes = 0;
+  bool has_gpu_dedicated_bytes = false;
+  uint64_t gpu_dedicated_bytes = 0;
+  bool has_gpu_shared_bytes = false;
+  uint64_t gpu_shared_bytes = 0;
+  std::string gpu_engine;
+};
+
+struct HealthProcessInventoryUpdate {
+  uint64_t seq = 0;
+  bool full_resync = false;
+  std::vector<HealthProcessEntry> upserts;
+  std::vector<uint32_t> removed_pids;
+};
+
+struct GetProcessDetails {
+  uint32_t pid = 0;
+};
+
+struct ProcessDetails {
+  uint32_t pid = 0;
+  std::string name;
+  std::string path;
+  std::string company;
+  std::string command_line;
+  bool has_create_time = false;
+  uint64_t create_time_unix_ms = 0;
+  uint32_t thread_count = 0;
+  uint32_t handle_count = 0;
+  bool has_path = false;
+  bool has_company = false;
+  bool has_command_line = false;
+  uint32_t parent_pid = 0;
+  bool has_parent_pid = false;
+  std::string parent_name;
+  bool has_parent_name = false;
+  std::string user;
+  bool has_user = false;
+  std::string integrity_level;
+  bool has_integrity_level = false;
+  bool elevated = false;
+  bool has_elevated = false;
+  std::string architecture;
+  bool has_architecture = false;
+  std::string product_name;
+  bool has_product_name = false;
 };
 
 enum class HealthDriveKind : uint32_t {
@@ -209,6 +337,68 @@ struct HealthSample {
   std::vector<double> cpu_core_percent;
   std::vector<HealthVolume> volumes;
   std::vector<HealthPhysicalDisk> disks;
+  bool has_memory_compressed = false;
+  uint64_t memory_compressed_bytes = 0;
+  bool has_memory_hardware_reserved = false;
+  uint64_t memory_hardware_reserved_bytes = 0;
+  bool has_memory_paged_pool = false;
+  uint64_t memory_paged_pool_bytes = 0;
+  bool has_memory_nonpaged_pool = false;
+  uint64_t memory_nonpaged_pool_bytes = 0;
+  bool has_memory_page_faults_per_sec = false;
+  double memory_page_faults_per_sec = 0.0;
+  bool has_gpu_util_3d = false;
+  double gpu_util_3d = 0.0;
+  bool has_gpu_util_compute = false;
+  double gpu_util_compute = 0.0;
+  bool has_gpu_util_copy = false;
+  double gpu_util_copy = 0.0;
+  bool has_gpu_util_video_decode = false;
+  double gpu_util_video_decode = 0.0;
+  bool has_gpu_util_video_encode = false;
+  double gpu_util_video_encode = 0.0;
+  bool has_gpu_dedicated_used = false;
+  uint64_t gpu_dedicated_used_bytes = 0;
+  bool has_gpu_shared_used = false;
+  uint64_t gpu_shared_used_bytes = 0;
+  bool has_gpu_clock_mhz = false;
+  double gpu_clock_mhz = 0.0;
+  bool has_gpu_memory_clock_mhz = false;
+  double gpu_memory_clock_mhz = 0.0;
+  bool has_gpu_fan_rpm = false;
+  double gpu_fan_rpm = 0.0;
+  bool has_gpu_power_percent = false;
+  double gpu_power_percent = 0.0;
+  bool has_net_peak_download_bps = false;
+  double net_peak_download_bps = 0.0;
+  bool has_net_peak_upload_bps = false;
+  double net_peak_upload_bps = 0.0;
+  bool has_net_avg_download_bps = false;
+  double net_avg_download_bps = 0.0;
+  bool has_net_avg_upload_bps = false;
+  double net_avg_upload_bps = 0.0;
+  bool has_net_utilization_percent = false;
+  double net_utilization_percent = 0.0;
+  bool has_net_connection_ms = false;
+  uint64_t net_connection_ms = 0;
+  bool has_net_bytes_sent = false;
+  uint64_t net_bytes_sent = 0;
+  bool has_net_bytes_received = false;
+  uint64_t net_bytes_received = 0;
+  bool has_net_packets_sent = false;
+  uint64_t net_packets_sent = 0;
+  bool has_net_packets_received = false;
+  uint64_t net_packets_received = 0;
+  bool has_net_errors = false;
+  uint64_t net_errors = 0;
+  bool has_net_drops = false;
+  uint64_t net_drops = 0;
+  std::string net_ssid;
+  bool has_net_signal_percent = false;
+  double net_signal_percent = 0.0;
+  std::string net_wifi_channel;
+  std::string net_wifi_frequency;
+  std::string net_wifi_security;
 };
 
 struct GetHealthSnapshot {};
@@ -220,6 +410,7 @@ struct HealthSnapshot {
 
 struct HealthUpdate {
   HealthSample sample;
+  HealthProcessInventoryUpdate process_inventory;
 };
 
 struct StartHealthMonitoring {};
@@ -280,7 +471,8 @@ struct Envelope {
                StartLiveMonitoring, StopLiveMonitoring, GetHealthSnapshot,
                HealthSnapshot, HealthUpdate, StartHealthMonitoring,
                StopHealthMonitoring, GetDiagnosticsSnapshot,
-               DiagnosticsSnapshot, InjectDiagnosticsTestEvent, ErrorResponse>
+               DiagnosticsSnapshot, InjectDiagnosticsTestEvent,
+               GetProcessDetails, ProcessDetails, ErrorResponse>
       body;
 };
 

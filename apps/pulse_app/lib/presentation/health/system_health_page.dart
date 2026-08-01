@@ -16,6 +16,7 @@ import '../utils/pulse_user_errors.dart';
 import 'health_cards.dart';
 import 'health_view_models.dart';
 import 'widgets/health_details_panel.dart';
+import 'widgets/process_inventory/process_inventory_store.dart';
 
 class SystemHealthPage extends StatefulWidget {
   const SystemHealthPage({super.key, required this.title});
@@ -28,9 +29,11 @@ class SystemHealthPage extends StatefulWidget {
 
 class _SystemHealthPageState extends State<SystemHealthPage> {
   PulseIpcClient? _ipc;
-  StreamSubscription<HealthSample>? _healthSub;
+  StreamSubscription<HealthUpdate>? _healthSub;
   IpcConnectionState? _lastState;
   final _view = HealthViewState();
+  final _processInventory = ProcessInventoryStore();
+  Timer? _appWindowTimer;
   bool _loading = false;
   String? _error;
   bool _monitoring = false;
@@ -52,21 +55,35 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
 
   @override
   void dispose() {
+    _appWindowTimer?.cancel();
     _healthSub?.cancel();
     _ipc?.removeListener(_onIpcChanged);
+    _processInventory.dispose();
     if (_monitoring) {
       unawaited(_ipc?.stopHealthMonitoring());
     }
     super.dispose();
   }
 
-  void _onHealthSample(HealthSample sample) {
+  void _onHealthSample(HealthUpdate update) {
     if (!mounted) return;
     setState(() {
-      _view.applySample(sample);
+      _view.applySample(update.sample);
+      final inv = update.processInventory;
+      if (inv != null) {
+        _processInventory.applyUpdate(inv);
+      }
       _loading = false;
       _error = null;
     });
+  }
+
+  void _ensureAppWindowTimer() {
+    _appWindowTimer?.cancel();
+    _appWindowTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      unawaited(_processInventory.refreshAppWindows());
+    });
+    unawaited(_processInventory.refreshAppWindows());
   }
 
   void _onIpcChanged() {
@@ -81,8 +98,10 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
       if (!mounted) return;
       if (becameConnected) {
         unawaited(_loadHealth());
+        _ensureAppWindowTimer();
       } else if (state == IpcConnectionState.disconnected ||
           state == IpcConnectionState.error) {
+        _appWindowTimer?.cancel();
         setState(() {
           _view.info = null;
           _view.sample = null;
@@ -93,6 +112,7 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
           _view.downloadHistory.clear();
           _view.uploadHistory.clear();
           _view.coreHistories.clear();
+          _processInventory.clear();
           _selectedPanel = null;
           _loading = false;
           _error = null;
@@ -175,6 +195,7 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
                           selectedPanel: _selectedPanel,
                           onSelect: _selectPanel,
                           onClear: _clearPanel,
+                          processInventory: _processInventory,
                         ),
         ),
       ],
@@ -243,12 +264,14 @@ class _SystemHealthBody extends StatelessWidget {
     required this.selectedPanel,
     required this.onSelect,
     required this.onClear,
+    required this.processInventory,
   });
 
   final HealthViewState view;
   final HealthPanelKind? selectedPanel;
   final ValueChanged<HealthPanelKind> onSelect;
   final VoidCallback onClear;
+  final ProcessInventoryStore processInventory;
 
   @override
   Widget build(BuildContext context) {
@@ -402,10 +425,11 @@ class _SystemHealthBody extends StatelessWidget {
                 Expanded(child: dashboard),
                 HealthDetailsHost(
                   expanded: showSideDetail,
-                  width: 380,
+                  width: 420,
                   kind: selectedPanel,
                   view: view,
                   onClose: onClear,
+                  processInventory: processInventory,
                 ),
               ],
             ),
@@ -427,6 +451,7 @@ class _SystemHealthBody extends StatelessWidget {
                         kind: selectedPanel!,
                         view: view,
                         onClose: onClear,
+                        processInventory: processInventory,
                       ),
                     ),
                   ],

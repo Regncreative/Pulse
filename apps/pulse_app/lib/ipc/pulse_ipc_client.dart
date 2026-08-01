@@ -116,7 +116,7 @@ class PulseIpcClient extends ChangeNotifier {
   int _nextRequestId = 1000;
   bool _started = false;
   final _liveEvents = StreamController<TimelineEvent>.broadcast();
-  final _healthUpdates = StreamController<HealthSample>.broadcast();
+  final _healthUpdates = StreamController<HealthUpdate>.broadcast();
   double _pingLatencySumMs = 0;
   IpcConnectionState? _prevTrackedState;
 
@@ -124,7 +124,7 @@ class PulseIpcClient extends ChangeNotifier {
   Stream<TimelineEvent> get liveEvents => _liveEvents.stream;
 
   /// Live HealthSample pushes (1 Hz, request_id = 0).
-  Stream<HealthSample> get healthUpdates => _healthUpdates.stream;
+  Stream<HealthUpdate> get healthUpdates => _healthUpdates.stream;
 
   Future<void> start() async {
     if (_started) return;
@@ -286,6 +286,22 @@ class PulseIpcClient extends ChangeNotifier {
     await _request(env, timeout: const Duration(seconds: 5));
   }
 
+  Future<ProcessDetails> getProcessDetails(int pid) async {
+    final env = Envelope(
+      requestId: _nextRequestId++,
+      body: GetProcessDetails(pid: pid),
+    );
+    final reply = await _request(env, timeout: const Duration(seconds: 10));
+    final body = reply.body;
+    if (body is ErrorResponse) {
+      throw StateError('${body.message}: ${body.technicalDetail}');
+    }
+    if (body is! ProcessDetails) {
+      throw StateError('Expected ProcessDetails, got ${body.runtimeType}');
+    }
+    return body;
+  }
+
   Future<DiagnosticsSnapshot> getDiagnosticsSnapshot() async {
     final env = Envelope(
       requestId: _nextRequestId++,
@@ -367,10 +383,10 @@ class PulseIpcClient extends ChangeNotifier {
           return;
         }
 
-        // Server push: HealthUpdate (1 Hz).
+        // Server push: HealthUpdate (1 Hz) — sample + process inventory.
         if (env.requestId == 0 && body is HealthUpdate) {
           if (!_healthUpdates.isClosed) {
-            _healthUpdates.add(body.sample);
+            _healthUpdates.add(body);
           }
           return;
         }

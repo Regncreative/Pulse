@@ -267,6 +267,117 @@ int main() {
   assert(hu.sample.has_gpu_percent == false);
   assert(hu.sample.net_download_bps == 125000.0);
 
+  HealthProcessInventoryUpdate inv;
+  inv.seq = 3;
+  inv.full_resync = true;
+  HealthProcessEntry inv_proc;
+  inv_proc.pid = 55;
+  inv_proc.name = "Pulse.exe";
+  inv_proc.has_cpu_percent = true;
+  inv_proc.cpu_percent = 1.5;
+  inv_proc.has_create_time = true;
+  inv_proc.create_time_unix_ms = 1700000000000ull;
+  inv_proc.has_is_critical = true;
+  inv_proc.is_critical = false;
+  inv.upserts.push_back(inv_proc);
+  inv.removed_pids.push_back(9);
+
+  HealthUpdate with_inv;
+  with_inv.sample = sample;
+  with_inv.process_inventory = inv;
+  Envelope inv_env;
+  inv_env.request_id = 0;
+  inv_env.body = with_inv;
+  std::vector<uint8_t> inv_payload;
+  if (!EncodeEnvelope(inv_env, &inv_payload)) {
+    std::cerr << "inventory encode failed\n";
+    return 7;
+  }
+  Envelope inv_decoded;
+  if (!DecodeEnvelope(inv_payload.data(), inv_payload.size(), &inv_decoded) ||
+      !std::holds_alternative<HealthUpdate>(inv_decoded.body)) {
+    std::cerr << "inventory decode failed\n";
+    return 7;
+  }
+  const auto& hu_inv = std::get<HealthUpdate>(inv_decoded.body);
+  if (hu_inv.process_inventory.seq != 3 ||
+      !hu_inv.process_inventory.full_resync ||
+      hu_inv.process_inventory.upserts.size() != 1 ||
+      hu_inv.process_inventory.upserts[0].pid != 55 ||
+      hu_inv.process_inventory.upserts[0].name != "Pulse.exe" ||
+      hu_inv.process_inventory.upserts[0].create_time_unix_ms !=
+          1700000000000ull ||
+      hu_inv.process_inventory.removed_pids.size() != 1 ||
+      hu_inv.process_inventory.removed_pids[0] != 9) {
+    std::cerr << "inventory fields mismatch\n";
+    return 8;
+  }
+
+  ProcessDetails details;
+  details.pid = 55;
+  details.name = "Pulse.exe";
+  details.path = "C:\\Pulse\\Pulse.exe";
+  details.company = "Pulse";
+  details.command_line = "Pulse.exe --ui";
+  details.has_path = true;
+  details.has_company = true;
+  details.has_command_line = true;
+  details.thread_count = 12;
+  details.handle_count = 200;
+  details.parent_pid = 4;
+  details.has_parent_pid = true;
+  details.parent_name = "System";
+  details.has_parent_name = true;
+  details.user = "NT AUTHORITY\\SYSTEM";
+  details.has_user = true;
+  details.integrity_level = "System";
+  details.has_integrity_level = true;
+  details.elevated = true;
+  details.has_elevated = true;
+  details.architecture = "x64";
+  details.has_architecture = true;
+  details.product_name = "Pulse";
+  details.has_product_name = true;
+  Envelope det_env;
+  det_env.request_id = 12;
+  det_env.body = details;
+  std::vector<uint8_t> det_payload;
+  if (!EncodeEnvelope(det_env, &det_payload)) {
+    std::cerr << "ProcessDetails encode failed\n";
+    return 9;
+  }
+  Envelope det_decoded;
+  if (!DecodeEnvelope(det_payload.data(), det_payload.size(), &det_decoded) ||
+      !std::holds_alternative<ProcessDetails>(det_decoded.body)) {
+    std::cerr << "ProcessDetails decode failed\n";
+    return 9;
+  }
+  const auto& det = std::get<ProcessDetails>(det_decoded.body);
+  if (det.pid != 55 || det.company != "Pulse" || !det.has_command_line ||
+      det.thread_count != 12 || det.parent_pid != 4 ||
+      det.architecture != "x64" || det.product_name != "Pulse") {
+    std::cerr << "ProcessDetails fields mismatch\n";
+    return 10;
+  }
+
+  GetProcessDetails get_det;
+  get_det.pid = 4242;
+  Envelope get_env;
+  get_env.request_id = 13;
+  get_env.body = get_det;
+  std::vector<uint8_t> get_payload;
+  if (!EncodeEnvelope(get_env, &get_payload)) {
+    std::cerr << "GetProcessDetails encode failed\n";
+    return 11;
+  }
+  Envelope get_decoded;
+  if (!DecodeEnvelope(get_payload.data(), get_payload.size(), &get_decoded) ||
+      !std::holds_alternative<GetProcessDetails>(get_decoded.body) ||
+      std::get<GetProcessDetails>(get_decoded.body).pid != 4242) {
+    std::cerr << "GetProcessDetails decode failed\n";
+    return 11;
+  }
+
   std::cout << "pulse_wire_tests OK\n";
   return 0;
 }

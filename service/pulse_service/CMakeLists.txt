@@ -25,6 +25,9 @@ add_executable(PulseService WIN32
   src/collectors/event_log_collector.cpp
   src/collectors/event_log_subscriber.cpp
   src/collectors/health_metrics_collector.cpp
+  src/collectors/gpu_adapter_info.cpp
+  src/collectors/system_overview_info.cpp
+  src/collectors/process_metrics.cpp
   src/windows/wevt_helpers.cpp
   src/logging/logger.cpp
   src/util/config.cpp
@@ -50,7 +53,12 @@ target_link_libraries(PulseService PRIVATE
   pdh
   iphlpapi
   dxgi
+  d3d12
   psapi
+  version
+  wlanapi
+  setupapi
+  cfgmgr32
 )
 
 enable_testing()
@@ -84,6 +92,12 @@ target_include_directories(event_intelligence_tests PRIVATE
 )
 target_link_libraries(event_intelligence_tests PRIVATE pulse_wire)
 add_test(NAME event_intelligence_tests COMMAND event_intelligence_tests)
+
+add_executable(ipc_client_thread_lifetime_test
+  test/ipc_client_thread_lifetime_test.cpp
+)
+add_test(NAME ipc_client_thread_lifetime_test
+         COMMAND ipc_client_thread_lifetime_test)
 
 # Optional IPC ping tool (same tree)
 add_executable(pulse_ipc_ping

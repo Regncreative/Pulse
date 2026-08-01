@@ -16,8 +16,12 @@ void main() {
       endsWith(r'\system32\dwm.exe'),
     );
     expect(
-      knownSystemExecutablePath('lsass.exe')?.toLowerCase(),
-      endsWith(r'\system32\lsass.exe'),
+      knownSystemExecutablePath('conhost.exe')?.toLowerCase(),
+      endsWith(r'\system32\conhost.exe'),
+    );
+    expect(
+      knownSystemExecutablePath('taskhostw.exe')?.toLowerCase(),
+      endsWith(r'\system32\taskhostw.exe'),
     );
     expect(knownSystemExecutablePath('chrome.exe'), isNull);
     expect(knownSystemExecutablePath('System'), isNull);

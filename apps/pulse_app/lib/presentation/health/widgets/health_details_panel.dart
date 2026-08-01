@@ -1,14 +1,23 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
 import 'package:pulse_protocol/pulse_wire.dart';
 
 import '../../../app/theme/pulse_theme.dart';
 import '../../../features/timeline/widgets/detail_section.dart';
+import '../../../ipc/pulse_ipc_client.dart';
 import '../health_cards.dart';
 import '../health_view_models.dart';
+import 'health_spec_rows.dart';
 import 'process_app_icon.dart';
+import 'process_inventory/memory_app_detail_panel.dart';
+import 'process_inventory/process_detail_panel.dart';
+import 'process_inventory/process_inventory_list.dart';
+import 'process_inventory/process_inventory_store.dart';
+import 'process_inventory/app_group_engine.dart';
 
 /// Right-side System Health details panel for a selected metric group.
 class HealthDetailsPanel extends StatelessWidget {
@@ -17,11 +26,13 @@ class HealthDetailsPanel extends StatelessWidget {
     required this.kind,
     required this.view,
     required this.onClose,
+    this.processInventory,
   });
 
   final HealthPanelKind kind;
   final HealthViewState view;
   final VoidCallback onClose;
+  final ProcessInventoryStore? processInventory;
 
   @override
   Widget build(BuildContext context) {
@@ -59,8 +70,14 @@ class HealthDetailsPanel extends StatelessWidget {
   /// Single-viewport panel body — no scroll (mockup parity).
   Widget _sectionsBody() {
     return switch (kind) {
-      HealthPanelKind.cpu => _CpuPanelBody(view: view),
-      HealthPanelKind.memory => _MemoryPanelBody(view: view),
+      HealthPanelKind.cpu => _CpuPanelBody(
+            view: view,
+            inventory: processInventory,
+          ),
+      HealthPanelKind.memory => _MemoryPanelBody(
+            view: view,
+            inventory: processInventory,
+          ),
       HealthPanelKind.gpu => _GpuPanelBody(view: view),
       HealthPanelKind.disk => _DiskPanelBody(view: view),
       HealthPanelKind.network => _NetworkPanelBody(view: view),
@@ -72,7 +89,7 @@ class HealthDetailsPanel extends StatelessWidget {
     return switch (kind) {
       HealthPanelKind.cpu => _orNull(i?.cpuModel),
       HealthPanelKind.memory => (i?.installedRamBytes ?? 0) > 0
-          ? formatBytesBinary(i!.installedRamBytes, fractionDigits: 0)
+          ? formatMemorySize(i!.installedRamBytes)
           : null,
       HealthPanelKind.gpu => _orNull(i?.gpuModel),
       HealthPanelKind.disk => (i?.primaryStorageBytes ?? 0) > 0
@@ -89,12 +106,88 @@ class HealthDetailsPanel extends StatelessWidget {
 
 }
 
-class _CpuPanelBody extends StatelessWidget {
-  const _CpuPanelBody({required this.view});
+class _CpuPanelBody extends StatefulWidget {
+  const _CpuPanelBody({required this.view, this.inventory});
   final HealthViewState view;
+  final ProcessInventoryStore? inventory;
+
+  @override
+  State<_CpuPanelBody> createState() => _CpuPanelBodyState();
+}
+
+class _CpuPanelBodyState extends State<_CpuPanelBody> {
+  ProcessDetails? _details;
+  bool _detailsLoading = false;
+  String? _detailsError;
+  int? _loadedPid;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.inventory?.addListener(_onInventory);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CpuPanelBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.inventory != widget.inventory) {
+      oldWidget.inventory?.removeListener(_onInventory);
+      widget.inventory?.addListener(_onInventory);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.inventory?.removeListener(_onInventory);
+    super.dispose();
+  }
+
+  void _onInventory() {
+    final store = widget.inventory;
+    if (store == null) return;
+    final pid = store.selectedPid;
+    if (pid == null) {
+      if (_details != null || _detailsLoading || _detailsError != null) {
+        setState(() {
+          _details = null;
+          _detailsLoading = false;
+          _detailsError = null;
+          _loadedPid = null;
+        });
+      }
+      return;
+    }
+    if (pid == _loadedPid && (_details != null || _detailsLoading)) return;
+    unawaited(_loadDetails(pid));
+  }
+
+  Future<void> _loadDetails(int pid) async {
+    setState(() {
+      _loadedPid = pid;
+      _detailsLoading = true;
+      _detailsError = null;
+      _details = null;
+    });
+    try {
+      final ipc = context.read<PulseIpcClient>();
+      final d = await ipc.getProcessDetails(pid);
+      if (!mounted || widget.inventory?.selectedPid != pid) return;
+      setState(() {
+        _details = d;
+        _detailsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || widget.inventory?.selectedPid != pid) return;
+      setState(() {
+        _detailsLoading = false;
+        _detailsError = 'Details unavailable';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final view = widget.view;
     final s = view.sample;
     final i = view.info;
     final usagePct = s != null && s.hasCpuPercent ? s.cpuPercent : null;
@@ -113,6 +206,35 @@ class _CpuPanelBody extends StatelessWidget {
     final virt = i == null
         ? kUnavailableDash
         : (i.cpuVirtualizationEnabled ? 'Enabled' : 'Disabled');
+    final sockets = (i?.cpuSockets ?? 0) > 0
+        ? i!.cpuSockets.toString()
+        : kUnavailableDash;
+    final numaNodes = (i?.cpuNumaNodes ?? 0) > 0
+        ? i!.cpuNumaNodes.toString()
+        : kUnavailableDash;
+    final l1 = i == null
+        ? kUnavailableDash
+        : formatBytesOrDash(i.hasCpuL1Cache, i.cpuL1CacheBytes);
+    final l2 = i == null
+        ? kUnavailableDash
+        : formatBytesOrDash(i.hasCpuL2Cache, i.cpuL2CacheBytes);
+    final l3 = i == null
+        ? kUnavailableDash
+        : formatBytesOrDash(i.hasCpuL3Cache, i.cpuL3CacheBytes);
+    final architecture = orDash(i?.cpuArchitecture);
+    final instructionSet = orDash(i?.cpuInstructionSet);
+    final virtVendor = orDash(i?.cpuVirtualizationVendor);
+    final smt = i == null
+        ? kUnavailableDash
+        : formatBoolOrDash(
+            i.hasCpuSmt,
+            i.cpuSmtEnabled,
+            yes: 'Enabled',
+            no: 'Disabled',
+          );
+    final store = widget.inventory;
+    final selected = store?.selectedPid;
+    final selectedEntry = selected == null ? null : store?.entry(selected);
 
     return Column(
       children: [
@@ -121,8 +243,9 @@ class _CpuPanelBody extends StatelessWidget {
           child: DetailSection(
             title: 'Overview',
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            expandChild: true,
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _UsageGauge(
                   percent: usagePct,
@@ -133,19 +256,66 @@ class _CpuPanelBody extends StatelessWidget {
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: _SpecList(
-                    compact: true,
-                    rows: [
-                      ('Speed', currentMhz),
-                      ('Base Speed', baseMhz),
-                      ('Cores', cores),
-                      ('Logical Processors', threads),
-                      ('Virtualization', virt),
-                      (
-                        'Temperature',
-                        formatTempC(s?.hasCpuTempC ?? false, s?.cpuTempC ?? 0),
-                      ),
-                    ],
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        HealthSpecSection(
+                          compact: true,
+                          rows: [
+                            HealthSpecRow(label: 'Speed', value: currentMhz),
+                            HealthSpecRow(
+                              label: 'Base Speed',
+                              value: baseMhz,
+                            ),
+                            HealthSpecRow(label: 'Cores', value: cores),
+                            HealthSpecRow(
+                              label: 'Logical Processors',
+                              value: threads,
+                            ),
+                            HealthSpecRow(label: 'Sockets', value: sockets),
+                            HealthSpecRow(
+                              label: 'NUMA Nodes',
+                              value: numaNodes,
+                            ),
+                            HealthSpecRow(
+                              label: 'Temperature',
+                              value: formatTempC(
+                                s?.hasCpuTempC ?? false,
+                                s?.cpuTempC ?? 0,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        HealthSpecSection(
+                          title: 'Architecture',
+                          compact: true,
+                          rows: [
+                            HealthSpecRow(
+                              label: 'Architecture',
+                              value: architecture,
+                            ),
+                            HealthSpecRow(
+                              label: 'Instruction Set',
+                              value: instructionSet,
+                            ),
+                            HealthSpecRow(label: 'SMT', value: smt),
+                            HealthSpecRow(
+                              label: 'Virtualization',
+                              value: virt,
+                            ),
+                            HealthSpecRow(
+                              label: 'Virtualization Vendor',
+                              value: virtVendor,
+                            ),
+                            HealthSpecRow(label: 'L1 Cache', value: l1),
+                            HealthSpecRow(label: 'L2 Cache', value: l2),
+                            HealthSpecRow(label: 'L3 Cache', value: l3),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -154,18 +324,36 @@ class _CpuPanelBody extends StatelessWidget {
         ),
         const Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
-          flex: 4,
+          flex: 5,
           child: DetailSection(
-            title: 'Top Processes',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            title: store == null
+                ? 'Processes'
+                : 'Processes (${store.totalCount})',
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
             expandChild: true,
-            child: _ProcessList(
-              processes: s?.topCpu ?? const [],
-              kind: HealthPanelKind.cpu,
-              compact: true,
-            ),
+            child: store == null
+                ? _ProcessList(
+                    processes: s?.topCpu ?? const [],
+                    kind: HealthPanelKind.cpu,
+                    compact: true,
+                  )
+                : ProcessInventoryList(store: store, compact: true),
           ),
         ),
+        if (selectedEntry != null) ...[
+          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          SizedBox(
+            height: 260,
+            child: ProcessDetailPanel(
+              entry: selectedEntry,
+              details: _details,
+              loading: _detailsLoading,
+              error: _detailsError,
+              compact: true,
+              onClose: () => store?.select(null),
+            ),
+          ),
+        ],
         const Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 3,
@@ -191,55 +379,217 @@ class _CpuPanelBody extends StatelessWidget {
   }
 }
 
-class _MemoryPanelBody extends StatelessWidget {
-  const _MemoryPanelBody({required this.view});
+class _MemoryPanelBody extends StatefulWidget {
+  const _MemoryPanelBody({required this.view, this.inventory});
   final HealthViewState view;
+  final ProcessInventoryStore? inventory;
+
+  @override
+  State<_MemoryPanelBody> createState() => _MemoryPanelBodyState();
+}
+
+class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
+  @override
+  void initState() {
+    super.initState();
+    widget.inventory?.addListener(_onInventory);
+  }
+
+  @override
+  void didUpdateWidget(covariant _MemoryPanelBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.inventory != widget.inventory) {
+      oldWidget.inventory?.removeListener(_onInventory);
+      widget.inventory?.addListener(_onInventory);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.inventory?.removeListener(_onInventory);
+    super.dispose();
+  }
+
+  void _onInventory() {
+    if (mounted) setState(() {});
+  }
+
+  ProcessAppGroup? _selectedGroup() {
+    final store = widget.inventory;
+    final pid = store?.selectedPid;
+    if (store == null || pid == null) return null;
+    final groups = AppGroupEngine.build(store);
+    for (final g in groups) {
+      if (g.memberPids.contains(pid)) return g;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final view = widget.view;
     final s = view.sample;
+    final i = view.info;
     final used = s?.memoryUsedBytes ?? 0;
     final total = s?.memoryTotalBytes ?? 0;
     final usagePct = total > 0 ? used * 100.0 / total : null;
     final usedLabel = total > 0
-        ? '${formatBytesBinary(used)} / ${formatBytesBinary(total, fractionDigits: 0)}'
+        ? '${formatMemorySize(used)} / ${formatMemorySize(total)}'
         : kUnavailableDash;
-    final available = (s?.memoryAvailableBytes ?? 0) > 0 || total > 0
-        ? formatBytesBinary(s!.memoryAvailableBytes)
+    final available = s != null && total > 0
+        ? formatMemorySize(s.memoryAvailableBytes)
         : kUnavailableDash;
     final committed = s?.hasMemoryCommitted == true
-        ? '${formatBytesBinary(s!.memoryCommittedBytes)} / ${formatBytesBinary(s.memoryCommitLimitBytes, fractionDigits: 0)}'
+        ? '${formatMemorySize(s!.memoryCommittedBytes)} / ${formatMemorySize(s.memoryCommitLimitBytes)}'
         : kUnavailableDash;
     final cached = s?.hasMemoryCached == true
-        ? formatBytesBinary(s!.memoryCachedBytes)
+        ? formatMemorySize(s!.memoryCachedBytes)
         : kUnavailableDash;
+    final compressed = s?.hasMemoryCompressed == true
+        ? formatMemorySize(s!.memoryCompressedBytes)
+        : kUnavailableDash;
+    final hardwareReserved = s?.hasMemoryHardwareReserved == true
+        ? formatMemorySize(s!.memoryHardwareReservedBytes)
+        : kUnavailableDash;
+    final pagedPool = s?.hasMemoryPagedPool == true
+        ? formatMemorySize(s!.memoryPagedPoolBytes)
+        : kUnavailableDash;
+    final nonpagedPool = s?.hasMemoryNonpagedPool == true
+        ? formatMemorySize(s!.memoryNonpagedPoolBytes)
+        : kUnavailableDash;
+    final pageFaults = s?.hasMemoryPageFaultsPerSec == true
+        ? s!.memoryPageFaultsPerSec.toStringAsFixed(0)
+        : kUnavailableDash;
+
+    final slotsUsed = i == null
+        ? kUnavailableDash
+        : formatCount(i.hasMemSlotsUsed, i.memSlotsUsed);
+    final moduleCount = i == null
+        ? kUnavailableDash
+        : formatCount(i.hasMemModuleCount, i.memModuleCount);
+    final channels = i == null
+        ? kUnavailableDash
+        : formatCount(i.hasMemChannels, i.memChannels);
+    final ddrGeneration = orDash(i?.memDdrGeneration);
+    final speedMhz = i == null || !i.hasMemSpeedMhz || i.memSpeedMhz <= 0
+        ? kUnavailableDash
+        : '${i.memSpeedMhz} MHz';
+    final formFactor = orDash(i?.memFormFactor);
+    final ecc = i == null
+        ? kUnavailableDash
+        : formatBoolOrDash(i.hasMemEcc, i.memEcc);
+    final dimmVendor = orDash(i?.memDimmVendor);
+    final dimmPart = orDash(i?.memDimmPartNumber);
+    final dimmSerial = orDash(i?.memDimmSerial);
+
+    final store = widget.inventory;
+    final selectedGroup = _selectedGroup();
 
     return Column(
       children: [
         Expanded(
-          flex: 5,
+          flex: 4,
           child: DetailSection(
             title: 'Overview',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+            expandChild: true,
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _UsageGauge(
                   percent: usagePct,
                   label: usagePct != null
-                      ? '${usagePct.toStringAsFixed(0)}% Usage'
-                      : 'Usage',
+                      ? '${usagePct.toStringAsFixed(0)}% In use'
+                      : 'In use',
                   compact: true,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: _SpecList(
-                    compact: true,
-                    rows: [
-                      ('Used / Total', usedLabel),
-                      ('Available', available),
-                      ('Committed', committed),
-                      ('Cached', cached),
-                    ],
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        HealthSpecSection(
+                          compact: true,
+                          rows: [
+                            HealthSpecRow(
+                              label: 'Used / Total',
+                              value: usedLabel,
+                            ),
+                            HealthSpecRow(
+                              label: 'Available',
+                              value: available,
+                            ),
+                            HealthSpecRow(
+                              label: 'Committed',
+                              value: committed,
+                            ),
+                            HealthSpecRow(label: 'Cached', value: cached),
+                            HealthSpecRow(
+                              label: 'Memory Compression',
+                              value: compressed,
+                            ),
+                            HealthSpecRow(
+                              label: 'Hardware Reserved',
+                              value: hardwareReserved,
+                            ),
+                            HealthSpecRow(
+                              label: 'Paged Pool',
+                              value: pagedPool,
+                            ),
+                            HealthSpecRow(
+                              label: 'Non-paged Pool',
+                              value: nonpagedPool,
+                            ),
+                            HealthSpecRow(
+                              label: 'Page Faults/sec',
+                              value: pageFaults,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        HealthSpecSection(
+                          title: 'Modules',
+                          compact: true,
+                          rows: [
+                            HealthSpecRow(
+                              label: 'Slots Used',
+                              value: slotsUsed,
+                            ),
+                            HealthSpecRow(
+                              label: 'Module Count',
+                              value: moduleCount,
+                            ),
+                            HealthSpecRow(
+                              label: 'Channels',
+                              value: channels,
+                            ),
+                            HealthSpecRow(
+                              label: 'Generation',
+                              value: ddrGeneration,
+                            ),
+                            HealthSpecRow(label: 'Speed', value: speedMhz),
+                            HealthSpecRow(
+                              label: 'Form Factor',
+                              value: formFactor,
+                            ),
+                            HealthSpecRow(label: 'ECC', value: ecc),
+                            HealthSpecRow(
+                              label: 'DIMM Vendor',
+                              value: dimmVendor,
+                            ),
+                            HealthSpecRow(
+                              label: 'DIMM Part Number',
+                              value: dimmPart,
+                            ),
+                            HealthSpecRow(
+                              label: 'DIMM Serial',
+                              value: dimmSerial,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -248,24 +598,45 @@ class _MemoryPanelBody extends StatelessWidget {
         ),
         const Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
-          flex: 4,
+          flex: 6,
           child: DetailSection(
-            title: 'Top Processes',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            title: store == null
+                ? 'Processes'
+                : 'Processes (${store.totalCount})',
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
             expandChild: true,
-            child: _ProcessList(
-              processes: s?.topMemory ?? const [],
-              kind: HealthPanelKind.memory,
-              compact: true,
-            ),
+            child: store == null
+                ? _ProcessList(
+                    processes: s?.topMemory ?? const [],
+                    kind: HealthPanelKind.memory,
+                    compact: true,
+                  )
+                : ProcessInventoryList(
+                    store: store,
+                    compact: true,
+                    groupSort: ProcessGroupSort.memoryDescending,
+                    memoryFormat: true,
+                  ),
           ),
         ),
+        if (selectedGroup != null) ...[
+          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          SizedBox(
+            height: 220,
+            child: MemoryAppDetailPanel(
+              group: selectedGroup,
+              store: store!,
+              compact: true,
+              onClose: () => store.select(null),
+            ),
+          ),
+        ],
         const Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
-          flex: 3,
+          flex: 2,
           child: DetailSection(
             title: 'Memory History',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             expandChild: true,
             child: _HistorySparkline(
               values: view.memoryHistory,
@@ -287,78 +658,494 @@ class _GpuPanelBody extends StatelessWidget {
     final s = view.sample;
     final i = view.info;
     final usagePct = s != null && s.hasGpuPercent ? s.gpuPercent : null;
-    final dedicated = (i?.gpuDedicatedBytes ?? 0) > 0
-        ? formatBytesBinary(i!.gpuDedicatedBytes, fractionDigits: 0)
-        : kUnavailableDash;
-    final shared = (i?.gpuSharedBytes ?? 0) > 0
-        ? formatBytesBinary(i!.gpuSharedBytes, fractionDigits: 0)
-        : kUnavailableDash;
+
+    final dedicatedCapacity = i?.gpuDedicatedBytes ?? 0;
+    final sharedCapacity = i?.gpuSharedBytes ?? 0;
+    final totalCapacity = dedicatedCapacity + sharedCapacity;
+    final dedicatedUsedBytes = s?.gpuDedicatedUsedBytes ?? 0;
+    final sharedUsedBytes = s?.gpuSharedUsedBytes ?? 0;
+    final hasDedicatedUsed = s?.hasGpuDedicatedUsed ?? false;
+    final hasSharedUsed = s?.hasGpuSharedUsed ?? false;
+
+    final engineHistories = <(String, List<double>)>[
+      if (view.gpu3dHistory.isNotEmpty) ('3D', view.gpu3dHistory),
+      if (view.gpuComputeHistory.isNotEmpty) ('Compute', view.gpuComputeHistory),
+      if (view.gpuCopyHistory.isNotEmpty) ('Copy', view.gpuCopyHistory),
+      if (view.gpuDecodeHistory.isNotEmpty) ('Decode', view.gpuDecodeHistory),
+      if (view.gpuEncodeHistory.isNotEmpty) ('Encode', view.gpuEncodeHistory),
+      if (view.gpuDedicatedUsedHistory.isNotEmpty)
+        ('VRAM Ded.', view.gpuDedicatedUsedHistory),
+      if (view.gpuSharedUsedHistory.isNotEmpty)
+        ('VRAM Shared', view.gpuSharedUsedHistory),
+    ];
 
     return Column(
       children: [
         Expanded(
-          flex: 5,
+          flex: 7,
           child: DetailSection(
             title: 'Overview',
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            child: Row(
-              children: [
-                _UsageGauge(
-                  percent: usagePct,
-                  label: usagePct != null
-                      ? '${usagePct.toStringAsFixed(0)}% Usage'
-                      : 'Usage',
-                  compact: true,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: _SpecList(
-                    compact: true,
-                    rows: [
-                      (
-                        'Usage',
-                        usagePct != null
-                            ? '${usagePct.toStringAsFixed(1)} %'
-                            : kUnavailableDash,
+            expandChild: true,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _UsageGauge(
+                        percent: usagePct,
+                        label: usagePct != null
+                            ? '${usagePct.toStringAsFixed(0)}% Usage'
+                            : 'Usage',
+                        compact: true,
                       ),
-                      ('Dedicated VRAM', dedicated),
-                      ('Shared Memory', shared),
-                      (
-                        'Temperature',
-                        formatTempC(s?.hasGpuTempC ?? false, s?.gpuTempC ?? 0),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: HealthSpecSection(
+                          compact: true,
+                          rows: [
+                            HealthSpecRow(
+                              label: 'GPU Name',
+                              value: orDash(i?.gpuModel),
+                            ),
+                            HealthSpecRow(
+                              label: 'Vendor',
+                              value: orDash(i?.gpuVendor),
+                            ),
+                            HealthSpecRow(
+                              label: 'Driver Version',
+                              value: orDash(i?.gpuDriverVersion),
+                            ),
+                            HealthSpecRow(
+                              label: 'Driver Date',
+                              value: orDash(i?.gpuDriverDate),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 14),
+                  HealthSpecSection(
+                    title: 'Utilization',
+                    compact: true,
+                    rows: [
+                      HealthSpecRow(
+                        label: 'Overall',
+                        value: formatPercentOrDash(
+                          s?.hasGpuPercent ?? false,
+                          s?.gpuPercent ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: '3D',
+                        value: formatPercentOrNotSupported(
+                          s?.hasGpuUtil3d ?? false,
+                          s?.gpuUtil3d ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Compute',
+                        value: formatPercentOrNotSupported(
+                          s?.hasGpuUtilCompute ?? false,
+                          s?.gpuUtilCompute ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Copy',
+                        value: formatPercentOrNotSupported(
+                          s?.hasGpuUtilCopy ?? false,
+                          s?.gpuUtilCopy ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Video Decode',
+                        value: formatPercentOrNotSupported(
+                          s?.hasGpuUtilVideoDecode ?? false,
+                          s?.gpuUtilVideoDecode ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Video Encode',
+                        value: formatPercentOrNotSupported(
+                          s?.hasGpuUtilVideoEncode ?? false,
+                          s?.gpuUtilVideoEncode ?? 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  HealthSpecSection(
+                    title: 'Memory',
+                    compact: true,
+                    rows: [
+                      HealthSpecRow(
+                        label: 'Dedicated VRAM',
+                        value: dedicatedCapacity > 0
+                            ? formatBytesBinary(
+                                dedicatedCapacity,
+                                fractionDigits: 0,
+                              )
+                            : kUnavailableDash,
+                      ),
+                      HealthSpecRow(
+                        label: 'Shared Memory',
+                        value: sharedCapacity > 0
+                            ? formatBytesBinary(
+                                sharedCapacity,
+                                fractionDigits: 0,
+                              )
+                            : kUnavailableDash,
+                      ),
+                      HealthSpecRow(
+                        label: 'Total VRAM',
+                        value: totalCapacity > 0
+                            ? formatBytesBinary(
+                                totalCapacity,
+                                fractionDigits: 0,
+                              )
+                            : kUnavailableDash,
+                      ),
+                      HealthSpecRow(
+                        label: 'Dedicated Used',
+                        value: formatBytesOrDash(
+                          hasDedicatedUsed,
+                          dedicatedUsedBytes,
+                        ),
+                        description: hasDedicatedUsed
+                            ? _vramUsagePercent(
+                                dedicatedUsedBytes,
+                                dedicatedCapacity,
+                              )
+                            : null,
+                      ),
+                      HealthSpecRow(
+                        label: 'Shared Used',
+                        value: formatBytesOrDash(
+                          hasSharedUsed,
+                          sharedUsedBytes,
+                        ),
+                        description: hasSharedUsed
+                            ? _vramUsagePercent(
+                                sharedUsedBytes,
+                                sharedCapacity,
+                              )
+                            : null,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  HealthSpecSection(
+                    title: 'Clocks & Sensors',
+                    compact: true,
+                    rows: [
+                      HealthSpecRow(
+                        label: 'Core Clock',
+                        value: formatMhzOrNotSupported(
+                          s?.hasGpuClockMhz ?? false,
+                          s?.gpuClockMhz ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Memory Clock',
+                        value: formatMhzOrNotSupported(
+                          s?.hasGpuMemoryClockMhz ?? false,
+                          s?.gpuMemoryClockMhz ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Fan Speed',
+                        value: formatRpm(
+                          s?.hasGpuFanRpm ?? false,
+                          s?.gpuFanRpm ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Power',
+                        value: formatPercentOrNotSupported(
+                          s?.hasGpuPowerPercent ?? false,
+                          s?.gpuPowerPercent ?? 0,
+                        ),
+                      ),
+                      const HealthSpecRow(
+                        label: 'Power Usage (W)',
+                        value: kNotSupported,
+                      ),
+                      HealthSpecRow(
+                        label: 'Temperature',
+                        value: formatTempC(
+                          s?.hasGpuTempC ?? false,
+                          s?.gpuTempC ?? 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  HealthSpecSection(
+                    title: 'Adapter',
+                    compact: true,
+                    rows: [
+                      HealthSpecRow(
+                        label: 'DirectX',
+                        value: orDash(i?.gpuDirectxVersion),
+                      ),
+                      HealthSpecRow(
+                        label: 'WDDM',
+                        value: orDash(i?.gpuWddmVersion),
+                      ),
+                      HealthSpecRow(
+                        label: 'Hardware Scheduling',
+                        value: i == null
+                            ? kUnavailableDash
+                            : formatBoolOrDash(
+                                i.hasGpuHardwareScheduling,
+                                i.gpuHardwareScheduling,
+                                yes: 'Enabled',
+                                no: 'Disabled',
+                              ),
+                      ),
+                      HealthSpecRow(
+                        label: 'PCIe Speed',
+                        value: orDash(i?.gpuPcieLinkSpeed),
+                      ),
+                      HealthSpecRow(
+                        label: 'PCIe Width',
+                        value: orDash(i?.gpuPcieLinkWidth),
+                      ),
+                      HealthSpecRow(
+                        label: 'Adapter LUID',
+                        value: i != null && i.hasGpuLuid
+                            ? _formatGpuLuid(i.gpuLuidHigh, i.gpuLuidLow)
+                            : kUnavailableDash,
+                      ),
+                      const HealthSpecRow(
+                        label: 'Resizable BAR',
+                        value: kNotSupported,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
+          ),
+        ),
+        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Expanded(
+          flex: 6,
+          child: DetailSection(
+            title: 'Processes',
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+            expandChild: true,
+            child: _GpuProcessList(processes: s?.topGpu ?? const []),
           ),
         ),
         const Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 4,
           child: DetailSection(
-            title: 'Top Processes',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            expandChild: true,
-            child: _ProcessList(
-              processes: s?.topGpu ?? const [],
-              kind: HealthPanelKind.gpu,
-              compact: true,
-            ),
-          ),
-        ),
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 3,
-          child: DetailSection(
-            title: 'GPU History',
+            title: engineHistories.isNotEmpty
+                ? 'GPU History (By Engine)'
+                : 'GPU History',
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             expandChild: true,
-            child: _HistorySparkline(
-              values: view.gpuHistory,
-              fillHeight: true,
+            child: engineHistories.isNotEmpty
+                ? _CoreHistoryGrid(
+                    histories: [
+                      for (final e in engineHistories) e.$2,
+                    ],
+                    labels: [
+                      for (final e in engineHistories) e.$1,
+                    ],
+                    compact: true,
+                  )
+                : _HistorySparkline(
+                    values: view.gpuHistory,
+                    fillHeight: true,
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// GPU adapter LUID formatted as a hex pair (high:low), matching how
+/// Windows tooling (e.g. dxdiag) presents `LUID` values.
+String _formatGpuLuid(int high, int low) {
+  String hex(int v) =>
+      (v & 0xFFFFFFFF).toRadixString(16).padLeft(8, '0').toUpperCase();
+  return '${hex(high)}:${hex(low)}';
+}
+
+String? _vramUsagePercent(int usedBytes, int capacityBytes) {
+  if (capacityBytes <= 0) return null;
+  final pct = usedBytes * 100.0 / capacityBytes;
+  return '${pct.toStringAsFixed(0)}% of capacity';
+}
+
+/// Per-process GPU table: name, GPU %, dedicated/shared VRAM, engine, PID.
+class _GpuProcessList extends StatelessWidget {
+  const _GpuProcessList({required this.processes});
+  final List<HealthProcessEntry> processes;
+
+  @override
+  Widget build(BuildContext context) {
+    if (processes.isEmpty) {
+      return Text(
+        kUnavailableDash,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: PulseTokens.textDisabled,
             ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _GpuProcessHeader(),
+        const SizedBox(height: 4),
+        Expanded(
+          child: ListView.separated(
+            itemCount: processes.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 6),
+            itemBuilder: (context, index) =>
+                _GpuProcessRow(entry: processes[index]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GpuProcessHeader extends StatelessWidget {
+  const _GpuProcessHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: PulseTokens.textDisabled,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+        );
+    return Row(
+      children: [
+        const Expanded(child: SizedBox.shrink()),
+        SizedBox(
+          width: 44,
+          child: Text('GPU', textAlign: TextAlign.right, style: style),
+        ),
+        SizedBox(
+          width: 52,
+          child: Text('Ded.', textAlign: TextAlign.right, style: style),
+        ),
+        SizedBox(
+          width: 52,
+          child: Text('Shared', textAlign: TextAlign.right, style: style),
+        ),
+        SizedBox(
+          width: 54,
+          child: Text('Engine', textAlign: TextAlign.right, style: style),
+        ),
+        SizedBox(
+          width: 38,
+          child: Text('PID', textAlign: TextAlign.right, style: style),
+        ),
+      ],
+    );
+  }
+}
+
+class _GpuProcessRow extends StatelessWidget {
+  const _GpuProcessRow({required this.entry});
+  final HealthProcessEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = entry.name.trim().isEmpty ? kUnavailableDash : entry.name;
+    final gpuPct = entry.hasGpuPercent
+        ? '${entry.gpuPercent.toStringAsFixed(1)}%'
+        : kUnavailableDash;
+    final dedicated = entry.hasGpuDedicatedBytes
+        ? formatBytesBinary(entry.gpuDedicatedBytes, fractionDigits: 0)
+        : kUnavailableDash;
+    final shared = entry.hasGpuSharedBytes
+        ? formatBytesBinary(entry.gpuSharedBytes, fractionDigits: 0)
+        : kUnavailableDash;
+    final engine = orDash(entry.gpuEngine);
+    final pid = entry.pid > 0 ? entry.pid.toString() : kUnavailableDash;
+    final valueStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: PulseTokens.textSecondary,
+          fontSize: 11.5,
+        );
+    final mutedStyle = valueStyle?.copyWith(color: PulseTokens.textTertiary);
+
+    return Row(
+      children: [
+        ProcessAppIcon(path: entry.path, name: name, pid: entry.pid, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: PulseTokens.textPrimary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 44,
+          child: Text(
+            gpuPct,
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: valueStyle,
+          ),
+        ),
+        SizedBox(
+          width: 52,
+          child: Text(
+            dedicated,
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: valueStyle,
+          ),
+        ),
+        SizedBox(
+          width: 52,
+          child: Text(
+            shared,
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: valueStyle,
+          ),
+        ),
+        SizedBox(
+          width: 54,
+          child: Text(
+            engine,
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: mutedStyle,
+          ),
+        ),
+        SizedBox(
+          width: 38,
+          child: Text(
+            pid,
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: mutedStyle,
           ),
         ),
       ],
@@ -413,6 +1200,38 @@ class _DiskPanelBody extends StatelessWidget {
         ),
     ];
 
+    final driveInfoRows = [
+      HealthSpecRow(label: 'Interface', value: orDash(i?.diskInterface)),
+      HealthSpecRow(label: 'Bus', value: orDash(i?.diskBus)),
+      HealthSpecRow(label: 'Model', value: orDash(i?.diskModel)),
+      HealthSpecRow(label: 'Serial Number', value: orDash(i?.diskSerial)),
+      HealthSpecRow(label: 'Firmware', value: orDash(i?.diskFirmware)),
+      HealthSpecRow(
+        label: 'Partition Style',
+        value: orDash(i?.diskPartitionStyle),
+      ),
+      HealthSpecRow(
+        label: 'Sector Size',
+        value: i == null
+            ? kUnavailableDash
+            : (i.hasDiskSectorSize
+                ? formatBytesBinary(i.diskSectorSize, fractionDigits: 0)
+                : kUnavailableDash),
+      ),
+      HealthSpecRow(
+        label: 'Rotation',
+        value: i == null
+            ? kUnavailableDash
+            : formatRotationRate(i.hasDiskRotationRate, i.diskRotationRate),
+      ),
+      HealthSpecRow(
+        label: 'TRIM',
+        value: i == null
+            ? kUnavailableDash
+            : formatSupportOrDash(i.hasDiskTrim, i.diskTrimSupported),
+      ),
+    ];
+
     return Column(
       children: [
         Expanded(
@@ -442,6 +1261,18 @@ class _DiskPanelBody extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Expanded(
+          flex: 4,
+          child: DetailSection(
+            title: 'Drive',
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            expandChild: true,
+            child: SingleChildScrollView(
+              child: HealthSpecSection(compact: true, rows: driveInfoRows),
             ),
           ),
         ),
@@ -513,61 +1344,374 @@ class _NetworkPanelBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = view.sample;
-    final adapter = view.info?.activeNetworkAdapter.trim() ?? '';
-    String orDash(String v) => v.trim().isEmpty ? kUnavailableDash : v.trim();
-    final download = s?.hasNetDownloadBps == true
+    final i = view.info;
+    final adapter = i?.activeNetworkAdapter.trim() ?? '';
+    final downloadValue = s?.hasNetDownloadBps == true
         ? formatThroughputBps(s!.netDownloadBps)
         : kUnavailableDash;
-    final upload = s?.hasNetUploadBps == true
+    final uploadValue = s?.hasNetUploadBps == true
         ? formatThroughputBps(s!.netUploadBps)
         : kUnavailableDash;
+
+    final hasWifi = (s?.netSsid.trim().isNotEmpty ?? false) ||
+        (s?.netWifiChannel.trim().isNotEmpty ?? false) ||
+        (s?.hasNetSignalPercent ?? false);
 
     return Column(
       children: [
         Expanded(
           flex: 5,
           child: DetailSection(
+            title: 'Live',
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            expandChild: true,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _NetworkHeroValues(
+                    download: downloadValue,
+                    upload: uploadValue,
+                  ),
+                  const SizedBox(height: 14),
+                  HealthSpecSection(
+                    compact: true,
+                    rows: [
+                      HealthSpecRow(
+                        label: 'Peak Download',
+                        value: s?.hasNetPeakDownloadBps == true
+                            ? formatThroughputBps(s!.netPeakDownloadBps)
+                            : kUnavailableDash,
+                      ),
+                      HealthSpecRow(
+                        label: 'Peak Upload',
+                        value: s?.hasNetPeakUploadBps == true
+                            ? formatThroughputBps(s!.netPeakUploadBps)
+                            : kUnavailableDash,
+                      ),
+                      HealthSpecRow(
+                        label: 'Average Download',
+                        value: s?.hasNetAvgDownloadBps == true
+                            ? formatThroughputBps(s!.netAvgDownloadBps)
+                            : kUnavailableDash,
+                      ),
+                      HealthSpecRow(
+                        label: 'Average Upload',
+                        value: s?.hasNetAvgUploadBps == true
+                            ? formatThroughputBps(s!.netAvgUploadBps)
+                            : kUnavailableDash,
+                      ),
+                      HealthSpecRow(
+                        label: 'Utilization',
+                        value: formatPercentOrDash(
+                          s?.hasNetUtilizationPercent ?? false,
+                          s?.netUtilizationPercent ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Connection Time',
+                        value: formatConnectionDuration(
+                          s?.hasNetConnectionMs ?? false,
+                          s?.netConnectionMs ?? 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Expanded(
+          flex: 8,
+          child: DetailSection(
             title: 'Overview',
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
             expandChild: true,
-            child: Column(
-              children: [
-                _NetworkHeroValues(download: download, upload: upload),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: _SpecList(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  HealthSpecSection(
+                    title: 'Adapter',
                     compact: true,
                     rows: [
-                      (
-                        'Adapter',
-                        adapter.isEmpty ? kUnavailableDash : adapter,
+                      HealthSpecRow(
+                        label: 'Adapter',
+                        value: adapter.isEmpty ? kUnavailableDash : adapter,
                       ),
-                      ('IPv4', orDash(s?.ipv4 ?? '')),
-                      ('IPv6', orDash(s?.ipv6 ?? '')),
-                      ('Gateway', orDash(s?.gateway ?? '')),
-                      ('DNS', orDash(s?.dns ?? '')),
+                      HealthSpecRow(
+                        label: 'Manufacturer',
+                        value: orDash(i?.netManufacturer),
+                      ),
+                      HealthSpecRow(
+                        label: 'Description',
+                        value: orDash(i?.netDescription),
+                      ),
+                      HealthSpecRow(
+                        label: 'MAC Address',
+                        value: orDash(i?.netMacAddress),
+                      ),
+                      HealthSpecRow(
+                        label: 'Driver Version',
+                        value: orDash(i?.netDriverVersion),
+                      ),
+                      HealthSpecRow(
+                        label: 'Driver Date',
+                        value: orDash(i?.netDriverDate),
+                      ),
                     ],
+                  ),
+                  const SizedBox(height: 14),
+                  HealthSpecSection(
+                    title: 'Connection',
+                    compact: true,
+                    rows: [
+                      HealthSpecRow(
+                        label: 'Link Speed',
+                        value: i == null
+                            ? kUnavailableDash
+                            : formatLinkSpeedBps(
+                                i.hasNetLinkSpeedBps,
+                                i.netLinkSpeedBps,
+                              ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Connection Type',
+                        value: orDash(i?.netConnectionType),
+                      ),
+                      HealthSpecRow(
+                        label: 'Duplex',
+                        value: orDash(i?.netDuplex),
+                      ),
+                      HealthSpecRow(
+                        label: 'MTU',
+                        value: i == null
+                            ? kUnavailableDash
+                            : formatCount(i.hasNetMtu, i.netMtu),
+                      ),
+                      HealthSpecRow(
+                        label: 'Interface Index',
+                        value: i == null
+                            ? kUnavailableDash
+                            : formatCount(i.hasNetIfIndex, i.netIfIndex),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  HealthSpecSection(
+                    title: 'Addressing',
+                    compact: true,
+                    rows: [
+                      HealthSpecRow(
+                        label: 'IPv4',
+                        value: orDash(s?.ipv4),
+                      ),
+                      HealthSpecRow(
+                        label: 'IPv6',
+                        value: orDash(s?.ipv6),
+                      ),
+                      HealthSpecRow(
+                        label: 'Gateway',
+                        value: orDash(s?.gateway),
+                      ),
+                      HealthSpecRow(
+                        label: 'DNS',
+                        value: orDash(s?.dns),
+                      ),
+                      HealthSpecRow(
+                        label: 'DHCP',
+                        value: i == null
+                            ? kUnavailableDash
+                            : formatBoolOrDash(
+                                i.hasNetDhcp,
+                                i.netDhcpEnabled,
+                                yes: 'Enabled',
+                                no: 'Disabled',
+                              ),
+                      ),
+                      HealthSpecRow(
+                        label: 'DHCP Server',
+                        value: orDash(i?.netDhcpServer),
+                      ),
+                      HealthSpecRow(
+                        label: 'Lease Obtained',
+                        value: i == null
+                            ? kUnavailableDash
+                            : formatUnixMsDateTime(
+                                i.hasNetLeaseObtained,
+                                i.netLeaseObtainedUnixMs,
+                              ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Lease Expires',
+                        value: i == null
+                            ? kUnavailableDash
+                            : formatUnixMsDateTime(
+                                i.hasNetLeaseExpires,
+                                i.netLeaseExpiresUnixMs,
+                              ),
+                      ),
+                    ],
+                  ),
+                  if (hasWifi) ...[
+                    const SizedBox(height: 14),
+                    HealthSpecSection(
+                      title: 'Wireless',
+                      compact: true,
+                      rows: [
+                        HealthSpecRow(
+                          label: 'SSID',
+                          value: orDash(s?.netSsid),
+                        ),
+                        HealthSpecRow(
+                          label: 'Signal',
+                          value: s?.hasNetSignalPercent == true
+                              ? '${s!.netSignalPercent.toStringAsFixed(0)}%'
+                              : kUnavailableDash,
+                        ),
+                        HealthSpecRow(
+                          label: 'Channel',
+                          value: orDash(s?.netWifiChannel),
+                        ),
+                        HealthSpecRow(
+                          label: 'Frequency',
+                          value: orDash(s?.netWifiFrequency),
+                        ),
+                        HealthSpecRow(
+                          label: 'Security',
+                          value: orDash(s?.netWifiSecurity),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  HealthSpecSection(
+                    title: 'Traffic',
+                    compact: true,
+                    rows: [
+                      HealthSpecRow(
+                        label: 'Bytes Sent',
+                        value: formatBytesOrDash(
+                          s?.hasNetBytesSent ?? false,
+                          s?.netBytesSent ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Bytes Received',
+                        value: formatBytesOrDash(
+                          s?.hasNetBytesReceived ?? false,
+                          s?.netBytesReceived ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Packets Sent',
+                        value: formatCount(
+                          s?.hasNetPacketsSent ?? false,
+                          s?.netPacketsSent ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Packets Received',
+                        value: formatCount(
+                          s?.hasNetPacketsReceived ?? false,
+                          s?.netPacketsReceived ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Errors',
+                        value: formatCount(
+                          s?.hasNetErrors ?? false,
+                          s?.netErrors ?? 0,
+                        ),
+                      ),
+                      HealthSpecRow(
+                        label: 'Drops',
+                        value: formatCount(
+                          s?.hasNetDrops ?? false,
+                          s?.netDrops ?? 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Expanded(
+          flex: 3,
+          child: DetailSection(
+            title: 'Processes',
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            expandChild: true,
+            child: const _NetworkProcessesPlaceholder(),
+          ),
+        ),
+        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Expanded(
+          flex: 3,
+          child: DetailSection(
+            title: 'Activity',
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            expandChild: true,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _MiniCoreSparkline(
+                    label: 'Download',
+                    values: view.downloadHistory,
+                    compact: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MiniCoreSparkline(
+                    label: 'Upload',
+                    values: view.uploadHistory,
+                    compact: true,
                   ),
                 ),
               ],
             ),
           ),
         ),
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 5,
-          child: DetailSection(
-            title: 'Top Processes',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            expandChild: true,
-            child: _ProcessList(
-              processes: s?.topNetwork ?? const [],
-              kind: HealthPanelKind.network,
-              compact: true,
+      ],
+    );
+  }
+}
+
+/// Per-process network attribution requires the ETW milestone; the topology
+/// exists in the wire format but no collector populates it yet.
+class _NetworkProcessesPlaceholder extends StatelessWidget {
+  const _NetworkProcessesPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Per-process network not available yet.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: PulseTokens.textTertiary,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(
+            'Requires ETW milestone',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: PulseTokens.textDisabled,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1048,10 +2192,14 @@ class _ProcessRow extends StatelessWidget {
 class _CoreHistoryGrid extends StatelessWidget {
   const _CoreHistoryGrid({
     required this.histories,
+    this.labels,
     this.compact = false,
   });
 
   final List<List<double>> histories;
+
+  /// Custom tile labels (e.g. GPU engine names); defaults to "Core N".
+  final List<String>? labels;
   final bool compact;
 
   @override
@@ -1102,7 +2250,9 @@ class _CoreHistoryGrid extends StatelessWidget {
                 width: tileWidth,
                 height: tileHeight,
                 child: _MiniCoreSparkline(
-                  label: 'Core ${i + 1}',
+                  label: labels != null && i < labels!.length
+                      ? labels![i]
+                      : 'Core ${i + 1}',
                   values: histories[i],
                   compact: compact,
                 ),
@@ -1235,6 +2385,7 @@ class HealthDetailsHost extends StatelessWidget {
     required this.kind,
     required this.view,
     required this.onClose,
+    this.processInventory,
   });
 
   final bool expanded;
@@ -1242,6 +2393,7 @@ class HealthDetailsHost extends StatelessWidget {
   final HealthPanelKind? kind;
   final HealthViewState view;
   final VoidCallback onClose;
+  final ProcessInventoryStore? processInventory;
 
   @override
   Widget build(BuildContext context) {
@@ -1276,6 +2428,7 @@ class HealthDetailsHost extends StatelessWidget {
                       kind: kind!,
                       view: view,
                       onClose: onClose,
+                      processInventory: processInventory,
                     ),
                   ),
                 ),

@@ -62,7 +62,7 @@ class IpcServer {
   void EnableHealthForClient(const std::shared_ptr<ClientConnection>& conn);
   void DisableHealthForClient(const std::shared_ptr<ClientConnection>& conn);
   void HealthPushLoop();
-  void PushHealthUpdate(const ipc::HealthSample& sample);
+  void PushHealthUpdate(const ipc::HealthUpdate& update);
 
   ipc::DiagnosticsSnapshot BuildDiagnosticsSnapshot();
   void FillServiceProcessMetrics(ipc::DiagnosticsSnapshot* out);

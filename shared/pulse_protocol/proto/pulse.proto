@@ -123,6 +123,82 @@ message HealthStaticInfo {
   bool cpu_virtualization_enabled = 12;
   uint64 gpu_dedicated_bytes = 13;
   uint64 gpu_shared_bytes = 14;
+  // CPU topology / identity (GetLogicalProcessorInformationEx + CPUID)
+  string cpu_architecture = 15;          // x64 / x86 / ARM64
+  string cpu_instruction_set = 16;       // e.g. SSE4.2 AVX2
+  uint32 cpu_numa_nodes = 17;
+  bool has_cpu_smt = 18;
+  bool cpu_smt_enabled = 19;
+  bool has_cpu_l1_cache = 20;
+  uint64 cpu_l1_cache_bytes = 21;
+  bool has_cpu_l2_cache = 22;
+  uint64 cpu_l2_cache_bytes = 23;
+  bool has_cpu_l3_cache = 24;
+  uint64 cpu_l3_cache_bytes = 25;
+  string cpu_virtualization_vendor = 26; // Hyper-V / VMware / …
+  // GPU identity (DXGI + SetupAPI + D3DKMT + registry)
+  string gpu_vendor = 27;
+  string gpu_driver_version = 28;
+  string gpu_driver_date = 29;
+  bool has_gpu_luid = 30;
+  int32 gpu_luid_high = 31;
+  uint32 gpu_luid_low = 32;
+  string gpu_directx_version = 33;       // feature level e.g. 12_2
+  string gpu_wddm_version = 34;
+  bool has_gpu_hardware_scheduling = 35;
+  bool gpu_hardware_scheduling = 36;
+  string gpu_pcie_link_speed = 37;       // Gen3 / Gen4 …
+  string gpu_pcie_link_width = 38;       // x8 / x16 …
+  // Network adapter identity (IP Helper + SetupAPI + WLAN)
+  string net_manufacturer = 39;
+  string net_description = 40;
+  string net_mac_address = 41;
+  string net_driver_version = 42;
+  string net_driver_date = 43;
+  string net_connection_type = 44;       // Ethernet / Wi-Fi / …
+  string net_duplex = 45;
+  bool has_net_mtu = 46;
+  uint32 net_mtu = 47;
+  bool has_net_if_index = 48;
+  uint32 net_if_index = 49;
+  bool has_net_link_speed_bps = 50;
+  uint64 net_link_speed_bps = 51;
+  bool has_net_dhcp = 52;
+  bool net_dhcp_enabled = 53;
+  string net_dhcp_server = 54;
+  bool has_net_lease_obtained = 55;
+  int64 net_lease_obtained_unix_ms = 56;
+  bool has_net_lease_expires = 57;
+  int64 net_lease_expires_unix_ms = 58;
+  // Memory modules (SMBIOS Type 17) — unset when unavailable
+  bool has_mem_slots_used = 59;
+  uint32 mem_slots_used = 60;
+  bool has_mem_module_count = 61;
+  uint32 mem_module_count = 62;
+  string mem_ddr_generation = 63;
+  bool has_mem_speed_mhz = 64;
+  uint32 mem_speed_mhz = 65;
+  string mem_form_factor = 66;
+  bool has_mem_ecc = 67;
+  bool mem_ecc = 68;
+  bool has_mem_channels = 69;
+  uint32 mem_channels = 70;
+  string mem_dimm_vendor = 71;
+  string mem_dimm_part_number = 72;
+  string mem_dimm_serial = 73;
+  // Primary disk identity (Storage IOCTL) — unset when unavailable
+  string disk_interface = 74;
+  string disk_bus = 75;
+  string disk_model = 76;
+  string disk_serial = 77;
+  string disk_firmware = 78;
+  string disk_partition_style = 79;
+  bool has_disk_sector_size = 80;
+  uint32 disk_sector_size = 81;
+  bool has_disk_rotation_rate = 82;
+  uint32 disk_rotation_rate = 83;        // 0 = SSD / non-rotating when known
+  bool has_disk_trim = 84;
+  bool disk_trim_supported = 85;
 }
 
 // Top process row for health detail panels (TASK-007.2).
@@ -144,6 +220,66 @@ message HealthProcessEntry {
   string path = 13; // full image path for icons (optional)
   uint32 thread_count = 14;
   uint32 handle_count = 15;
+  bool has_create_time = 16;
+  uint64 create_time_unix_ms = 17;
+  bool has_is_critical = 18;
+  bool is_critical = 19;
+  // Memory panel enrichment (SPI) — private WS remains memory_bytes.
+  bool has_working_set_bytes = 20;
+  uint64 working_set_bytes = 21;       // total WorkingSetSize
+  bool has_commit_bytes = 22;
+  uint64 commit_bytes = 23;            // PagefileUsage (Commit Size)
+  bool has_paged_pool_bytes = 24;
+  uint64 paged_pool_bytes = 25;        // QuotaPagedPoolUsage
+  bool has_nonpaged_pool_bytes = 26;
+  uint64 nonpaged_pool_bytes = 27;     // QuotaNonPagedPoolUsage
+  // GPU process enrichment (PDH GPU Engine + GPU Process Memory)
+  bool has_gpu_dedicated_bytes = 28;
+  uint64 gpu_dedicated_bytes = 29;
+  bool has_gpu_shared_bytes = 30;
+  uint64 gpu_shared_bytes = 31;
+  string gpu_engine = 32;              // engtype label e.g. 3D, Compute
+}
+
+// Full / delta process inventory for Task Manager–style CPU panel.
+message HealthProcessInventoryUpdate {
+  uint64 seq = 1;
+  bool full_resync = 2;
+  repeated HealthProcessEntry upserts = 3;
+  repeated uint32 removed_pids = 4;
+}
+
+message GetProcessDetails {
+  uint32 pid = 1;
+}
+
+message ProcessDetails {
+  uint32 pid = 1;
+  string name = 2;
+  string path = 3;
+  string company = 4; // publisher / CompanyName from version resources
+  string command_line = 5;
+  bool has_create_time = 6;
+  uint64 create_time_unix_ms = 7;
+  uint32 thread_count = 8;
+  uint32 handle_count = 9;
+  bool has_path = 10;
+  bool has_company = 11;
+  bool has_command_line = 12;
+  uint32 parent_pid = 13;
+  bool has_parent_pid = 14;
+  string parent_name = 15;
+  bool has_parent_name = 16;
+  string user = 17;
+  bool has_user = 18;
+  string integrity_level = 19;
+  bool has_integrity_level = 20;
+  bool elevated = 21;
+  bool has_elevated = 22;
+  string architecture = 23; // x64 / x86 / ARM64
+  bool has_architecture = 24;
+  string product_name = 25; // FileDescription / ProductName
+  bool has_product_name = 26;
 }
 
 // Drive classification for volume inventory (issue #11).
@@ -229,6 +365,71 @@ message HealthSample {
   // Multi-disk / multi-volume inventory (issue #11). Temps not included.
   repeated HealthVolume volumes = 43;
   repeated HealthPhysicalDisk disks = 44;
+  // Memory Performance extras (Task Manager Performance > Memory).
+  bool has_memory_compressed = 45;
+  uint64 memory_compressed_bytes = 46;           // PDH \Memory\Compressed Bytes
+  bool has_memory_hardware_reserved = 47;
+  uint64 memory_hardware_reserved_bytes = 48;    // Installed − usable
+  bool has_memory_paged_pool = 49;
+  uint64 memory_paged_pool_bytes = 50;           // GetPerformanceInfo KernelPaged
+  bool has_memory_nonpaged_pool = 51;
+  uint64 memory_nonpaged_pool_bytes = 52;        // GetPerformanceInfo KernelNonpaged
+  bool has_memory_page_faults_per_sec = 53;
+  double memory_page_faults_per_sec = 54;        // PDH \Memory\Page Faults/sec
+  // GPU engines / VRAM usage / D3DKMT telemetry (selected adapter LUID)
+  bool has_gpu_util_3d = 55;
+  double gpu_util_3d = 56;
+  bool has_gpu_util_compute = 57;
+  double gpu_util_compute = 58;
+  bool has_gpu_util_copy = 59;
+  double gpu_util_copy = 60;
+  bool has_gpu_util_video_decode = 61;
+  double gpu_util_video_decode = 62;
+  bool has_gpu_util_video_encode = 63;
+  double gpu_util_video_encode = 64;
+  bool has_gpu_dedicated_used = 65;
+  uint64 gpu_dedicated_used_bytes = 66;
+  bool has_gpu_shared_used = 67;
+  uint64 gpu_shared_used_bytes = 68;
+  bool has_gpu_clock_mhz = 69;
+  double gpu_clock_mhz = 70;
+  bool has_gpu_memory_clock_mhz = 71;
+  double gpu_memory_clock_mhz = 72;
+  bool has_gpu_fan_rpm = 73;
+  double gpu_fan_rpm = 74;
+  bool has_gpu_power_percent = 75;               // D3DKMT scale %, not watts
+  double gpu_power_percent = 76;
+  // Network live + counters (active adapter)
+  bool has_net_peak_download_bps = 77;
+  double net_peak_download_bps = 78;
+  bool has_net_peak_upload_bps = 79;
+  double net_peak_upload_bps = 80;
+  bool has_net_avg_download_bps = 81;
+  double net_avg_download_bps = 82;
+  bool has_net_avg_upload_bps = 83;
+  double net_avg_upload_bps = 84;
+  bool has_net_utilization_percent = 85;
+  double net_utilization_percent = 86;
+  bool has_net_connection_ms = 87;
+  uint64 net_connection_ms = 88;
+  bool has_net_bytes_sent = 89;
+  uint64 net_bytes_sent = 90;
+  bool has_net_bytes_received = 91;
+  uint64 net_bytes_received = 92;
+  bool has_net_packets_sent = 93;
+  uint64 net_packets_sent = 94;
+  bool has_net_packets_received = 95;
+  uint64 net_packets_received = 96;
+  bool has_net_errors = 97;
+  uint64 net_errors = 98;
+  bool has_net_drops = 99;
+  uint64 net_drops = 100;
+  string net_ssid = 101;
+  bool has_net_signal_percent = 102;
+  double net_signal_percent = 103;
+  string net_wifi_channel = 104;
+  string net_wifi_frequency = 105;
+  string net_wifi_security = 106;
 }
 
 message GetHealthSnapshot {}
@@ -241,6 +442,7 @@ message HealthSnapshot {
 // Service → Client push every 1s (request_id = 0).
 message HealthUpdate {
   HealthSample sample = 1;
+  HealthProcessInventoryUpdate process_inventory = 2;
 }
 
 message StartHealthMonitoring {}
@@ -316,6 +518,8 @@ message Envelope {
     GetDiagnosticsSnapshot get_diagnostics_snapshot = 30;
     DiagnosticsSnapshot diagnostics_snapshot = 31;
     InjectDiagnosticsTestEvent inject_diagnostics_test_event = 32;
+    GetProcessDetails get_process_details = 33;
+    ProcessDetails process_details = 34;
     ErrorResponse error = 99;
   }
 }

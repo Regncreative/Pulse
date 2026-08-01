@@ -109,6 +109,22 @@ String formatBytesBinary(int bytes, {int fractionDigits = 1}) {
   return '${value.toStringAsFixed(fractionDigits)} ${units[unit]}';
 }
 
+/// Task Manager–style memory sizes for the Memory panel.
+///
+/// - Below 1024 MB → `MB` (0–1 decimals)
+/// - 1024 MB and above → `X.XX GB`
+String formatMemorySize(int bytes) {
+  if (bytes <= 0) return '0 MB';
+  final mb = bytes / (1024.0 * 1024.0);
+  if (mb < 1024.0) {
+    if (mb >= 100) return '${mb.toStringAsFixed(0)} MB';
+    if (mb >= 10) return '${mb.toStringAsFixed(1)} MB';
+    return '${mb.toStringAsFixed(1)} MB';
+  }
+  final gb = mb / 1024.0;
+  return '${gb.toStringAsFixed(2)} GB';
+}
+
 String formatThroughputBps(double bytesPerSec) {
   if (bytesPerSec < 0) bytesPerSec = 0;
   // Prefer Mbps for network hero; still accurate for disk.
@@ -122,18 +138,31 @@ String formatThroughputBps(double bytesPerSec) {
   return '${bitsPerSec.toStringAsFixed(0)} bps';
 }
 
+String formatCpuPercent(double pct) {
+  if (pct < 0) pct = 0;
+  return '${pct.toStringAsFixed(1)}%';
+}
+
 String formatDiskRate(double bytesPerSec) {
+  return formatTransferRate(bytesPerSec);
+}
+
+/// Transfer rate for Disk / Network columns (never raw byte counters).
+String formatTransferRate(double bytesPerSec) {
   if (bytesPerSec < 0) bytesPerSec = 0;
-  if (bytesPerSec >= 1e9) {
-    return '${(bytesPerSec / 1e9).toStringAsFixed(2)} GB/s';
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'];
+  var value = bytesPerSec;
+  var unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
   }
-  if (bytesPerSec >= 1e6) {
-    return '${(bytesPerSec / 1e6).toStringAsFixed(1)} MB/s';
+  if (unit == 0) return '${value.round()} ${units[unit]}';
+  if (value >= 100) return '${value.round()} ${units[unit]}';
+  if (value >= 10) {
+    return '${value.toStringAsFixed(1)} ${units[unit]}';
   }
-  if (bytesPerSec >= 1e3) {
-    return '${(bytesPerSec / 1e3).toStringAsFixed(0)} KB/s';
-  }
-  return '${bytesPerSec.toStringAsFixed(0)} B/s';
+  return '${value.toStringAsFixed(1)} ${units[unit]}';
 }
 
 String formatUptime(int uptimeMs) {
@@ -159,6 +188,101 @@ String formatMhz(num mhz) {
   return '${mhz.toStringAsFixed(0)} MHz';
 }
 
+/// Plain string field — dash when empty/whitespace-only.
+String orDash(String? value) {
+  final t = value?.trim() ?? '';
+  return t.isEmpty ? kUnavailableDash : t;
+}
+
+/// Thousands-grouped integer counter, dash when unavailable.
+String formatCount(bool has, int value) {
+  if (!has) return kUnavailableDash;
+  final s = value.toString();
+  final buf = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+    buf.write(s[i]);
+  }
+  return buf.toString();
+}
+
+/// Size counter (e.g. GPU VRAM used) — dash when the driver never reported it.
+String formatBytesOrDash(bool has, int bytes, {int fractionDigits = 1}) {
+  if (!has) return kUnavailableDash;
+  return formatBytesBinary(bytes, fractionDigits: fractionDigits);
+}
+
+/// Percentage counter that is usually always computable (net/CPU/mem) —
+/// dash when unavailable rather than "not supported".
+String formatPercentOrDash(bool has, double value, {int decimals = 1}) {
+  if (!has) return kUnavailableDash;
+  return '${value.toStringAsFixed(decimals)} %';
+}
+
+/// Vendor-dependent sensor/engine telemetry (GPU per-engine util, clocks,
+/// fan, power draw) — many drivers never expose these, so use the same
+/// "Not supported" wording as temperature rather than a bare dash.
+String formatPercentOrNotSupported(bool has, double value, {int decimals = 1}) {
+  if (!has) return kNotSupported;
+  return '${value.toStringAsFixed(decimals)} %';
+}
+
+String formatMhzOrNotSupported(bool has, double mhz) {
+  if (!has) return kNotSupported;
+  return formatMhz(mhz);
+}
+
+String formatRpm(bool has, double rpm) {
+  if (!has) return kNotSupported;
+  return '${rpm.toStringAsFixed(0)} RPM';
+}
+
+/// Boolean configuration flag (Yes/No style) — dash when not queried.
+String formatBoolOrDash(bool has, bool value, {String yes = 'Yes', String no = 'No'}) {
+  if (!has) return kUnavailableDash;
+  return value ? yes : no;
+}
+
+/// Boolean capability flag rendered as Supported/Not supported.
+String formatSupportOrDash(bool has, bool value) {
+  if (!has) return kUnavailableDash;
+  return value ? 'Supported' : 'Not supported';
+}
+
+/// Network adapter link speed reported in bits/sec.
+String formatLinkSpeedBps(bool has, int bps) {
+  if (!has || bps <= 0) return kUnavailableDash;
+  if (bps >= 1000000000) {
+    final gbps = bps / 1000000000;
+    return '${gbps.toStringAsFixed(gbps >= 10 ? 0 : 1)} Gbps';
+  }
+  if (bps >= 1000000) return '${(bps / 1000000).toStringAsFixed(0)} Mbps';
+  if (bps >= 1000) return '${(bps / 1000).toStringAsFixed(0)} Kbps';
+  return '$bps bps';
+}
+
+/// Absolute date/time for DHCP lease timestamps.
+String formatUnixMsDateTime(bool has, int ms) {
+  if (!has || ms <= 0) return kUnavailableDash;
+  final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+  String pad2(int v) => v.toString().padLeft(2, '0');
+  return '${dt.year}-${pad2(dt.month)}-${pad2(dt.day)} ${pad2(dt.hour)}:${pad2(dt.minute)}';
+}
+
+/// Elapsed connection duration (net adapter "connected for").
+String formatConnectionDuration(bool has, int ms) {
+  if (!has || ms <= 0) return kUnavailableDash;
+  return formatUptime(ms);
+}
+
+/// Disk rotation rate — RPM value of 1 is the documented ATA IDENTIFY DEVICE
+/// sentinel for "non-rotating media" (SSD), per ATA/ATAPI Command Set spec.
+String formatRotationRate(bool has, int rpm) {
+  if (!has || rpm <= 0) return kUnavailableDash;
+  if (rpm == 1) return 'Solid state (no rotation)';
+  return '$rpm RPM';
+}
+
 /// Primary metric shown next to a process name in the detail panel.
 String formatProcessPrimaryMetric(
   HealthProcessEntry entry,
@@ -171,7 +295,7 @@ String formatProcessPrimaryMetric(
           : kUnavailableDash;
     case HealthPanelKind.memory:
       return entry.hasMemoryBytes
-          ? formatBytesBinary(entry.memoryBytes)
+          ? formatMemorySize(entry.memoryBytes)
           : kUnavailableDash;
     case HealthPanelKind.gpu:
       return entry.hasGpuPercent
@@ -326,6 +450,18 @@ class HealthViewState {
   /// Per-core CPU % series; length tracks [HealthSample.cpuCorePercent].
   final List<List<double>> coreHistories = [];
 
+  /// Per-engine GPU utilization histories — only populated once the driver
+  /// has reported the corresponding counter at least once.
+  final List<double> gpu3dHistory = [];
+  final List<double> gpuComputeHistory = [];
+  final List<double> gpuCopyHistory = [];
+  final List<double> gpuDecodeHistory = [];
+  final List<double> gpuEncodeHistory = [];
+
+  /// VRAM usage histories in GB — same "only if ever reported" rule.
+  final List<double> gpuDedicatedUsedHistory = [];
+  final List<double> gpuSharedUsedHistory = [];
+
   void applySnapshot(HealthSnapshot snapshot) {
     info = snapshot.info;
     applySample(snapshot.sample);
@@ -356,6 +492,28 @@ class HealthViewState {
       next.hasNetUploadBps ? next.netUploadBps : null,
     );
     _syncCoreHistories(next.cpuCorePercent);
+
+    if (next.hasGpuUtil3d) _push(gpu3dHistory, next.gpuUtil3d);
+    if (next.hasGpuUtilCompute) _push(gpuComputeHistory, next.gpuUtilCompute);
+    if (next.hasGpuUtilCopy) _push(gpuCopyHistory, next.gpuUtilCopy);
+    if (next.hasGpuUtilVideoDecode) {
+      _push(gpuDecodeHistory, next.gpuUtilVideoDecode);
+    }
+    if (next.hasGpuUtilVideoEncode) {
+      _push(gpuEncodeHistory, next.gpuUtilVideoEncode);
+    }
+    if (next.hasGpuDedicatedUsed) {
+      _push(
+        gpuDedicatedUsedHistory,
+        next.gpuDedicatedUsedBytes / (1024 * 1024 * 1024),
+      );
+    }
+    if (next.hasGpuSharedUsed) {
+      _push(
+        gpuSharedUsedHistory,
+        next.gpuSharedUsedBytes / (1024 * 1024 * 1024),
+      );
+    }
   }
 
   void _push(List<double> series, double? value) {

@@ -54,6 +54,8 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 24 | [Health Metrics vs Task Manager](24-health-metrics-task-manager.md) | System Health counter alignment |
 | 25 | [Beta Release Packaging](25-beta-release.md) | Portable zip + fresh-machine checklist |
 | 26 | [Windows Runtime Dependencies](26-windows-runtime-deps.md) | VC++ CRT / VCRUNTIME140_1.dll |
+| 27 | [Service crash: client thread](27-service-crash-client-thread.md) | SCM `0xc0000409` / joinable `std::thread` |
+| 28 | [TM App grouping roadmap](28-task-manager-app-grouping.md) | Future Apps tree without changing PID inventory |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 
