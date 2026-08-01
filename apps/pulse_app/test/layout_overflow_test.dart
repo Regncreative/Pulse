@@ -6,6 +6,7 @@ import 'package:pulse/app/theme/pulse_theme.dart';
 import 'package:pulse/application/client_frame_metrics.dart';
 import 'package:pulse/application/connection_controller.dart';
 import 'package:pulse/application/diagnostics_controller.dart';
+import 'package:pulse/application/health_navigation.dart';
 import 'package:pulse/application/service_lifecycle_controller.dart';
 import 'package:pulse/application/settings_controller.dart';
 import 'package:pulse/application/timeline_session_controller.dart';
@@ -19,6 +20,7 @@ import 'package:pulse/presentation/health/system_health_page.dart';
 import 'package:pulse/presentation/health/widgets/health_spec_rows.dart';
 import 'package:pulse/presentation/health/widgets/process_inventory/process_inventory_list.dart';
 import 'package:pulse/presentation/health/widgets/process_inventory/process_inventory_store.dart';
+import 'package:pulse/presentation/reports/reports_page.dart';
 import 'package:pulse/presentation/settings/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -63,6 +65,7 @@ Future<Widget> _harness(Widget page) async {
       ChangeNotifierProvider.value(value: diagnostics),
       ChangeNotifierProvider.value(value: frameMetrics),
       ChangeNotifierProvider.value(value: lifecycle),
+      ChangeNotifierProvider(create: (_) => HealthNavigation()),
     ],
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -142,6 +145,23 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('PulseService is stopped'), findsOneWidget);
     expect(find.text('Start PulseService'), findsOneWidget);
+  });
+
+  testWidgets('Reports stub renders empty state', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      await _harness(const ReportsPage(title: 'Reports')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Reports'), findsWidgets);
+    expect(
+      find.textContaining('branded reports'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Health hero grid reflows without overflow at 2-column width',

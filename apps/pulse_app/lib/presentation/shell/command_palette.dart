@@ -179,7 +179,7 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
                 border: Border.all(
                   color: PulseTokens.stroke.withValues(alpha: 0.7),
                 ),
-                boxShadow: PulseTokens.elevationLift(),
+                boxShadow: PulseTokens.elevationLift,
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(

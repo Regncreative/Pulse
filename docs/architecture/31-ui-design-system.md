@@ -96,7 +96,9 @@ Barrel: `design_system.dart` (also re-exports key existing components).
 1. New UI: prefer `context.pulseTheme` and design-system widgets.
 2. Existing UI: keep `PulseTokens.*` — they track `PulseThemeScope`.
 3. Do not introduce HTTP or cloud for appearance prefs — local `SharedPreferences` only.
-4. Phase B+ can migrate Health/Timeline screens onto `PulseSection` / `PulseMetric*` and surface appearance controls in Settings.
+4. Phase B migrates System Health detail panels onto `PulseSection` with
+   expand state persisted in `SettingsController` (`health.sections.expanded`).
+   Appearance controls surface in Settings.
 
 ## Related
 

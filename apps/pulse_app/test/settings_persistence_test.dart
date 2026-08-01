@@ -144,6 +144,11 @@ void main() {
     await a.setShowAdvancedDiagnostics(true);
     await a.setPerformanceMode('battery');
     await a.setExportDirectory(r'D:\out');
+    await a.setDashboardDensity('compact');
+    await a.toggleDashboardWidgetVisibility('heroes');
+    await a.setDashboardWidgetOrder(
+      ['bottom', 'status', 'heroes', 'system', 'performance'],
+    );
     await a.resetAll();
     expect(a.byteUnitBinary, isTrue);
     expect(a.temperatureCelsius, isTrue);
@@ -152,6 +157,55 @@ void main() {
     expect(a.showAdvancedDiagnostics, isFalse);
     expect(a.exportDirectory, isEmpty);
     expect(a.animationsEnabled, isTrue);
+    expect(a.dashboardDensity, 'comfortable');
+    expect(a.dashboardHiddenWidgets, isEmpty);
+    expect(
+      a.dashboardWidgetOrder,
+      SettingsController.defaultDashboardWidgetOrder,
+    );
+  });
+
+  test('dashboard layout prefs persist and reorder', () async {
+    SharedPreferences.setMockInitialValues({});
+    final a = SettingsController(logger: AppLogger());
+    await a.load();
+    await a.setDashboardDensity('compact');
+    await a.toggleDashboardWidgetVisibility('system');
+    await a.reorderDashboardWidget(0, 4);
+    expect(a.dashboardDensity, 'compact');
+    expect(a.isDashboardWidgetVisible('system'), isFalse);
+    expect(a.dashboardWidgetOrder.first, isNot('status'));
+
+    final b = SettingsController(logger: AppLogger());
+    await b.load();
+    expect(b.dashboardDensity, 'compact');
+    expect(b.isDashboardWidgetVisible('system'), isFalse);
+    expect(b.dashboardWidgetOrder, a.dashboardWidgetOrder);
+
+    final map = a.toMap();
+    expect(map['dashboard_density'], 'compact');
+    expect(map['dashboard_hidden_widgets'], contains('system'));
+
+    SharedPreferences.setMockInitialValues({});
+    final c = SettingsController(logger: AppLogger());
+    await c.load();
+    await c.applyFromMap(map);
+    expect(c.dashboardDensity, 'compact');
+    expect(c.isDashboardWidgetVisible('system'), isFalse);
+    expect(c.dashboardWidgetOrder, a.dashboardWidgetOrder);
+  });
+
+  test('cycleThemeMode rotates dark light system', () async {
+    SharedPreferences.setMockInitialValues({});
+    final a = SettingsController(logger: AppLogger());
+    await a.load();
+    expect(a.themeMode, 'dark');
+    await a.cycleThemeMode();
+    expect(a.themeMode, 'light');
+    await a.cycleThemeMode();
+    expect(a.themeMode, 'system');
+    await a.cycleThemeMode();
+    expect(a.themeMode, 'dark');
   });
 
   test('PulseFormatters drive byte and temperature labels', () {

@@ -348,16 +348,10 @@ class SettingsController extends ChangeNotifier {
   }
 
   Future<void> reorderDashboardWidget(int oldIndex, int newIndex) async {
-    if (oldIndex < 0 ||
-        oldIndex >= dashboardWidgetOrder.length ||
-        newIndex < 0 ||
-        newIndex > dashboardWidgetOrder.length) {
-      return;
-    }
-    var target = newIndex;
-    if (target > oldIndex) target -= 1;
+    if (oldIndex < 0 || oldIndex >= dashboardWidgetOrder.length) return;
     final next = List<String>.from(dashboardWidgetOrder);
     final item = next.removeAt(oldIndex);
+    final target = newIndex.clamp(0, next.length);
     next.insert(target, item);
     await setDashboardWidgetOrder(next);
   }

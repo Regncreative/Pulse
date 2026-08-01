@@ -323,6 +323,7 @@ class _SystemHealthBody extends StatelessWidget {
     required this.onSelect,
     required this.onClear,
     required this.processInventory,
+    required this.customizeMode,
   });
 
   final HealthViewState view;
@@ -330,153 +331,45 @@ class _SystemHealthBody extends StatelessWidget {
   final ValueChanged<HealthPanelKind> onSelect;
   final VoidCallback onClear;
   final ProcessInventoryStore processInventory;
+  final bool customizeMode;
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsController>();
+    final compact = settings.dashboardDensity == 'compact';
+    final gap = compact ? 8.0 : 12.0;
+    final padX = compact ? PulseTokens.pagePadX - 4 : PulseTokens.pagePadX;
+    final padTop = compact ? PulseTokens.pagePadTop - 4 : PulseTokens.pagePadTop;
+    final padBottom =
+        compact ? PulseTokens.pagePadBottom - 4 : PulseTokens.pagePadBottom;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 980;
-        final showSideDetail = wide && selectedPanel != null;
+        final showSideDetail = wide && selectedPanel != null && !customizeMode;
 
-        final dashboard = Padding(
-          padding: const EdgeInsets.fromLTRB(
-            PulseTokens.pagePadX,
-            PulseTokens.pagePadTop,
-            PulseTokens.pagePadX,
-            PulseTokens.pagePadBottom,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              HealthSystemStatusCard(
-                summary: view.systemStatus,
-                uptime: formatUptime(view.sample?.uptimeMs ?? 0),
-                healthScore: '${view.healthScore}',
-                lastUpdated: view.lastUpdatedLabel,
-                compact: true,
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 116,
-                child: Row(
-                  children: [
-                    for (var i = 0; i < view.heroMetrics.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 10),
-                      Expanded(
-                        child: HealthHeroCard(
-                          metric: view.heroMetrics[i],
-                          compact: true,
-                          selected: selectedPanel != null &&
-                              _panelKindForMetricId(view.heroMetrics[i].id) ==
-                                  selectedPanel,
-                          onTap: () {
-                            final kind =
-                                _panelKindForMetricId(view.heroMetrics[i].id);
-                            if (kind != null) onSelect(kind);
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              _SystemInfoStrip(items: view.systemSummary),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Text(
-                    'PERFORMANCE',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          letterSpacing: 0.8,
-                          color: PulseTokens.textDisabled,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '(Last 60 seconds)',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: PulseTokens.textTertiary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                flex: 5,
-                child: Row(
-                  children: [
-                    for (var i = 0;
-                        i < view.performanceMetrics.length;
-                        i++) ...[
-                      if (i > 0) const SizedBox(width: 10),
-                      Expanded(
-                        child: HealthSparklineTile(
-                          metric: view.performanceMetrics[i],
-                          fillHeight: true,
-                          selected: selectedPanel != null &&
-                              _panelKindForMetricId(
-                                      view.performanceMetrics[i].id) ==
-                                  selectedPanel,
-                          onTap: () {
-                            final kind = _panelKindForMetricId(
-                                view.performanceMetrics[i].id);
-                            if (kind != null) onSelect(kind);
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                flex: 4,
-                child: Row(
+        final visibleIds = settings.dashboardWidgetOrder
+            .where(settings.isDashboardWidgetVisible)
+            .toList(growable: false);
+
+        final dashboard = customizeMode
+            ? _DashboardCustomizePanel(settings: settings)
+            : Padding(
+                padding: EdgeInsets.fromLTRB(padX, padTop, padX, padBottom),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: HealthGroupedCard(
-                        title: 'Hardware',
-                        icon: LucideIcons.thermometer,
-                        rows: view.hardwareRows,
-                        compact: true,
-                        scrollBody: true,
-                        selected: selectedPanel == HealthPanelKind.hardware,
-                        onTap: () => onSelect(HealthPanelKind.hardware),
+                    for (var i = 0; i < visibleIds.length; i++) ...[
+                      if (i > 0) SizedBox(height: gap),
+                      _buildDashboardSection(
+                        context,
+                        visibleIds[i],
+                        compact: compact,
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: HealthGroupedCard(
-                        title: 'Storage',
-                        icon: LucideIcons.hardDrive,
-                        rows: view.storageRows,
-                        compact: true,
-                        scrollBody: true,
-                        selected: selectedPanel == HealthPanelKind.disk,
-                        onTap: () => onSelect(HealthPanelKind.disk),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: HealthGroupedCard(
-                        title: 'Network',
-                        icon: LucideIcons.wifi,
-                        rows: view.networkRows,
-                        compact: true,
-                        selected: selectedPanel == HealthPanelKind.network,
-                        onTap: () => onSelect(HealthPanelKind.network),
-                      ),
-                    ),
+                    ],
                   ],
                 ),
-              ),
-            ],
-          ),
-        );
+              );
 
         return Stack(
           children: [
@@ -494,7 +387,7 @@ class _SystemHealthBody extends StatelessWidget {
                 ),
               ],
             ),
-            if (selectedPanel != null && !wide)
+            if (selectedPanel != null && !wide && !customizeMode)
               Positioned.fill(
                 child: Row(
                   children: [
@@ -521,6 +414,292 @@ class _SystemHealthBody extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildDashboardSection(
+    BuildContext context,
+    String id, {
+    required bool compact,
+  }) {
+    switch (id) {
+      case 'status':
+        return HealthSystemStatusCard(
+          summary: view.systemStatus,
+          uptime: formatUptime(view.sample?.uptimeMs ?? 0),
+          healthScore: '${view.healthScore}',
+          lastUpdated: view.lastUpdatedLabel,
+          compact: true,
+        );
+      case 'heroes':
+        return SizedBox(
+          height: compact ? 104 : 116,
+          child: Row(
+            children: [
+              for (var i = 0; i < view.heroMetrics.length; i++) ...[
+                if (i > 0) SizedBox(width: compact ? 8 : 10),
+                Expanded(
+                  child: HealthHeroCard(
+                    metric: view.heroMetrics[i],
+                    compact: true,
+                    selected: selectedPanel != null &&
+                        _panelKindForMetricId(view.heroMetrics[i].id) ==
+                            selectedPanel,
+                    onTap: () {
+                      final kind =
+                          _panelKindForMetricId(view.heroMetrics[i].id);
+                      if (kind != null) onSelect(kind);
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      case 'system':
+        return _SystemInfoStrip(items: view.systemSummary);
+      case 'performance':
+        return Expanded(
+          flex: 5,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'PERFORMANCE',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          letterSpacing: 0.8,
+                          color: PulseTokens.textDisabled,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '(Last 60 seconds)',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: PulseTokens.textTertiary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
+                ],
+              ),
+              SizedBox(height: compact ? 6 : 8),
+              Expanded(
+                child: Row(
+                  children: [
+                    for (var i = 0;
+                        i < view.performanceMetrics.length;
+                        i++) ...[
+                      if (i > 0) SizedBox(width: compact ? 8 : 10),
+                      Expanded(
+                        child: HealthSparklineTile(
+                          metric: view.performanceMetrics[i],
+                          fillHeight: true,
+                          selected: selectedPanel != null &&
+                              _panelKindForMetricId(
+                                      view.performanceMetrics[i].id) ==
+                                  selectedPanel,
+                          onTap: () {
+                            final kind = _panelKindForMetricId(
+                                view.performanceMetrics[i].id);
+                            if (kind != null) onSelect(kind);
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      case 'bottom':
+        return Expanded(
+          flex: 4,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: HealthGroupedCard(
+                  title: 'Hardware',
+                  icon: LucideIcons.thermometer,
+                  rows: view.hardwareRows,
+                  compact: true,
+                  scrollBody: true,
+                  selected: selectedPanel == HealthPanelKind.hardware,
+                  onTap: () => onSelect(HealthPanelKind.hardware),
+                ),
+              ),
+              SizedBox(width: compact ? 8 : 10),
+              Expanded(
+                child: HealthGroupedCard(
+                  title: 'Storage',
+                  icon: LucideIcons.hardDrive,
+                  rows: view.storageRows,
+                  compact: true,
+                  scrollBody: true,
+                  selected: selectedPanel == HealthPanelKind.disk,
+                  onTap: () => onSelect(HealthPanelKind.disk),
+                ),
+              ),
+              SizedBox(width: compact ? 8 : 10),
+              Expanded(
+                child: HealthGroupedCard(
+                  title: 'Network',
+                  icon: LucideIcons.wifi,
+                  rows: view.networkRows,
+                  compact: true,
+                  selected: selectedPanel == HealthPanelKind.network,
+                  onTap: () => onSelect(HealthPanelKind.network),
+                ),
+              ),
+            ],
+          ),
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+}
+
+class _DashboardCustomizePanel extends StatelessWidget {
+  const _DashboardCustomizePanel({required this.settings});
+
+  final SettingsController settings;
+
+  @override
+  Widget build(BuildContext context) {
+    final order = settings.dashboardWidgetOrder;
+    final compact = settings.dashboardDensity == 'compact';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        PulseTokens.pagePadX,
+        PulseTokens.pagePadTop,
+        PulseTokens.pagePadX,
+        PulseTokens.pagePadBottom,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Customize dashboard',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Drag to reorder. Toggle visibility. Density affects spacing.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: PulseTokens.textTertiary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'compact',
+                    label: Text('Compact'),
+                    icon: Icon(LucideIcons.rows3, size: 14),
+                  ),
+                  ButtonSegment(
+                    value: 'comfortable',
+                    label: Text('Comfortable'),
+                    icon: Icon(LucideIcons.rows4, size: 14),
+                  ),
+                ],
+                selected: {compact ? 'compact' : 'comfortable'},
+                onSelectionChanged: (s) {
+                  settings.setDashboardDensity(s.first);
+                },
+                style: ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  textStyle: WidgetStatePropertyAll(
+                    Theme.of(context).textTheme.labelSmall,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: ReorderableListView.builder(
+              buildDefaultDragHandles: false,
+              itemCount: order.length,
+              onReorderItem: settings.reorderDashboardWidget,
+              proxyDecorator: (child, index, animation) {
+                return Material(
+                  elevation: 4,
+                  borderRadius: BorderRadius.circular(PulseTokens.radiusMd),
+                  color: PulseTokens.surfaceElevated,
+                  child: child,
+                );
+              },
+              itemBuilder: (context, index) {
+                final id = order[index];
+                final visible = settings.isDashboardWidgetVisible(id);
+                return Padding(
+                  key: ValueKey(id),
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: PulseTokens.surface.withValues(alpha: 0.85),
+                      borderRadius:
+                          BorderRadius.circular(PulseTokens.radiusMd),
+                      border: Border.all(
+                        color: PulseTokens.stroke.withValues(alpha: 0.55),
+                      ),
+                    ),
+                    child: ListTile(
+                      dense: true,
+                      leading: ReorderableDragStartListener(
+                        index: index,
+                        child: Icon(
+                          LucideIcons.gripVertical,
+                          size: 18,
+                          color: PulseTokens.textTertiary,
+                        ),
+                      ),
+                      title: Text(
+                        _dashboardWidgetLabel(id),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: visible
+                                  ? PulseTokens.textPrimary
+                                  : PulseTokens.textDisabled,
+                              fontWeight: FontWeight.w500,
+                            ),
+                      ),
+                      trailing: IconButton(
+                        tooltip: visible ? 'Hide section' : 'Show section',
+                        onPressed: () {
+                          settings.toggleDashboardWidgetVisibility(id);
+                        },
+                        icon: Icon(
+                          visible ? LucideIcons.eye : LucideIcons.eyeOff,
+                          size: 18,
+                          color: visible
+                              ? PulseTokens.accent
+                              : PulseTokens.textDisabled,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
