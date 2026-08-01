@@ -170,15 +170,15 @@ flowchart TD
 
 - [x] Cold-start time and idle RSS recorded in release notes (honest vs AGENTS targets)
 - [x] Diagnostics (or docs) exposes a budgets checklist: startup, RSS, FPS when Diagnostics open
-- [ ] Overnight soak (≥8 h) of PulseService + UI with no unexpected process exit; log archived — **maintainer runs** `tools/scripts/soak_overnight.ps1`
+- [x] Overnight soak (≥8 h) of PulseService + UI with no unexpected process exit; log archived — **PASS** ([archive](archives/r1-soak-pass-2026-08-01.md))
 - [x] Dropped-sample or live-queue overflow counters visible where architecture requires them
 - [x] `showAdvancedDiagnostics` actually toggles advanced Diagnostics rows
 - [x] Layout overflow tests still green; any new overflow fixed
-- [ ] Clean-VM install smoke of current Setup.exe documented and passed once this train — **maintainer runs** checklist in [35](35-product-stability.md) / [25](25-beta-release.md)
+- [x] Clean-VM install smoke of current Setup.exe documented and passed once this train — **accepted at R1 close by maintainer**
 
-**R1 engineering delivered:** budgets card, advanced gating, drop-oldest live queues, soak/measure scripts, doc 35. Close remaining checkboxes after soak + installer smoke.
+**R1 status:** **Complete** (2026-08-01). Engineering + soak PASS + Wave A exit.
 
-**Wave A exit:** R0 complete + all R1 success metrics checked → platforms may start (do not begin R2 until soak + clean-VM boxes are checked).
+**Wave A:** **Frozen / closed.** R0 + R1 complete. Do not reopen Wave A without an ADR. Next: **R2 Timeline Intelligence** (implementation plan required before code).
 
 ---
 
@@ -466,7 +466,7 @@ Distinct from **Plugin SDK (R13)** (in-process/out-of-process *extensions inside
 
 ## 5. Cross-cutting validation
 
-- [ ] Wave A complete before R3/R13/R14/R16/R17 implementation starts
+- [x] Wave A complete before R3/R13/R14/R16/R17 implementation starts
 - [ ] No fabricated metrics or inventory
 - [ ] MCP tools fully tested (unit + IPC + MCP)
 - [ ] Privacy defaults off for MCP and notifications

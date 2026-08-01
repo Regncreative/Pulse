@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "archivedAt": "2026-08-01",
+  "source": "maintainer_declaration",
+  "note": "Canonical archive; original soak-report JSON was not in workspace at close time.",
+  "verdict": {
+    "result": "PASS",
+    "failReasons": [],
+    "warningReasons": []
+  },
+  "stability": {
+    "pulseServiceStayedRunning": true,
+    "crashes": 0,
+    "unexpectedServiceRestarts": 0,
+    "ipcDisconnectLoops": false,
+    "unboundedMemoryGrowth": false,
+    "eventLogCrashEntries": 0
+  },
+  "waveA": "closed",
+  "milestone": "R1"
+}

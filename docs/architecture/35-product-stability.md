@@ -135,4 +135,24 @@ See Microsoft documentation for `LocalDumps` registry keys. Pulse does not ship 
 
 ## R1 exit
 
-R1 completes when roadmap success metrics in doc 34 are checked, this document’s procedures have been run (soak by maintainer), tests pass, and known limitations are listed in the milestone report.
+**Status: Complete — Wave A frozen (2026-08-01).**
+
+### Overnight soak (accepted)
+
+| Field | Value |
+|-------|-------|
+| Verdict | **PASS** |
+| PulseService | Stayed running for entire soak |
+| Crashes | None |
+| Unexpected service restarts | None |
+| IPC disconnect loops | None |
+| Unbounded memory growth | None |
+| Event Log crash entries | None |
+
+Canonical archive: [archives/r1-soak-pass-2026-08-01.md](archives/r1-soak-pass-2026-08-01.md) (+ `.json`).
+
+### Wave A freeze
+
+R0 + R1 are closed. Future stability regressions found during later waves are fixed as defect work against the frozen Wave A bar; they do not reopen roadmap milestones without an ADR.
+
+Next milestone: **R2 Timeline Intelligence** per [34-engineering-roadmap.md](34-engineering-roadmap.md) — plan then implement; no R3 until R2 is complete.
