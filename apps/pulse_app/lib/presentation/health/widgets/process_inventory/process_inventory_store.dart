@@ -176,6 +176,15 @@ class ProcessInventoryStore extends ChangeNotifier {
       existing.hasIsCritical = true;
       existing.isCritical = incoming.isCritical;
     }
+    // GPU fields: apply full snapshot from upsert (including clear when
+    // the process dropped off GPU counters this tick).
+    existing.hasGpuPercent = incoming.hasGpuPercent;
+    existing.gpuPercent = incoming.gpuPercent;
+    existing.gpuEngine = incoming.gpuEngine;
+    existing.hasGpuDedicatedBytes = incoming.hasGpuDedicatedBytes;
+    existing.gpuDedicatedBytes = incoming.gpuDedicatedBytes;
+    existing.hasGpuSharedBytes = incoming.hasGpuSharedBytes;
+    existing.gpuSharedBytes = incoming.gpuSharedBytes;
 
     final cat = _classify(existing);
     final prev = _category[pid];

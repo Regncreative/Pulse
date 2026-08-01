@@ -148,17 +148,22 @@ This matches the usual Task Manager Details relationship without `OpenProcess` /
 | **Hardware scheduling** | `HKLM\…\GraphicsDrivers\HwSchMode` (2 = on) |
 | **DirectX** | Max D3D12 feature level via `D3D12CreateDevice(..., nullptr)` probe |
 | **Dedicated / Shared usage** | PDH `\GPU Adapter Memory(*)\Dedicated Usage` / `Shared Usage` (LUID-filtered) |
-| **WDDM / PCIe / clocks / fan / temp / power watts** | Left `—` when not available without WDK D3DKMT or vendor SDK |
-| **Resizable BAR** | Always `—` / Not supported (no clean public bool) |
-| **Power (W)** | Not supported; D3DKMT power scale % is not watts |
+| **WDDM version** | `D3DKMTOpenAdapterFromLuid` + `D3DKMTQueryAdapterInfo(KMTQAITYPE_DRIVERVERSION)` via `gdi32` / `d3dkmthk.h` (Windows SDK) |
+| **PCI location** | `KMTQAITYPE_ADAPTERADDRESS` → `PCI bus:device.function` |
+| **PCIe link speed / width** | SetupAPI `DEVPKEY_PciDevice_CurrentLinkSpeed` / `CurrentLinkWidth` when the display device matches DXGI description |
+| **Clocks / fan / temp / power %** | `KMTQAITYPE_ADAPTERPERFDATA` + `NODEPERFDATA` — only when the driver returns non-zero values; else `—` / Not supported |
+| **Resizable BAR** | Not supported (no reliable public userspace bool; Microsoft documents BAR resize as mostly invisible to clients) |
+| **Power (W)** | Not supported; D3DKMT `Power` is tenths of a percentage, not watts. Absolute watts need vendor SDK |
 
 ### GPU processes
 
 | | |
 |--|--|
-| **API** | PDH GPU Engine instances → PID; name from image path / SPI inventory (not `pid_N` when known) |
-| **Columns** | Name, GPU %, Dedicated/Shared (when Process Memory counters present), Engine, PID |
+| **API** | PDH `\GPU Engine(*)\Utilization Percentage` + `\GPU Process Memory(*)\Dedicated/Shared Usage`, LUID-filtered; merged into process inventory by PID |
+| **UI** | Same inventory + app grouping as CPU/Memory (`ProcessInventoryList` + `ProcessGroupSort.gpuDescending`) |
+| **Columns** | Name, GPU %, Dedicated, Shared |
 | **Icons** | Flutter `ProcessAppIcon` from executable path |
+| **Engines** | 3D / Compute / Copy / Encode / Decode / Video Processing (PDH `engtype_*`) |
 
 ### Network (system adapter)
 
@@ -303,13 +308,13 @@ Not collected (never fabricated). No stable public Win32 package-temp API.
 ## Intentional non-goals
 
 - Matching TM **Performance** Utility on every **process** row
-- Absolute GPU power watts / Resizable BAR without vendor or undocumented APIs
+- Absolute GPU power **watts** / Resizable BAR without a documented userspace detection API or vendor SDK
 - Disk/SSD temperature sensors without a stable public API
 - Exact adapter / GPU picker parity with Task Manager UI selection
 - Network drive capacity every second
 - TM App tree / UWP grouping beyond Phase A ([28-task-manager-app-grouping.md](28-task-manager-app-grouping.md))
 - Per-process net without ETW
-- NVAPI / ADL / Intel IGCL in this milestone
+- NVAPI / ADL / Intel IGCL for board sensors beyond what D3DKMT exposes
 
 ## Verification
 

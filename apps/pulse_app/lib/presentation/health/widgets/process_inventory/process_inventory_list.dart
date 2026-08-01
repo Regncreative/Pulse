@@ -7,6 +7,9 @@ import '../process_app_icon.dart';
 import 'app_group_engine.dart';
 import 'process_inventory_store.dart';
 
+/// Which metric columns the process list shows.
+enum ProcessListMetrics { standard, memory, gpu }
+
 /// Column geometry shared by header + rows (keeps metrics aligned).
 class _ProcessColumns {
   static const double padX = 10;
@@ -17,6 +20,9 @@ class _ProcessColumns {
   static const double memory = 72;
   static const double disk = 72;
   static const double network = 76;
+  static const double gpu = 56;
+  static const double gpuDed = 72;
+  static const double gpuShared = 72;
   static const double metricGap = 4;
   static const double childIndent = 22;
 }
@@ -29,6 +35,7 @@ class ProcessInventoryList extends StatefulWidget {
     this.compact = false,
     this.groupSort = ProcessGroupSort.nameAscending,
     this.memoryFormat = false,
+    this.metrics = ProcessListMetrics.standard,
   });
 
   final ProcessInventoryStore store;
@@ -37,6 +44,9 @@ class ProcessInventoryList extends StatefulWidget {
 
   /// When true, Memory column uses [formatMemorySize] (X.XX GB / MB).
   final bool memoryFormat;
+
+  /// Column set — [ProcessListMetrics.gpu] shows Name | GPU% | Ded. | Shared.
+  final ProcessListMetrics metrics;
 
   @override
   State<ProcessInventoryList> createState() => _ProcessInventoryListState();
@@ -88,11 +98,12 @@ class _ProcessInventoryListState extends State<ProcessInventoryList> {
 
         final rowH = widget.compact ? 36.0 : 40.0;
         final headerH = widget.compact ? 26.0 : 28.0;
+        final metrics = widget.metrics;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _ColumnHeader(),
+            _ColumnHeader(metrics: metrics),
             const Divider(height: 1, color: PulseTokens.strokeSubtle),
             Expanded(
               child: ListView.builder(
@@ -113,6 +124,7 @@ class _ProcessInventoryListState extends State<ProcessInventoryList> {
                           widget.store.selectedPid != null &&
                           g.memberPids.contains(widget.store.selectedPid),
                       memoryFormat: widget.memoryFormat,
+                      metrics: metrics,
                       onToggleExpand: () {
                         setState(() {
                           if (_expanded.contains(g.id)) {
@@ -136,6 +148,7 @@ class _ProcessInventoryListState extends State<ProcessInventoryList> {
                     entry: entry,
                     selected: widget.store.selectedPid == entry.pid,
                     memoryFormat: widget.memoryFormat,
+                    metrics: metrics,
                     onTap: () => widget.store.select(entry.pid),
                   );
                 },
@@ -173,7 +186,8 @@ class _RowItem {
 }
 
 class _ColumnHeader extends StatelessWidget {
-  const _ColumnHeader();
+  const _ColumnHeader({required this.metrics});
+  final ProcessListMetrics metrics;
 
   @override
   Widget build(BuildContext context) {
@@ -195,10 +209,18 @@ class _ColumnHeader extends StatelessWidget {
                 _ProcessColumns.iconGap,
           ),
           Expanded(child: Text('Name', style: style)),
-          _metricHeader('CPU', _ProcessColumns.cpu, style),
-          _metricHeader('Memory', _ProcessColumns.memory, style),
-          _metricHeader('Disk', _ProcessColumns.disk, style),
-          _metricHeader('Network', _ProcessColumns.network, style),
+          if (metrics == ProcessListMetrics.gpu) ...[
+            _metricHeader('GPU', _ProcessColumns.gpu, style),
+            _metricHeader('Ded.', _ProcessColumns.gpuDed, style),
+            _metricHeader('Shared', _ProcessColumns.gpuShared, style),
+          ] else ...[
+            _metricHeader('CPU', _ProcessColumns.cpu, style),
+            _metricHeader('Memory', _ProcessColumns.memory, style),
+            if (metrics == ProcessListMetrics.standard) ...[
+              _metricHeader('Disk', _ProcessColumns.disk, style),
+              _metricHeader('Network', _ProcessColumns.network, style),
+            ],
+          ],
         ],
       ),
     );
@@ -245,6 +267,7 @@ class _AppGroupRow extends StatelessWidget {
     required this.onToggleExpand,
     required this.onSelect,
     this.memoryFormat = false,
+    this.metrics = ProcessListMetrics.standard,
   });
 
   final ProcessAppGroup group;
@@ -253,23 +276,10 @@ class _AppGroupRow extends StatelessWidget {
   final VoidCallback onToggleExpand;
   final VoidCallback onSelect;
   final bool memoryFormat;
+  final ProcessListMetrics metrics;
 
   @override
   Widget build(BuildContext context) {
-    final cpu = group.hasCpu
-        ? formatCpuPercent(group.cpuPercent)
-        : kUnavailableDash;
-    final mem = group.hasMemory
-        ? (memoryFormat
-            ? formatMemorySize(group.memoryBytes)
-            : formatBytesBinary(group.memoryBytes, fractionDigits: 0))
-        : kUnavailableDash;
-    final disk = group.hasDisk
-        ? formatTransferRate(group.diskBps)
-        : kUnavailableDash;
-    final net = group.hasNet
-        ? formatTransferRate(group.netBps)
-        : kUnavailableDash;
     final metricStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
           fontSize: 12,
           color: PulseTokens.textSecondary,
@@ -327,15 +337,58 @@ class _AppGroupRow extends StatelessWidget {
                       ),
                 ),
               ),
-              _metricCell(cpu, _ProcessColumns.cpu, metricStyle),
-              _metricCell(mem, _ProcessColumns.memory, metricStyle),
-              _metricCell(disk, _ProcessColumns.disk, metricStyle),
-              _metricCell(net, _ProcessColumns.network, metricStyle),
+              ..._metricCells(metricStyle),
             ],
           ),
         ),
       ),
     );
+  }
+
+  List<Widget> _metricCells(TextStyle? metricStyle) {
+    if (metrics == ProcessListMetrics.gpu) {
+      final gpu = group.hasGpu
+          ? formatCpuPercent(group.gpuPercent)
+          : kUnavailableDash;
+      final ded = group.gpuDedicatedBytes > 0
+          ? formatMemorySize(group.gpuDedicatedBytes)
+          : kUnavailableDash;
+      final shared = group.gpuSharedBytes > 0
+          ? formatMemorySize(group.gpuSharedBytes)
+          : kUnavailableDash;
+      return [
+        _metricCell(gpu, _ProcessColumns.gpu, metricStyle),
+        _metricCell(ded, _ProcessColumns.gpuDed, metricStyle),
+        _metricCell(shared, _ProcessColumns.gpuShared, metricStyle),
+      ];
+    }
+
+    final cpu = group.hasCpu
+        ? formatCpuPercent(group.cpuPercent)
+        : kUnavailableDash;
+    final mem = group.hasMemory
+        ? (memoryFormat
+            ? formatMemorySize(group.memoryBytes)
+            : formatBytesBinary(group.memoryBytes, fractionDigits: 0))
+        : kUnavailableDash;
+    if (metrics == ProcessListMetrics.memory) {
+      return [
+        _metricCell(cpu, _ProcessColumns.cpu, metricStyle),
+        _metricCell(mem, _ProcessColumns.memory, metricStyle),
+      ];
+    }
+    final disk = group.hasDisk
+        ? formatTransferRate(group.diskBps)
+        : kUnavailableDash;
+    final net = group.hasNet
+        ? formatTransferRate(group.netBps)
+        : kUnavailableDash;
+    return [
+      _metricCell(cpu, _ProcessColumns.cpu, metricStyle),
+      _metricCell(mem, _ProcessColumns.memory, metricStyle),
+      _metricCell(disk, _ProcessColumns.disk, metricStyle),
+      _metricCell(net, _ProcessColumns.network, metricStyle),
+    ];
   }
 }
 
@@ -345,30 +398,18 @@ class _ProcessChildRow extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.memoryFormat = false,
+    this.metrics = ProcessListMetrics.standard,
   });
 
   final HealthProcessEntry entry;
   final bool selected;
   final VoidCallback onTap;
   final bool memoryFormat;
+  final ProcessListMetrics metrics;
 
   @override
   Widget build(BuildContext context) {
     final imageName = entry.name.trim().isEmpty ? kUnavailableDash : entry.name;
-    final cpu = entry.hasCpuPercent
-        ? formatCpuPercent(entry.cpuPercent)
-        : kUnavailableDash;
-    final mem = entry.hasMemoryBytes
-        ? (memoryFormat
-            ? formatMemorySize(entry.memoryBytes)
-            : formatBytesBinary(entry.memoryBytes, fractionDigits: 0))
-        : kUnavailableDash;
-    final disk = entry.hasDiskBps
-        ? formatTransferRate(entry.diskBps)
-        : kUnavailableDash;
-    final net = entry.hasNetBps
-        ? formatTransferRate(entry.netBps)
-        : kUnavailableDash;
     final metricStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
           fontSize: 12,
           color: PulseTokens.textSecondary,
@@ -408,15 +449,58 @@ class _ProcessChildRow extends StatelessWidget {
                       ),
                 ),
               ),
-              _metricCell(cpu, _ProcessColumns.cpu, metricStyle),
-              _metricCell(mem, _ProcessColumns.memory, metricStyle),
-              _metricCell(disk, _ProcessColumns.disk, metricStyle),
-              _metricCell(net, _ProcessColumns.network, metricStyle),
+              ..._metricCells(metricStyle),
             ],
           ),
         ),
       ),
     );
+  }
+
+  List<Widget> _metricCells(TextStyle? metricStyle) {
+    if (metrics == ProcessListMetrics.gpu) {
+      final gpu = entry.hasGpuPercent
+          ? formatCpuPercent(entry.gpuPercent)
+          : kUnavailableDash;
+      final ded = entry.hasGpuDedicatedBytes
+          ? formatMemorySize(entry.gpuDedicatedBytes)
+          : kUnavailableDash;
+      final shared = entry.hasGpuSharedBytes
+          ? formatMemorySize(entry.gpuSharedBytes)
+          : kUnavailableDash;
+      return [
+        _metricCell(gpu, _ProcessColumns.gpu, metricStyle),
+        _metricCell(ded, _ProcessColumns.gpuDed, metricStyle),
+        _metricCell(shared, _ProcessColumns.gpuShared, metricStyle),
+      ];
+    }
+
+    final cpu = entry.hasCpuPercent
+        ? formatCpuPercent(entry.cpuPercent)
+        : kUnavailableDash;
+    final mem = entry.hasMemoryBytes
+        ? (memoryFormat
+            ? formatMemorySize(entry.memoryBytes)
+            : formatBytesBinary(entry.memoryBytes, fractionDigits: 0))
+        : kUnavailableDash;
+    if (metrics == ProcessListMetrics.memory) {
+      return [
+        _metricCell(cpu, _ProcessColumns.cpu, metricStyle),
+        _metricCell(mem, _ProcessColumns.memory, metricStyle),
+      ];
+    }
+    final disk = entry.hasDiskBps
+        ? formatTransferRate(entry.diskBps)
+        : kUnavailableDash;
+    final net = entry.hasNetBps
+        ? formatTransferRate(entry.netBps)
+        : kUnavailableDash;
+    return [
+      _metricCell(cpu, _ProcessColumns.cpu, metricStyle),
+      _metricCell(mem, _ProcessColumns.memory, metricStyle),
+      _metricCell(disk, _ProcessColumns.disk, metricStyle),
+      _metricCell(net, _ProcessColumns.network, metricStyle),
+    ];
   }
 }
 

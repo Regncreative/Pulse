@@ -54,6 +54,7 @@ target_link_libraries(PulseService PRIVATE
   iphlpapi
   dxgi
   d3d12
+  gdi32
   psapi
   version
   wlanapi

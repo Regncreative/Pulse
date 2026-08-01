@@ -223,6 +223,9 @@ class HealthStaticInfo {
     this.diskRotationRate = 0,
     this.hasDiskTrim = false,
     this.diskTrimSupported = false,
+    this.gpuPciLocation = '',
+    this.hasGpuResizableBar = false,
+    this.gpuResizableBar = false,
   });
   String windowsEdition;
   String windowsVersion;
@@ -262,6 +265,9 @@ class HealthStaticInfo {
   bool gpuHardwareScheduling;
   String gpuPcieLinkSpeed;
   String gpuPcieLinkWidth;
+  String gpuPciLocation;
+  bool hasGpuResizableBar;
+  bool gpuResizableBar;
   String netManufacturer;
   String netDescription;
   String netMacAddress;
@@ -581,6 +587,8 @@ class HealthSample {
     this.gpuUtilVideoDecode = 0.0,
     this.hasGpuUtilVideoEncode = false,
     this.gpuUtilVideoEncode = 0.0,
+    this.hasGpuUtilVideoProcessing = false,
+    this.gpuUtilVideoProcessing = 0.0,
     this.hasGpuDedicatedUsed = false,
     this.gpuDedicatedUsedBytes = 0,
     this.hasGpuSharedUsed = false,
@@ -695,6 +703,8 @@ class HealthSample {
   double gpuUtilVideoDecode;
   bool hasGpuUtilVideoEncode;
   double gpuUtilVideoEncode;
+  bool hasGpuUtilVideoProcessing;
+  double gpuUtilVideoProcessing;
   bool hasGpuDedicatedUsed;
   int gpuDedicatedUsedBytes;
   bool hasGpuSharedUsed;
@@ -1185,6 +1195,9 @@ Uint8List _encodeHealthStaticInfo(HealthStaticInfo m) {
   _writeU64(83, m.diskRotationRate, out);
   _writeBool(84, m.hasDiskTrim, out);
   _writeBool(85, m.diskTrimSupported, out);
+  _writeString(86, m.gpuPciLocation, out);
+  _writeBool(87, m.hasGpuResizableBar, out);
+  _writeBool(88, m.gpuResizableBar, out);
   return out.toBytes();
 }
 
@@ -1312,6 +1325,8 @@ Uint8List _encodeHealthSample(HealthSample m) {
   _writeString(104, m.netWifiChannel, out);
   _writeString(105, m.netWifiFrequency, out);
   _writeString(106, m.netWifiSecurity, out);
+  _writeBool(107, m.hasGpuUtilVideoProcessing, out);
+  _writeDouble(108, m.gpuUtilVideoProcessing, out);
   return out.toBytes();
 }
 
@@ -2169,6 +2184,12 @@ HealthStaticInfo _decodeHealthStaticInfo(Uint8List data) {
       m.hasDiskTrim = r.readVarint() != 0;
     } else if (field == 85 && wire == 0) {
       m.diskTrimSupported = r.readVarint() != 0;
+    } else if (field == 86 && wire == 2) {
+      m.gpuPciLocation = r.readString();
+    } else if (field == 87 && wire == 0) {
+      m.hasGpuResizableBar = r.readVarint() != 0;
+    } else if (field == 88 && wire == 0) {
+      m.gpuResizableBar = r.readVarint() != 0;
     } else {
       r.skip(wire);
     }
@@ -2395,6 +2416,10 @@ HealthSample _decodeHealthSample(Uint8List data) {
       m.netWifiFrequency = r.readString();
     } else if (field == 106 && wire == 2) {
       m.netWifiSecurity = r.readString();
+    } else if (field == 107 && wire == 0) {
+      m.hasGpuUtilVideoProcessing = r.readVarint() != 0;
+    } else if (field == 108 && wire == 1) {
+      m.gpuUtilVideoProcessing = r.readDouble();
     } else {
       r.skip(wire);
     }

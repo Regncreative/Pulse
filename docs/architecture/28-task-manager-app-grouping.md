@@ -40,6 +40,11 @@ Sources:
 | Memory | Sum of private WS bytes |
 | Disk | Sum of member B/s |
 | Network | Sum of member B/s (often `—` until ETW) |
+| GPU | Sum of member GPU `%`; sum of dedicated / shared GPU process memory |
+
+## GPU panel columns
+
+`ProcessListMetrics.gpu` shows Name | GPU% | Ded. | Shared, sorted with `ProcessGroupSort.gpuDescending`. Metrics come from PDH GPU Engine + GPU Process Memory merged into inventory on the service.
 
 ---
 

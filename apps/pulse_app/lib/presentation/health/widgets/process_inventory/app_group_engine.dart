@@ -3,7 +3,7 @@ import 'package:pulse_protocol/pulse_wire.dart';
 import 'process_display_name.dart';
 import 'process_inventory_store.dart';
 
-enum ProcessGroupSort { nameAscending, memoryDescending }
+enum ProcessGroupSort { nameAscending, memoryDescending, gpuDescending }
 
 /// Presentation-only application group over flat PID inventory.
 ///
@@ -26,6 +26,10 @@ class ProcessAppGroup {
     required this.diskBps,
     required this.hasNet,
     required this.netBps,
+    required this.hasGpu,
+    required this.gpuPercent,
+    required this.gpuDedicatedBytes,
+    required this.gpuSharedBytes,
     this.commitBytesSum = 0,
     this.workingSetBytesSum = 0,
     this.pagedPoolBytesSum = 0,
@@ -52,6 +56,12 @@ class ProcessAppGroup {
   final double diskBps;
   final bool hasNet;
   final double netBps;
+
+  final bool hasGpu;
+  /// Sum of per-PID GPU util (same aggregation style as CPU).
+  final double gpuPercent;
+  final int gpuDedicatedBytes;
+  final int gpuSharedBytes;
 
   final int commitBytesSum;
   final int workingSetBytesSum;
@@ -102,6 +112,10 @@ class AppGroupEngine {
       var hasDisk = false;
       var net = 0.0;
       var hasNet = false;
+      var gpu = 0.0;
+      var hasGpu = false;
+      var gpuDedicated = 0;
+      var gpuShared = 0;
       var commit = 0;
       var workingSet = 0;
       var paged = 0;
@@ -122,6 +136,18 @@ class AppGroupEngine {
         if (m.hasNetBps) {
           hasNet = true;
           net += m.netBps;
+        }
+        if (m.hasGpuPercent) {
+          hasGpu = true;
+          gpu += m.gpuPercent;
+        }
+        if (m.hasGpuDedicatedBytes) {
+          hasGpu = true;
+          gpuDedicated += m.gpuDedicatedBytes;
+        }
+        if (m.hasGpuSharedBytes) {
+          hasGpu = true;
+          gpuShared += m.gpuSharedBytes;
         }
         if (m.hasCommitBytes) commit += m.commitBytes;
         if (m.hasWorkingSetBytes) workingSet += m.workingSetBytes;
@@ -146,6 +172,10 @@ class AppGroupEngine {
           diskBps: disk,
           hasNet: hasNet,
           netBps: net,
+          hasGpu: hasGpu,
+          gpuPercent: gpu,
+          gpuDedicatedBytes: gpuDedicated,
+          gpuSharedBytes: gpuShared,
           commitBytesSum: commit,
           workingSetBytesSum: workingSet,
           pagedPoolBytesSum: paged,
@@ -176,6 +206,14 @@ class AppGroupEngine {
         copy.sort((a, b) {
           final byMem = b.memoryBytes.compareTo(a.memoryBytes);
           if (byMem != 0) return byMem;
+          return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+        });
+      case ProcessGroupSort.gpuDescending:
+        copy.sort((a, b) {
+          final byGpu = b.gpuPercent.compareTo(a.gpuPercent);
+          if (byGpu != 0) return byGpu;
+          final byDed = b.gpuDedicatedBytes.compareTo(a.gpuDedicatedBytes);
+          if (byDed != 0) return byDed;
           return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
         });
     }

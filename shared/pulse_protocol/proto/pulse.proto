@@ -199,6 +199,11 @@ message HealthStaticInfo {
   uint32 disk_rotation_rate = 83;        // 0 = SSD / non-rotating when known
   bool has_disk_trim = 84;
   bool disk_trim_supported = 85;
+  // GPU PCI location (D3DKMT ADAPTERADDRESS) — e.g. "PCI 1:0:0"
+  string gpu_pci_location = 86;
+  // Resizable BAR — only set when a documented detection path succeeds.
+  bool has_gpu_resizable_bar = 87;
+  bool gpu_resizable_bar = 88;
 }
 
 // Top process row for health detail panels (TASK-007.2).
@@ -430,6 +435,9 @@ message HealthSample {
   string net_wifi_channel = 104;
   string net_wifi_frequency = 105;
   string net_wifi_security = 106;
+  // GPU Video Processing engine (PDH engtype_VideoProcessing)
+  bool has_gpu_util_video_processing = 107;
+  double gpu_util_video_processing = 108;
 }
 
 message GetHealthSnapshot {}

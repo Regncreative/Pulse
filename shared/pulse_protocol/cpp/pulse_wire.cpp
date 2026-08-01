@@ -384,6 +384,9 @@ std::vector<uint8_t> EncodeHealthStaticInfo(const HealthStaticInfo& m) {
   WriteU32(83, m.disk_rotation_rate, &out);
   WriteBool(84, m.has_disk_trim, &out);
   WriteBool(85, m.disk_trim_supported, &out);
+  WriteString(86, m.gpu_pci_location, &out);
+  WriteBool(87, m.has_gpu_resizable_bar, &out);
+  WriteBool(88, m.gpu_resizable_bar, &out);
   return out;
 }
 
@@ -511,6 +514,8 @@ std::vector<uint8_t> EncodeHealthSample(const HealthSample& m) {
   WriteString(104, m.net_wifi_channel, &out);
   WriteString(105, m.net_wifi_frequency, &out);
   WriteString(106, m.net_wifi_security, &out);
+  WriteBool(107, m.has_gpu_util_video_processing, &out);
+  WriteDouble(108, m.gpu_util_video_processing, &out);
   return out;
 }
 
@@ -1550,6 +1555,16 @@ bool DecodeHealthStaticInfo(const uint8_t* data, size_t len, HealthStaticInfo* m
       uint64_t v = 0;
       if (!ReadVarint(p, end, &v)) return false;
       m->disk_trim_supported = v != 0;
+    } else if (field == 86 && wire == 2) {
+      if (!DecodeString(p, end, &m->gpu_pci_location)) return false;
+    } else if (field == 87 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_resizable_bar = v != 0;
+    } else if (field == 88 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->gpu_resizable_bar = v != 0;
     } else if (!SkipField(wire, p, end)) {
       return false;
     }
@@ -1961,6 +1976,12 @@ bool DecodeHealthSample(const uint8_t* data, size_t len, HealthSample* m) {
       if (!DecodeString(p, end, &m->net_wifi_frequency)) return false;
     } else if (field == 106 && wire == 2) {
       if (!DecodeString(p, end, &m->net_wifi_security)) return false;
+    } else if (field == 107 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_gpu_util_video_processing = v != 0;
+    } else if (field == 108 && wire == 1) {
+      if (!ReadDouble(p, end, &m->gpu_util_video_processing)) return false;
     } else if (!SkipField(wire, p, end)) {
       return false;
     }

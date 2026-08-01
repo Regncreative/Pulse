@@ -351,6 +351,18 @@ bool HealthMetricsCollector::Initialize() {
       pdh_gpu_mem_ok_ = true;
     }
 
+    // Per-process GPU VRAM (instance names embed pid_ / luid_ like Engine).
+    PDH_HCOUNTER gpu_proc_ded = nullptr;
+    PDH_HCOUNTER gpu_proc_shr = nullptr;
+    if (PdhAddEnglishCounterW(query, L"\\GPU Process Memory(*)\\Dedicated Usage",
+                              0, &gpu_proc_ded) == ERROR_SUCCESS &&
+        PdhAddEnglishCounterW(query, L"\\GPU Process Memory(*)\\Shared Usage", 0,
+                              &gpu_proc_shr) == ERROR_SUCCESS) {
+      pdh_gpu_proc_ded_ = gpu_proc_ded;
+      pdh_gpu_proc_shr_ = gpu_proc_shr;
+      pdh_gpu_proc_mem_ok_ = true;
+    }
+
     PDH_HCOUNTER perf_counter = nullptr;
     if (PdhAddEnglishCounterW(
             query,
@@ -467,6 +479,8 @@ void HealthMetricsCollector::Shutdown() {
   pdh_gpu_ = nullptr;
   pdh_gpu_dedicated_ = nullptr;
   pdh_gpu_shared_ = nullptr;
+  pdh_gpu_proc_ded_ = nullptr;
+  pdh_gpu_proc_shr_ = nullptr;
   pdh_cpu_perf_ = nullptr;
   pdh_cpu_utility_ = nullptr;
   pdh_cpu_cores_ = nullptr;
@@ -481,6 +495,7 @@ void HealthMetricsCollector::Shutdown() {
   pdh_disk_instances_ok_ = false;
   pdh_gpu_ok_ = false;
   pdh_gpu_mem_ok_ = false;
+  pdh_gpu_proc_mem_ok_ = false;
   pdh_cpu_perf_ok_ = false;
   pdh_cpu_utility_ok_ = false;
   pdh_cpu_cores_ok_ = false;
@@ -1120,58 +1135,107 @@ void HealthMetricsCollector::SampleGpuAdapterMemory(ipc::HealthSample* out) {
   }
 }
 
-void HealthMetricsCollector::SampleTopGpuFromPdh(ipc::HealthSample* out) {
-  if (!pdh_gpu_ok_ || pdh_gpu_ == nullptr) return;
+void HealthMetricsCollector::SampleGpuMetricsByPid(
+    std::unordered_map<uint32_t, GpuByPid>* out) {
+  if (out == nullptr) return;
+  out->clear();
   CollectPdhOnce();
   if (!pdh_collected_this_sample_) return;
 
-  DWORD buffer_size = 0;
-  DWORD item_count = 0;
-  PDH_STATUS st = PdhGetFormattedCounterArrayW(
-      static_cast<PDH_HCOUNTER>(pdh_gpu_), PDH_FMT_DOUBLE, &buffer_size,
-      &item_count, nullptr);
-  if (st != PDH_MORE_DATA && st != ERROR_SUCCESS) return;
-  if (buffer_size == 0 || item_count == 0) return;
-
-  std::vector<uint8_t> buffer(buffer_size);
-  auto* items = reinterpret_cast<PDH_FMT_COUNTERVALUE_ITEM_W*>(buffer.data());
-  st = PdhGetFormattedCounterArrayW(static_cast<PDH_HCOUNTER>(pdh_gpu_),
-                                    PDH_FMT_DOUBLE, &buffer_size, &item_count,
-                                    items);
-  if (st != ERROR_SUCCESS || item_count == 0) return;
-
-  struct GpuPidAgg {
-    double util = 0;
-    std::string engine;
+  auto read_array = [](void* counter, std::vector<uint8_t>* buffer,
+                       PDH_FMT_COUNTERVALUE_ITEM_W** items,
+                       DWORD* item_count) -> bool {
+    if (counter == nullptr) return false;
+    DWORD buffer_size = 0;
+    *item_count = 0;
+    PDH_STATUS st = PdhGetFormattedCounterArrayW(
+        static_cast<PDH_HCOUNTER>(counter), PDH_FMT_DOUBLE, &buffer_size,
+        item_count, nullptr);
+    if (st != PDH_MORE_DATA && st != ERROR_SUCCESS) return false;
+    if (buffer_size == 0 || *item_count == 0) return false;
+    buffer->assign(buffer_size, 0);
+    *items = reinterpret_cast<PDH_FMT_COUNTERVALUE_ITEM_W*>(buffer->data());
+    st = PdhGetFormattedCounterArrayW(static_cast<PDH_HCOUNTER>(counter),
+                                      PDH_FMT_DOUBLE, &buffer_size, item_count,
+                                      *items);
+    return st == ERROR_SUCCESS && *item_count > 0;
   };
-  std::map<uint32_t, GpuPidAgg> by_pid;
-  for (DWORD i = 0; i < item_count; ++i) {
-    if (items[i].FmtValue.CStatus != ERROR_SUCCESS &&
-        items[i].FmtValue.CStatus != PDH_CSTATUS_VALID_DATA) {
-      continue;
+
+  auto luid_ok = [&](const wchar_t* name) -> bool {
+    if (!gpu_adapter_.has_luid || gpu_adapter_.luid_pdh_token.empty()) {
+      return true;
     }
-    if (gpu_adapter_.has_luid && !gpu_adapter_.luid_pdh_token.empty() &&
-        !GpuInstanceMatchesLuid(items[i].szName, gpu_adapter_.luid_pdh_token)) {
-      continue;
-    }
-    const uint32_t pid = ParsePidFromGpuInstance(items[i].szName);
-    if (pid == 0) continue;
-    const double util = items[i].FmtValue.doubleValue;
-    auto& agg = by_pid[pid];
-    if (util >= agg.util) {
-      agg.util = util;
-      std::wstring name = items[i].szName ? items[i].szName : L"";
-      const wchar_t* eng = wcsstr(name.c_str(), L"engtype_");
-      if (eng != nullptr) {
-        eng += 8;
-        std::wstring eng_w(eng);
-        // Trim trailing junk after engine type token.
-        const auto cut = eng_w.find_first_of(L" _");
-        if (cut != std::wstring::npos) eng_w.resize(cut);
-        agg.engine = NarrowFromWide(eng_w.c_str());
+    return GpuInstanceMatchesLuid(name, gpu_adapter_.luid_pdh_token);
+  };
+
+  if (pdh_gpu_ok_ && pdh_gpu_ != nullptr) {
+    std::vector<uint8_t> buffer;
+    PDH_FMT_COUNTERVALUE_ITEM_W* items = nullptr;
+    DWORD item_count = 0;
+    if (read_array(pdh_gpu_, &buffer, &items, &item_count)) {
+      for (DWORD i = 0; i < item_count; ++i) {
+        if (items[i].FmtValue.CStatus != ERROR_SUCCESS &&
+            items[i].FmtValue.CStatus != PDH_CSTATUS_VALID_DATA) {
+          continue;
+        }
+        if (!luid_ok(items[i].szName)) continue;
+        const uint32_t pid = ParsePidFromGpuInstance(items[i].szName);
+        if (pid == 0) continue;
+        const double util = items[i].FmtValue.doubleValue;
+        auto& agg = (*out)[pid];
+        if (!agg.has_util || util >= agg.util) {
+          agg.has_util = true;
+          agg.util = util;
+          std::wstring name = items[i].szName ? items[i].szName : L"";
+          const wchar_t* eng = wcsstr(name.c_str(), L"engtype_");
+          if (eng != nullptr) {
+            eng += 8;
+            std::wstring eng_w(eng);
+            const auto cut = eng_w.find_first_of(L" _");
+            if (cut != std::wstring::npos) eng_w.resize(cut);
+            agg.engine = NarrowFromWide(eng_w.c_str());
+          }
+        }
       }
     }
   }
+
+  auto accumulate_mem = [&](void* counter, bool dedicated) {
+    if (counter == nullptr) return;
+    std::vector<uint8_t> buffer;
+    PDH_FMT_COUNTERVALUE_ITEM_W* items = nullptr;
+    DWORD item_count = 0;
+    if (!read_array(counter, &buffer, &items, &item_count)) return;
+    for (DWORD i = 0; i < item_count; ++i) {
+      if (items[i].FmtValue.CStatus != ERROR_SUCCESS &&
+          items[i].FmtValue.CStatus != PDH_CSTATUS_VALID_DATA) {
+        continue;
+      }
+      if (!luid_ok(items[i].szName)) continue;
+      const uint32_t pid = ParsePidFromGpuInstance(items[i].szName);
+      if (pid == 0) continue;
+      const uint64_t bytes =
+          static_cast<uint64_t>((std::max)(0.0, items[i].FmtValue.doubleValue));
+      auto& agg = (*out)[pid];
+      if (dedicated) {
+        agg.has_dedicated = true;
+        agg.dedicated_bytes += bytes;
+      } else {
+        agg.has_shared = true;
+        agg.shared_bytes += bytes;
+      }
+    }
+  };
+
+  if (pdh_gpu_proc_mem_ok_) {
+    accumulate_mem(pdh_gpu_proc_ded_, true);
+    accumulate_mem(pdh_gpu_proc_shr_, false);
+  }
+}
+
+void HealthMetricsCollector::SampleTopGpuFromPdh(ipc::HealthSample* out) {
+  std::unordered_map<uint32_t, GpuByPid> by_pid;
+  SampleGpuMetricsByPid(&by_pid);
   if (by_pid.empty()) return;
 
   // Prefer SPI inventory names when present in prev_inventory_.
@@ -1182,11 +1246,22 @@ void HealthMetricsCollector::SampleTopGpuFromPdh(ipc::HealthSample* out) {
 
   std::vector<ipc::HealthProcessEntry> entries;
   for (const auto& [pid, agg] : by_pid) {
+    if (!agg.has_util && !agg.has_dedicated && !agg.has_shared) continue;
     ipc::HealthProcessEntry e;
     e.pid = pid;
-    e.has_gpu_percent = true;
-    e.gpu_percent = agg.util;
-    e.gpu_engine = agg.engine;
+    if (agg.has_util) {
+      e.has_gpu_percent = true;
+      e.gpu_percent = agg.util;
+      e.gpu_engine = agg.engine;
+    }
+    if (agg.has_dedicated) {
+      e.has_gpu_dedicated_bytes = true;
+      e.gpu_dedicated_bytes = agg.dedicated_bytes;
+    }
+    if (agg.has_shared) {
+      e.has_gpu_shared_bytes = true;
+      e.gpu_shared_bytes = agg.shared_bytes;
+    }
     e.path = ResolveProcessExecutablePath(pid, {});
     if (!e.path.empty()) {
       const auto slash = e.path.find_last_of("\\/");
@@ -1200,7 +1275,11 @@ void HealthMetricsCollector::SampleTopGpuFromPdh(ipc::HealthSample* out) {
     entries.push_back(std::move(e));
   }
   KeepTopN(&entries, kTopProcessLimit,
-           [](const ipc::HealthProcessEntry& e) { return e.gpu_percent; });
+           [](const ipc::HealthProcessEntry& e) {
+             if (e.has_gpu_percent) return e.gpu_percent;
+             // Prefer dedicated VRAM when util is absent.
+             return static_cast<double>(e.gpu_dedicated_bytes);
+           });
   FillExecutablePaths(&entries);
   out->top_gpu = std::move(entries);
 }
@@ -1694,6 +1773,9 @@ void HealthMetricsCollector::SampleProcessesCombined(
   std::vector<ipc::HealthProcessEntry> mem_rows;
   std::vector<ipc::HealthProcessEntry> disk_rows;
 
+  std::unordered_map<uint32_t, GpuByPid> gpu_by_pid;
+  SampleGpuMetricsByPid(&gpu_by_pid);
+
   constexpr uint64_t kFullResyncIntervalMs = 30000;
   const bool full =
       force_full_resync_ || last_full_resync_ms_ == 0 ||
@@ -1759,6 +1841,24 @@ void HealthMetricsCollector::SampleProcessesCombined(
       e.path = prev_inventory_[key].path;
     }
 
+    const auto gpu_it = gpu_by_pid.find(key.pid);
+    if (gpu_it != gpu_by_pid.end()) {
+      const GpuByPid& g = gpu_it->second;
+      if (g.has_util) {
+        e.has_gpu_percent = true;
+        e.gpu_percent = g.util;
+        e.gpu_engine = g.engine;
+      }
+      if (g.has_dedicated) {
+        e.has_gpu_dedicated_bytes = true;
+        e.gpu_dedicated_bytes = g.dedicated_bytes;
+      }
+      if (g.has_shared) {
+        e.has_gpu_shared_bytes = true;
+        e.gpu_shared_bytes = g.shared_bytes;
+      }
+    }
+
     if (e.has_cpu_percent && e.cpu_percent > 0.01) cpu_rows.push_back(e);
     if (e.has_disk_bps && e.disk_bps > 1024.0) disk_rows.push_back(e);
     if (e.memory_bytes > 1024 * 1024) mem_rows.push_back(e);
@@ -1777,6 +1877,13 @@ void HealthMetricsCollector::SampleProcessesCombined(
     snap.has_disk = e.has_disk_bps;
     snap.net_bps = e.net_bps;
     snap.has_net = e.has_net_bps;
+    snap.has_gpu = e.has_gpu_percent;
+    snap.gpu_percent = e.gpu_percent;
+    snap.gpu_engine = e.gpu_engine;
+    snap.has_gpu_dedicated = e.has_gpu_dedicated_bytes;
+    snap.gpu_dedicated_bytes = e.gpu_dedicated_bytes;
+    snap.has_gpu_shared = e.has_gpu_shared_bytes;
+    snap.gpu_shared_bytes = e.gpu_shared_bytes;
     snap.thread_count = e.thread_count;
     snap.handle_count = e.handle_count;
     snap.path = e.path;
@@ -1834,6 +1941,17 @@ void HealthMetricsCollector::SampleProcessesCombined(
       if (a.has_disk && std::fabs(a.disk_bps - b.disk_bps) > 256.0) return true;
       if (a.has_net != b.has_net_bps) return true;
       if (a.has_net && std::fabs(a.net_bps - b.net_bps) > 256.0) return true;
+      if (a.has_gpu != b.has_gpu_percent) return true;
+      if (a.has_gpu && std::fabs(a.gpu_percent - b.gpu_percent) > 0.05)
+        return true;
+      if (a.gpu_engine != b.gpu_engine) return true;
+      if (a.has_gpu_dedicated != b.has_gpu_dedicated_bytes) return true;
+      if (a.has_gpu_dedicated &&
+          a.gpu_dedicated_bytes != b.gpu_dedicated_bytes)
+        return true;
+      if (a.has_gpu_shared != b.has_gpu_shared_bytes) return true;
+      if (a.has_gpu_shared && a.gpu_shared_bytes != b.gpu_shared_bytes)
+        return true;
       if (a.path != b.path) return true;
       if (a.has_is_critical != b.has_is_critical ||
           a.is_critical != b.is_critical)
@@ -1992,6 +2110,7 @@ ipc::HealthUpdate HealthMetricsCollector::CollectHealthUpdate() {
   SampleGpuExtended(gpu_adapter_, pdh_gpu_, pdh_gpu_ok_, pdh_query_,
                     &pdh_collected_this_sample_, nullptr, nullptr, &sample);
   SampleGpuAdapterMemory(&sample);
+  SampleGpuD3dkmtTelemetry(gpu_adapter_, &sample);
   SampleCpuFrequency(&sample);
   SampleCpuCores(&sample);
   SampleNetworkAddresses(&sample);

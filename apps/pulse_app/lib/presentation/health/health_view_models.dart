@@ -237,6 +237,14 @@ String formatRpm(bool has, double rpm) {
   return '${rpm.toStringAsFixed(0)} RPM';
 }
 
+/// Boolean configuration flag — "Not supported" when the capability was never
+/// reported (e.g. Resizable BAR without a clean public query path).
+String formatBoolOrNotSupported(bool has, bool value,
+    {String yes = 'Yes', String no = 'No'}) {
+  if (!has) return kNotSupported;
+  return value ? yes : no;
+}
+
 /// Boolean configuration flag (Yes/No style) — dash when not queried.
 String formatBoolOrDash(bool has, bool value, {String yes = 'Yes', String no = 'No'}) {
   if (!has) return kUnavailableDash;
@@ -457,6 +465,7 @@ class HealthViewState {
   final List<double> gpuCopyHistory = [];
   final List<double> gpuDecodeHistory = [];
   final List<double> gpuEncodeHistory = [];
+  final List<double> gpuVideoProcessingHistory = [];
 
   /// VRAM usage histories in GB — same "only if ever reported" rule.
   final List<double> gpuDedicatedUsedHistory = [];
@@ -501,6 +510,9 @@ class HealthViewState {
     }
     if (next.hasGpuUtilVideoEncode) {
       _push(gpuEncodeHistory, next.gpuUtilVideoEncode);
+    }
+    if (next.hasGpuUtilVideoProcessing) {
+      _push(gpuVideoProcessingHistory, next.gpuUtilVideoProcessing);
     }
     if (next.hasGpuDedicatedUsed) {
       _push(

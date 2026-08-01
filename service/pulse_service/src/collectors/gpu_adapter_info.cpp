@@ -5,11 +5,18 @@
 #define NOMINMAX
 #endif
 #include <Windows.h>
+#include <winternl.h>  // NTSTATUS for d3dkmthk.h under WIN32_LEAN_AND_MEAN
 
 #include <Pdh.h>
 #include <PdhMsg.h>
+#include <SetupAPI.h>
 #include <d3d12.h>
+#include <d3dkmthk.h>
 #include <dxgi.h>
+#include <initguid.h>
+#include <devguid.h>
+#include <devpkey.h>
+#include <pciprop.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -20,22 +27,26 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "pdh.lib")
 #pragma comment(lib, "d3d12.lib")
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "setupapi.lib")
 
 // Read-only sources for this module (see gpu_adapter_info.hpp):
 //   - DXGI (CreateDXGIFactory1 / IDXGIAdapter1) for identity + VRAM capacity.
 //   - Registry (Class GUID + GraphicsDrivers) for driver + HW scheduling.
 //   - D3D12CreateDevice(..., ppDevice = nullptr) to probe max feature level
 //     without ever creating a device.
+//   - D3DKMT (d3dkmthk.h / gdi32) for WDDM version, PCI location, and live
+//     adapter/node perf telemetry when the driver exposes non-zero values.
+//   - SetupAPI + pciprop.h for current PCIe link speed/width (matched by
+//     display-adapter description to the DXGI model).
 //   - PDH "\GPU Engine(*)\Utilization Percentage" for per-engine live load.
-// D3DKMT (WDDM version) requires d3dkmthk.h from the WDK, which is not part
-// of this build; WDDM/temperature/clock/fan telemetry are intentionally left
-// unset rather than guessed. Live VRAM usage similarly has no public Win32
-// counter (see docs/architecture/24-health-metrics-task-manager.md) and is
-// only sampled here if a caller ever wires up the relevant PDH counters into
-// the existing query — this function does not add its own counters.
+// Resizable BAR has no reliable public Win32 detection path — left unset.
+// Live VRAM usage is sampled elsewhere (health_metrics_collector PDH path).
 
 namespace pulse {
 namespace {
+
+constexpr NTSTATUS kNtStatusSuccess = 0;
 
 std::string NarrowFromWide(const wchar_t* wide) {
   if (wide == nullptr || wide[0] == L'\0') return {};
@@ -222,6 +233,146 @@ void EnrichGpuHardwareScheduling(ipc::HealthStaticInfo* info) {
   }
 }
 
+bool OpenAdapterFromLuid(const GpuAdapterSelection& adapter,
+                         D3DKMT_HANDLE* out_handle) {
+  if (!adapter.has_luid || out_handle == nullptr) return false;
+
+  D3DKMT_OPENADAPTERFROMLUID open{};
+  open.AdapterLuid.HighPart = adapter.luid_high;
+  open.AdapterLuid.LowPart = static_cast<LONG>(adapter.luid_low);
+
+  const NTSTATUS status = D3DKMTOpenAdapterFromLuid(&open);
+  if (status != kNtStatusSuccess || open.hAdapter == 0) return false;
+
+  *out_handle = open.hAdapter;
+  return true;
+}
+
+void CloseAdapterHandle(D3DKMT_HANDLE handle) {
+  if (handle == 0) return;
+  D3DKMT_CLOSEADAPTER close{};
+  close.hAdapter = handle;
+  D3DKMTCloseAdapter(&close);
+}
+
+/// WDDM version + PCI bus location via D3DKMT when the adapter LUID is known.
+void EnrichGpuD3dkmtStatic(const GpuAdapterSelection& adapter,
+                           ipc::HealthStaticInfo* info) {
+  if (!adapter.has_luid || info == nullptr) return;
+
+  D3DKMT_HANDLE h_adapter = 0;
+  if (!OpenAdapterFromLuid(adapter, &h_adapter)) return;
+
+  D3DKMT_DRIVERVERSION driver_version{};
+  D3DKMT_QUERYADAPTERINFO query{};
+  query.hAdapter = h_adapter;
+  query.Type = KMTQAITYPE_DRIVERVERSION;
+  query.pPrivateDriverData = &driver_version;
+  query.PrivateDriverDataSize = sizeof(driver_version);
+  if (D3DKMTQueryAdapterInfo(&query) == kNtStatusSuccess) {
+    const std::string formatted =
+        FormatWddmVersion(static_cast<int>(driver_version));
+    if (!formatted.empty()) info->gpu_wddm_version = formatted;
+  }
+
+  D3DKMT_ADAPTERADDRESS address{};
+  query = {};
+  query.hAdapter = h_adapter;
+  query.Type = KMTQAITYPE_ADAPTERADDRESS;
+  query.pPrivateDriverData = &address;
+  query.PrivateDriverDataSize = sizeof(address);
+  if (D3DKMTQueryAdapterInfo(&query) == kNtStatusSuccess) {
+    char location[64]{};
+    sprintf_s(location, "PCI %u:%u.%u", address.BusNumber, address.DeviceNumber,
+              address.FunctionNumber);
+    info->gpu_pci_location = location;
+  }
+
+  CloseAdapterHandle(h_adapter);
+
+  // has_gpu_resizable_bar left unset: there is no reliable public Win32 /
+  // SetupAPI / D3DKMT property for Resizable BAR detection without vendor
+  // SDKs or undocumented paths.
+}
+
+std::string FormatPcieLinkSpeed(ULONG speed_code) {
+  switch (speed_code) {
+    case 1:
+      return "Gen1 (2.5 GT/s)";
+    case 2:
+      return "Gen2 (5.0 GT/s)";
+    case 3:
+      return "Gen3 (8.0 GT/s)";
+    case 4:
+      return "Gen4 (16.0 GT/s)";
+    case 5:
+      return "Gen5 (32.0 GT/s)";
+    case 6:
+      return "Gen6 (64.0 GT/s)";
+    default:
+      break;
+  }
+  return {};
+}
+
+/// Match a present display-class device to the DXGI model description and
+/// read current PCIe link speed/width. Leaves fields empty on any failure.
+void EnrichGpuPcieLinkInfo(const GpuAdapterSelection& adapter,
+                           ipc::HealthStaticInfo* info) {
+  if (adapter.model.empty() || info == nullptr) return;
+
+  const HDEVINFO devs = SetupDiGetClassDevsW(
+      &GUID_DEVCLASS_DISPLAY, nullptr, nullptr, DIGCF_PRESENT);
+  if (devs == INVALID_HANDLE_VALUE) return;
+
+  SP_DEVINFO_DATA device_info{};
+  device_info.cbSize = sizeof(device_info);
+
+  for (DWORD index = 0; SetupDiEnumDeviceInfo(devs, index, &device_info);
+       ++index) {
+    wchar_t description[512]{};
+    if (!SetupDiGetDeviceRegistryPropertyW(
+            devs, &device_info, SPDRP_DEVICEDESC, nullptr,
+            reinterpret_cast<PBYTE>(description), sizeof(description),
+            nullptr)) {
+      continue;
+    }
+
+    const std::string desc = NarrowFromWide(description);
+    if (desc.empty()) continue;
+    const bool matches = AsciiContainsIgnoreCase(desc, adapter.model) ||
+                         AsciiContainsIgnoreCase(adapter.model, desc);
+    if (!matches) continue;
+
+    DEVPROPTYPE prop_type = 0;
+    ULONG link_speed = 0;
+    if (SetupDiGetDevicePropertyW(
+            devs, &device_info, &DEVPKEY_PciDevice_CurrentLinkSpeed, &prop_type,
+            reinterpret_cast<PBYTE>(&link_speed), sizeof(link_speed), nullptr,
+            0) &&
+        prop_type == DEVPROP_TYPE_UINT32 && link_speed > 0) {
+      const std::string speed = FormatPcieLinkSpeed(link_speed);
+      if (!speed.empty()) info->gpu_pcie_link_speed = speed;
+    }
+
+    prop_type = 0;
+    ULONG link_width = 0;
+    if (SetupDiGetDevicePropertyW(
+            devs, &device_info, &DEVPKEY_PciDevice_CurrentLinkWidth, &prop_type,
+            reinterpret_cast<PBYTE>(&link_width), sizeof(link_width), nullptr,
+            0) &&
+        prop_type == DEVPROP_TYPE_UINT32 && link_width > 0) {
+      char width_buf[16]{};
+      sprintf_s(width_buf, "x%u", link_width);
+      info->gpu_pcie_link_width = width_buf;
+    }
+
+    break;
+  }
+
+  SetupDiDestroyDeviceInfoList(devs);
+}
+
 double ClampPercent(double value) {
   if (value < 0.0) return 0.0;
   if (value > 100.0) return 100.0;
@@ -309,6 +460,26 @@ std::string GpuVendorNameFromPciId(uint32_t vendor_id) {
   return oss.str();
 }
 
+std::string FormatWddmVersion(int driver_version_enum) {
+  if (driver_version_enum <= 0) return {};
+
+  // D3DKMT_DRIVERVERSION encodings: major*1000 + minor*100 (e.g. 3100 → 3.1).
+  // 1105 / 1102 are the documented WDDM 1.1 values (non-round minor part).
+  const int major = driver_version_enum / 1000;
+  const int remainder = driver_version_enum % 1000;
+  const bool known_shape =
+      (remainder % 100 == 0) || driver_version_enum == 1105 ||
+      driver_version_enum == 1102;
+  if (major >= 1 && known_shape) {
+    const int minor = remainder / 100;
+    std::ostringstream oss;
+    oss << major << '.' << minor;
+    return oss.str();
+  }
+
+  return "WDDM " + std::to_string(driver_version_enum);
+}
+
 void EnrichGpuStaticInfo(const GpuAdapterSelection& adapter,
                          ipc::HealthStaticInfo* info) {
   if (info == nullptr) return;
@@ -331,11 +502,8 @@ void EnrichGpuStaticInfo(const GpuAdapterSelection& adapter,
   const std::string dx_version = DetectDirectXVersion(adapter);
   if (!dx_version.empty()) info->gpu_directx_version = dx_version;
 
-  // WDDM version needs D3DKMTOpenAdapterFromLuid / D3DKMTQueryAdapterInfo
-  // (d3dkmthk.h, WDK-only) — left unset rather than guessed.
-  // PCIe link speed/width needs SetupAPI device-property walking that is
-  // not justified by the value it adds here — left unset rather than
-  // guessed.
+  EnrichGpuD3dkmtStatic(adapter, info);
+  EnrichGpuPcieLinkInfo(adapter, info);
 }
 
 void SampleGpuExtended(const GpuAdapterSelection& adapter, void* pdh_gpu_counter,
@@ -371,9 +539,9 @@ void SampleGpuExtended(const GpuAdapterSelection& adapter, void* pdh_gpu_counter
   bool any_overall = false;
   double max_overall = 0.0;
   bool any_3d = false, any_compute = false, any_copy = false,
-       any_decode = false, any_encode = false;
+       any_decode = false, any_encode = false, any_video_processing = false;
   double max_3d = 0.0, max_compute = 0.0, max_copy = 0.0, max_decode = 0.0,
-         max_encode = 0.0;
+         max_encode = 0.0, max_video_processing = 0.0;
 
   for (DWORD i = 0; i < item_count; ++i) {
     if (items[i].szName == nullptr) continue;
@@ -391,8 +559,6 @@ void SampleGpuExtended(const GpuAdapterSelection& adapter, void* pdh_gpu_counter
 
     const wchar_t* name = items[i].szName;
     // Engine type tokens as emitted by dxgkrnl for GPU Engine instances.
-    // "engtype_VideoProcessing" is folded into the overall max only (no
-    // dedicated wire field exists for it).
     if (wcsstr(name, L"engtype_3D") != nullptr) {
       any_3d = true;
       max_3d = (std::max)(max_3d, value);
@@ -402,6 +568,9 @@ void SampleGpuExtended(const GpuAdapterSelection& adapter, void* pdh_gpu_counter
     } else if (wcsstr(name, L"engtype_VideoEncode") != nullptr) {
       any_encode = true;
       max_encode = (std::max)(max_encode, value);
+    } else if (wcsstr(name, L"engtype_VideoProcessing") != nullptr) {
+      any_video_processing = true;
+      max_video_processing = (std::max)(max_video_processing, value);
     } else if (wcsstr(name, L"engtype_Copy") != nullptr) {
       any_copy = true;
       max_copy = (std::max)(max_copy, value);
@@ -409,8 +578,7 @@ void SampleGpuExtended(const GpuAdapterSelection& adapter, void* pdh_gpu_counter
       any_compute = true;
       max_compute = (std::max)(max_compute, value);
     }
-    // engtype_VideoProcessing and any other/unknown engine types only
-    // contribute to max_overall above.
+    // Any other/unknown engine types only contribute to max_overall above.
   }
 
   if (!any_overall) return;
@@ -437,16 +605,65 @@ void SampleGpuExtended(const GpuAdapterSelection& adapter, void* pdh_gpu_counter
     out->has_gpu_util_video_encode = true;
     out->gpu_util_video_encode = max_encode;
   }
+  if (any_video_processing) {
+    out->has_gpu_util_video_processing = true;
+    out->gpu_util_video_processing = max_video_processing;
+  }
 
   // Live VRAM usage (gpu_dedicated_used_bytes / gpu_shared_used_bytes) is
-  // intentionally left unset here: there is no public Win32/PDH counter
-  // for per-adapter VRAM usage without vendor SDKs (NVAPI/ADL), and this
-  // function must not open a second PDH query per sample. See
-  // docs/architecture/24-health-metrics-task-manager.md ("GPU VRAM").
-  //
-  // D3DKMT-based telemetry (temperature / core clock / memory clock / fan)
-  // would require d3dkmthk.h (WDK-only) and is left unset for the same
-  // reason as WDDM version above.
+  // not sampled here — health_metrics_collector owns the adapter-memory PDH
+  // counters. This function only fills per-engine utilization for the LUID.
+}
+
+void SampleGpuD3dkmtTelemetry(const GpuAdapterSelection& adapter,
+                              ipc::HealthSample* out) {
+  if (out == nullptr || !adapter.has_luid) return;
+
+  D3DKMT_HANDLE h_adapter = 0;
+  if (!OpenAdapterFromLuid(adapter, &h_adapter)) return;
+
+  D3DKMT_ADAPTER_PERFDATA adapter_perf{};
+  adapter_perf.PhysicalAdapterIndex = 0;
+  D3DKMT_QUERYADAPTERINFO query{};
+  query.hAdapter = h_adapter;
+  query.Type = KMTQAITYPE_ADAPTERPERFDATA;
+  query.pPrivateDriverData = &adapter_perf;
+  query.PrivateDriverDataSize = sizeof(adapter_perf);
+  if (D3DKMTQueryAdapterInfo(&query) == kNtStatusSuccess) {
+    if (adapter_perf.Temperature > 0) {
+      out->has_gpu_temp_c = true;
+      out->gpu_temp_c = static_cast<double>(adapter_perf.Temperature) / 10.0;
+    }
+    if (adapter_perf.FanRPM > 0) {
+      out->has_gpu_fan_rpm = true;
+      out->gpu_fan_rpm = static_cast<double>(adapter_perf.FanRPM);
+    }
+    if (adapter_perf.Power > 0) {
+      out->has_gpu_power_percent = true;
+      out->gpu_power_percent = static_cast<double>(adapter_perf.Power) / 10.0;
+    }
+    if (adapter_perf.MemoryFrequency > 0) {
+      out->has_gpu_memory_clock_mhz = true;
+      out->gpu_memory_clock_mhz =
+          static_cast<double>(adapter_perf.MemoryFrequency) / 1e6;
+    }
+  }
+
+  D3DKMT_NODE_PERFDATA node_perf{};
+  node_perf.NodeOrdinal = 0;
+  node_perf.PhysicalAdapterIndex = 0;
+  query = {};
+  query.hAdapter = h_adapter;
+  query.Type = KMTQAITYPE_NODEPERFDATA;
+  query.pPrivateDriverData = &node_perf;
+  query.PrivateDriverDataSize = sizeof(node_perf);
+  if (D3DKMTQueryAdapterInfo(&query) == kNtStatusSuccess &&
+      node_perf.Frequency > 0) {
+    out->has_gpu_clock_mhz = true;
+    out->gpu_clock_mhz = static_cast<double>(node_perf.Frequency) / 1e6;
+  }
+
+  CloseAdapterHandle(h_adapter);
 }
 
 bool GpuInstanceMatchesLuid(const wchar_t* instance_name,

@@ -25,17 +25,25 @@ struct GpuAdapterSelection {
 void EnrichGpuStaticInfo(const GpuAdapterSelection& adapter,
                          ipc::HealthStaticInfo* info);
 
-/// PDH engine utils + adapter memory + D3DKMT telemetry for selected LUID.
+/// PDH engine utils (incl. Video Processing) for selected LUID.
 void SampleGpuExtended(const GpuAdapterSelection& adapter, void* pdh_gpu_counter,
                        bool pdh_gpu_ok, void* pdh_query,
                        bool* pdh_collected_flag,
                        void (*collect_pdh_once)(void* self), void* self,
                        ipc::HealthSample* out);
 
+/// D3DKMT ADAPTERPERFDATA / NODEPERFDATA — only sets fields when values are
+/// non-zero / successfully returned (never invents sensors).
+void SampleGpuD3dkmtTelemetry(const GpuAdapterSelection& adapter,
+                              ipc::HealthSample* out);
+
 /// Match PDH GPU instance name against selected adapter LUID token.
 [[nodiscard]] bool GpuInstanceMatchesLuid(const wchar_t* instance_name,
                                           const std::wstring& luid_token);
 
 [[nodiscard]] std::string GpuVendorNameFromPciId(uint32_t vendor_id);
+
+/// Format WDDM enum from D3DKMT_DRIVERVERSION (e.g. 3100 → "3.1").
+[[nodiscard]] std::string FormatWddmVersion(int driver_version_enum);
 
 }  // namespace pulse

@@ -78,7 +78,10 @@ class HealthDetailsPanel extends StatelessWidget {
             view: view,
             inventory: processInventory,
           ),
-      HealthPanelKind.gpu => _GpuPanelBody(view: view),
+      HealthPanelKind.gpu => _GpuPanelBody(
+            view: view,
+            inventory: processInventory,
+          ),
       HealthPanelKind.disk => _DiskPanelBody(view: view),
       HealthPanelKind.network => _NetworkPanelBody(view: view),
     };
@@ -650,14 +653,16 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
 }
 
 class _GpuPanelBody extends StatelessWidget {
-  const _GpuPanelBody({required this.view});
+  const _GpuPanelBody({required this.view, this.inventory});
   final HealthViewState view;
+  final ProcessInventoryStore? inventory;
 
   @override
   Widget build(BuildContext context) {
     final s = view.sample;
     final i = view.info;
     final usagePct = s != null && s.hasGpuPercent ? s.gpuPercent : null;
+    final store = inventory;
 
     final dedicatedCapacity = i?.gpuDedicatedBytes ?? 0;
     final sharedCapacity = i?.gpuSharedBytes ?? 0;
@@ -673,6 +678,8 @@ class _GpuPanelBody extends StatelessWidget {
       if (view.gpuCopyHistory.isNotEmpty) ('Copy', view.gpuCopyHistory),
       if (view.gpuDecodeHistory.isNotEmpty) ('Decode', view.gpuDecodeHistory),
       if (view.gpuEncodeHistory.isNotEmpty) ('Encode', view.gpuEncodeHistory),
+      if (view.gpuVideoProcessingHistory.isNotEmpty)
+        ('Video Proc.', view.gpuVideoProcessingHistory),
       if (view.gpuDedicatedUsedHistory.isNotEmpty)
         ('VRAM Ded.', view.gpuDedicatedUsedHistory),
       if (view.gpuSharedUsedHistory.isNotEmpty)
@@ -774,6 +781,13 @@ class _GpuPanelBody extends StatelessWidget {
                           s?.gpuUtilVideoEncode ?? 0,
                         ),
                       ),
+                      HealthSpecRow(
+                        label: 'Video Processing',
+                        value: formatPercentOrNotSupported(
+                          s?.hasGpuUtilVideoProcessing ?? false,
+                          s?.gpuUtilVideoProcessing ?? 0,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 14),
@@ -800,7 +814,7 @@ class _GpuPanelBody extends StatelessWidget {
                             : kUnavailableDash,
                       ),
                       HealthSpecRow(
-                        label: 'Total VRAM',
+                        label: 'Total graphics memory',
                         value: totalCapacity > 0
                             ? formatBytesBinary(
                                 totalCapacity,
@@ -915,14 +929,21 @@ class _GpuPanelBody extends StatelessWidget {
                         value: orDash(i?.gpuPcieLinkWidth),
                       ),
                       HealthSpecRow(
+                        label: 'PCI Location',
+                        value: orDash(i?.gpuPciLocation),
+                      ),
+                      HealthSpecRow(
                         label: 'Adapter LUID',
                         value: i != null && i.hasGpuLuid
                             ? _formatGpuLuid(i.gpuLuidHigh, i.gpuLuidLow)
                             : kUnavailableDash,
                       ),
-                      const HealthSpecRow(
+                      HealthSpecRow(
                         label: 'Resizable BAR',
-                        value: kNotSupported,
+                        value: formatBoolOrNotSupported(
+                          i?.hasGpuResizableBar ?? false,
+                          i?.gpuResizableBar ?? false,
+                        ),
                       ),
                     ],
                   ),
@@ -935,10 +956,23 @@ class _GpuPanelBody extends StatelessWidget {
         Expanded(
           flex: 6,
           child: DetailSection(
-            title: 'Processes',
+            title: store == null
+                ? 'Processes'
+                : 'Processes (${store.totalCount})',
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
             expandChild: true,
-            child: _GpuProcessList(processes: s?.topGpu ?? const []),
+            child: store == null
+                ? _ProcessList(
+                    processes: s?.topGpu ?? const [],
+                    kind: HealthPanelKind.gpu,
+                    compact: true,
+                  )
+                : ProcessInventoryList(
+                    store: store,
+                    compact: true,
+                    groupSort: ProcessGroupSort.gpuDescending,
+                    metrics: ProcessListMetrics.gpu,
+                  ),
           ),
         ),
         const Divider(height: 1, color: PulseTokens.strokeSubtle),
@@ -983,174 +1017,6 @@ String? _vramUsagePercent(int usedBytes, int capacityBytes) {
   if (capacityBytes <= 0) return null;
   final pct = usedBytes * 100.0 / capacityBytes;
   return '${pct.toStringAsFixed(0)}% of capacity';
-}
-
-/// Per-process GPU table: name, GPU %, dedicated/shared VRAM, engine, PID.
-class _GpuProcessList extends StatelessWidget {
-  const _GpuProcessList({required this.processes});
-  final List<HealthProcessEntry> processes;
-
-  @override
-  Widget build(BuildContext context) {
-    if (processes.isEmpty) {
-      return Text(
-        kUnavailableDash,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: PulseTokens.textDisabled,
-            ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _GpuProcessHeader(),
-        const SizedBox(height: 4),
-        Expanded(
-          child: ListView.separated(
-            itemCount: processes.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 6),
-            itemBuilder: (context, index) =>
-                _GpuProcessRow(entry: processes[index]),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _GpuProcessHeader extends StatelessWidget {
-  const _GpuProcessHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: PulseTokens.textDisabled,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
-        );
-    return Row(
-      children: [
-        const Expanded(child: SizedBox.shrink()),
-        SizedBox(
-          width: 44,
-          child: Text('GPU', textAlign: TextAlign.right, style: style),
-        ),
-        SizedBox(
-          width: 52,
-          child: Text('Ded.', textAlign: TextAlign.right, style: style),
-        ),
-        SizedBox(
-          width: 52,
-          child: Text('Shared', textAlign: TextAlign.right, style: style),
-        ),
-        SizedBox(
-          width: 54,
-          child: Text('Engine', textAlign: TextAlign.right, style: style),
-        ),
-        SizedBox(
-          width: 38,
-          child: Text('PID', textAlign: TextAlign.right, style: style),
-        ),
-      ],
-    );
-  }
-}
-
-class _GpuProcessRow extends StatelessWidget {
-  const _GpuProcessRow({required this.entry});
-  final HealthProcessEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = entry.name.trim().isEmpty ? kUnavailableDash : entry.name;
-    final gpuPct = entry.hasGpuPercent
-        ? '${entry.gpuPercent.toStringAsFixed(1)}%'
-        : kUnavailableDash;
-    final dedicated = entry.hasGpuDedicatedBytes
-        ? formatBytesBinary(entry.gpuDedicatedBytes, fractionDigits: 0)
-        : kUnavailableDash;
-    final shared = entry.hasGpuSharedBytes
-        ? formatBytesBinary(entry.gpuSharedBytes, fractionDigits: 0)
-        : kUnavailableDash;
-    final engine = orDash(entry.gpuEngine);
-    final pid = entry.pid > 0 ? entry.pid.toString() : kUnavailableDash;
-    final valueStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: PulseTokens.textSecondary,
-          fontSize: 11.5,
-        );
-    final mutedStyle = valueStyle?.copyWith(color: PulseTokens.textTertiary);
-
-    return Row(
-      children: [
-        ProcessAppIcon(path: entry.path, name: name, pid: entry.pid, size: 20),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: PulseTokens.textPrimary,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 12,
-                ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        SizedBox(
-          width: 44,
-          child: Text(
-            gpuPct,
-            textAlign: TextAlign.right,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: valueStyle,
-          ),
-        ),
-        SizedBox(
-          width: 52,
-          child: Text(
-            dedicated,
-            textAlign: TextAlign.right,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: valueStyle,
-          ),
-        ),
-        SizedBox(
-          width: 52,
-          child: Text(
-            shared,
-            textAlign: TextAlign.right,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: valueStyle,
-          ),
-        ),
-        SizedBox(
-          width: 54,
-          child: Text(
-            engine,
-            textAlign: TextAlign.right,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: mutedStyle,
-          ),
-        ),
-        SizedBox(
-          width: 38,
-          child: Text(
-            pid,
-            textAlign: TextAlign.right,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: mutedStyle,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 class _DiskPanelBody extends StatelessWidget {

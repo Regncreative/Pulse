@@ -66,6 +66,18 @@ class HealthMetricsCollector {
   void SamplePerProcessNetwork(
       std::unordered_map<uint32_t, uint64_t>* tcp_bytes_by_pid);
 
+  /// Per-PID GPU engine util + process dedicated/shared memory (LUID-filtered).
+  struct GpuByPid {
+    bool has_util = false;
+    double util = 0.0;
+    std::string engine;
+    bool has_dedicated = false;
+    uint64_t dedicated_bytes = 0;
+    bool has_shared = false;
+    uint64_t shared_bytes = 0;
+  };
+  void SampleGpuMetricsByPid(std::unordered_map<uint32_t, GpuByPid>* out);
+
   [[nodiscard]] static std::string ReadRegistryString(const wchar_t* subkey,
                                                       const wchar_t* value);
   [[nodiscard]] static uint32_t ReadRegistryDword(const wchar_t* subkey,
@@ -107,6 +119,9 @@ class HealthMetricsCollector {
   void* pdh_gpu_dedicated_ = nullptr;
   void* pdh_gpu_shared_ = nullptr;
   bool pdh_gpu_mem_ok_ = false;
+  void* pdh_gpu_proc_ded_ = nullptr;
+  void* pdh_gpu_proc_shr_ = nullptr;
+  bool pdh_gpu_proc_mem_ok_ = false;
 
   ProcessCpuCalculator process_cpu_{ProcessCpuMode::TimeBased};
   IdleCycleTracker idle_cycles_;
@@ -141,6 +156,13 @@ class HealthMetricsCollector {
     bool has_disk = false;
     double net_bps = 0.0;
     bool has_net = false;
+    bool has_gpu = false;
+    double gpu_percent = 0.0;
+    std::string gpu_engine;
+    bool has_gpu_dedicated = false;
+    uint64_t gpu_dedicated_bytes = 0;
+    bool has_gpu_shared = false;
+    uint64_t gpu_shared_bytes = 0;
     uint32_t thread_count = 0;
     uint32_t handle_count = 0;
     std::string path;

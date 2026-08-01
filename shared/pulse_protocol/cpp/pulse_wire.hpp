@@ -137,6 +137,9 @@ struct HealthStaticInfo {
   bool gpu_hardware_scheduling = false;
   std::string gpu_pcie_link_speed;
   std::string gpu_pcie_link_width;
+  std::string gpu_pci_location;
+  bool has_gpu_resizable_bar = false;
+  bool gpu_resizable_bar = false;
   std::string net_manufacturer;
   std::string net_description;
   std::string net_mac_address;
@@ -357,6 +360,8 @@ struct HealthSample {
   double gpu_util_video_decode = 0.0;
   bool has_gpu_util_video_encode = false;
   double gpu_util_video_encode = 0.0;
+  bool has_gpu_util_video_processing = false;
+  double gpu_util_video_processing = 0.0;
   bool has_gpu_dedicated_used = false;
   uint64_t gpu_dedicated_used_bytes = 0;
   bool has_gpu_shared_used = false;
