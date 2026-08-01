@@ -39,7 +39,7 @@ class PulseAppBar extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: PulseTokens.canvas.withValues(alpha: 0.35),
-        border: const Border(
+        border: Border(
           bottom: BorderSide(color: PulseTokens.strokeSubtle),
         ),
       ),
@@ -211,7 +211,7 @@ class _SearchFieldState extends State<_SearchField> with SafeHoverState {
                   _controller.clear();
                   widget.onChanged?.call('');
                 },
-                icon: const Icon(
+                icon: Icon(
                   LucideIcons.x,
                   size: 14,
                   color: PulseTokens.textTertiary,

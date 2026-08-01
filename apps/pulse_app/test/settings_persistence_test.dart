@@ -1,6 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:pulse/app/theme/pulse_theme.dart';
 import 'package:pulse/application/settings_controller.dart';
 import 'package:pulse/logging/app_logger.dart';
 
@@ -20,6 +22,10 @@ void main() {
     await a.setCompactMode(true);
     await a.setAnimationsEnabled(false);
     await a.setDebugLogging(true);
+    await a.setThemeMode('light');
+    await a.setAccentPreset('purple');
+    await a.setCustomAccentArgb(0xFF112233);
+    await a.setAnimationSpeed(1.25);
     await a.completeWelcome();
 
     final b = SettingsController(logger: AppLogger());
@@ -34,5 +40,11 @@ void main() {
     expect(b.debugLogging, isTrue);
     expect(b.logger.debugEnabled, isTrue);
     expect(b.welcomeCompleted, isTrue);
+    expect(b.themeMode, 'light');
+    expect(b.accentPreset, 'purple');
+    expect(b.customAccentArgb, 0xFF112233);
+    expect(b.animationSpeed, 1.25);
+    expect(b.materialThemeMode, ThemeMode.light);
+    expect(b.resolvedAccent, PulseThemeData.accentPurple);
   });
 }

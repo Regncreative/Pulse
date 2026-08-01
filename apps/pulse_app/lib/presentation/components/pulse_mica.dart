@@ -13,7 +13,7 @@ class PulseMicaBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        const ColoredBox(color: PulseTokens.canvas),
+        ColoredBox(color: PulseTokens.canvas),
         // Subtle cool tint — reads like system Mica under dark chrome
         DecoratedBox(
           decoration: BoxDecoration(

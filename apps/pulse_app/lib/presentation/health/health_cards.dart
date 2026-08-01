@@ -383,7 +383,7 @@ class _HealthProgressBar extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            const ColoredBox(color: PulseTokens.strokeSubtle),
+            ColoredBox(color: PulseTokens.strokeSubtle),
             FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: value.clamp(0.0, 1.0),
@@ -643,7 +643,7 @@ class HealthGroupedCard extends StatelessWidget {
                     padding: EdgeInsets.zero,
                     physics: const ClampingScrollPhysics(),
                     itemCount: rows.length,
-                    separatorBuilder: (_, __) => const Divider(
+                    separatorBuilder: (_, __) => Divider(
                       height: 1,
                       color: PulseTokens.strokeSubtle,
                     ),
@@ -654,7 +654,7 @@ class HealthGroupedCard extends StatelessWidget {
                     children: [
                       for (var i = 0; i < rows.length; i++) ...[
                         if (i > 0)
-                          const Divider(
+                          Divider(
                             height: 1,
                             color: PulseTokens.strokeSubtle,
                           ),

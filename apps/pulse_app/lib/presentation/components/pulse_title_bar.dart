@@ -63,7 +63,7 @@ class _PulseTitleBarState extends State<PulseTitleBar> with WindowListener {
     return DragToMoveArea(
       child: Container(
         height: 40,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: PulseTokens.sidebarSolid,
           border: Border(
             bottom: BorderSide(color: PulseTokens.strokeSubtle),

@@ -313,7 +313,7 @@ class ServiceOfflineRecovery extends StatelessWidget {
                   ),
                 if (showFullControls) ...[
                   const SizedBox(height: PulseTokens.spaceLg),
-                  const Divider(height: 1, color: PulseTokens.strokeSubtle),
+                  Divider(height: 1, color: PulseTokens.strokeSubtle),
                   const SizedBox(height: PulseTokens.spaceLg),
                   const ServiceLifecycleControls(compact: true),
                 ],

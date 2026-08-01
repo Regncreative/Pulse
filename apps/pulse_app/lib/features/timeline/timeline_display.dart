@@ -93,37 +93,37 @@ class TimelineSeverityVisual {
 
   static TimelineSeverityVisual fromWire(int severity) {
     return switch (severity) {
-      Severity.warning => const TimelineSeverityVisual(
+      Severity.warning => TimelineSeverityVisual(
           color: PulseTokens.severityWarning,
           soft: PulseTokens.warningSoft,
           label: 'Warning',
           tone: PulseBadgeTone.warning,
         ),
-      Severity.error => const TimelineSeverityVisual(
+      Severity.error => TimelineSeverityVisual(
           color: PulseTokens.severityError,
           soft: PulseTokens.errorSoft,
           label: 'Error',
           tone: PulseBadgeTone.error,
         ),
-      Severity.critical => const TimelineSeverityVisual(
+      Severity.critical => TimelineSeverityVisual(
           color: PulseTokens.severityCritical,
           soft: PulseTokens.errorSoft,
           label: 'Critical',
           tone: PulseBadgeTone.error,
         ),
-      Severity.verbose => const TimelineSeverityVisual(
+      Severity.verbose => TimelineSeverityVisual(
           color: PulseTokens.textTertiary,
           soft: PulseTokens.surface,
           label: 'Verbose',
           tone: PulseBadgeTone.neutral,
         ),
-      Severity.info => const TimelineSeverityVisual(
+      Severity.info => TimelineSeverityVisual(
           color: PulseTokens.severityInfo,
           soft: PulseTokens.infoSoft,
           label: 'Info',
           tone: PulseBadgeTone.info,
         ),
-      _ => const TimelineSeverityVisual(
+      _ => TimelineSeverityVisual(
           color: PulseTokens.textSecondary,
           soft: PulseTokens.surface,
           label: 'Unknown',

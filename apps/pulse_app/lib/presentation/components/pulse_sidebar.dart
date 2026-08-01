@@ -39,7 +39,7 @@ class PulseSidebar extends StatelessWidget {
       duration: PulseTokens.motionNormal,
       curve: PulseTokens.motionCurve,
       width: width,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: PulseTokens.sidebarSolid,
         border: Border(
           right: BorderSide(color: PulseTokens.strokeSubtle),
@@ -215,7 +215,7 @@ class _SidebarTileState extends State<_SidebarTile> with SafeHoverState {
                       Container(
                         width: 5,
                         height: 5,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: PulseTokens.accent,
                           shape: BoxShape.circle,
                         ),

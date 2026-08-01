@@ -803,7 +803,7 @@ class _NewEventsButton extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     LucideIcons.arrowUp,
                     size: 14,
                     color: PulseTokens.onAccent,

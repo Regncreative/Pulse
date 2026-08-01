@@ -67,6 +67,15 @@ Future<Widget> _harness(Widget page) async {
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: PulseTheme.dark(),
+      darkTheme: PulseTheme.dark(),
+      themeMode: ThemeMode.dark,
+      builder: (context, child) {
+        final pulse = Theme.of(context).extension<PulseThemeData>();
+        if (pulse != null) {
+          PulseThemeScope.current = pulse;
+        }
+        return child ?? const SizedBox.shrink();
+      },
       home: Scaffold(
         backgroundColor: PulseTokens.canvas,
         body: page,

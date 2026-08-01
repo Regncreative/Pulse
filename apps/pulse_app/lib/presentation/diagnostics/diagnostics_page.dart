@@ -414,7 +414,7 @@ class _ServiceCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          Divider(height: 1, color: PulseTokens.strokeSubtle),
           const SizedBox(height: 14),
           const ServiceLifecycleControls(compact: true),
           if (life.state == PulseServiceScmState.running && !connected) ...[
@@ -778,8 +778,8 @@ class _PipelineCard extends StatelessWidget {
               detail: stages[i].$3,
             ),
             if (i < stages.length - 1)
-              const Padding(
-                padding: EdgeInsets.only(left: 18, top: 2, bottom: 2),
+              Padding(
+                padding: const EdgeInsets.only(left: 18, top: 2, bottom: 2),
                 child: Icon(
                   LucideIcons.arrowDown,
                   size: 14,
@@ -1144,7 +1144,7 @@ Widget _kv(String label, String value) {
             label,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               color: PulseTokens.textTertiary,
               fontSize: 12.5,
               height: 1.35,
@@ -1161,7 +1161,7 @@ Widget _kv(String label, String value) {
               value,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: PulseTokens.textPrimary,
                 fontSize: 12.5,
                 fontWeight: FontWeight.w500,

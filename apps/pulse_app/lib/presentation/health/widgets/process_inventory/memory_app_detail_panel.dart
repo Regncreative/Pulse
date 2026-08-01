@@ -52,7 +52,7 @@ class MemoryAppDetailPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: PulseTokens.sidebarSolid.withValues(alpha: 0.96),
-        border: const Border(
+        border: Border(
           top: BorderSide(color: PulseTokens.strokeSubtle),
         ),
       ),

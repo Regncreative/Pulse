@@ -117,7 +117,7 @@ class _ProcessInventoryListState extends State<ProcessInventoryList> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _ColumnHeader(metrics: metrics),
-            const Divider(height: 1, color: PulseTokens.strokeSubtle),
+            Divider(height: 1, color: PulseTokens.strokeSubtle),
             Expanded(
               child: ListView.builder(
                 itemCount: items.length,

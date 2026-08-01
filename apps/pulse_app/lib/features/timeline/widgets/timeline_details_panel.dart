@@ -26,7 +26,7 @@ class TimelineDetailsPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: PulseTokens.sidebarSolid.withValues(alpha: 0.98),
-        border: const Border(
+        border: Border(
           left: BorderSide(color: PulseTokens.strokeSubtle),
         ),
         boxShadow: [
@@ -41,7 +41,7 @@ class TimelineDetailsPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _DetailsHeader(onClose: onClose),
-          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          Divider(height: 1, color: PulseTokens.strokeSubtle),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.only(bottom: 28),
@@ -156,7 +156,7 @@ class TimelineDetailsPanel extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Divider(height: 1, color: PulseTokens.strokeSubtle),
+                Divider(height: 1, color: PulseTokens.strokeSubtle),
                 DetailSection(
                   title: 'Technical Information',
                   child: MetadataTable(
@@ -177,7 +177,7 @@ class TimelineDetailsPanel extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Divider(height: 1, color: PulseTokens.strokeSubtle),
+                Divider(height: 1, color: PulseTokens.strokeSubtle),
                 DetailSection(
                   title: 'Original Windows Message',
                   child: _OriginalMessageBox(
@@ -186,7 +186,7 @@ class TimelineDetailsPanel extends StatelessWidget {
                         : 'No original Event Viewer message was available for this entry.',
                   ),
                 ),
-                const Divider(height: 1, color: PulseTokens.strokeSubtle),
+                Divider(height: 1, color: PulseTokens.strokeSubtle),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                   child: Theme(

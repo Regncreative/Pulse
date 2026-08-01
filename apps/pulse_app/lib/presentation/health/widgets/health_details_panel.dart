@@ -39,7 +39,7 @@ class HealthDetailsPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: PulseTokens.sidebarSolid.withValues(alpha: 0.98),
-        border: const Border(
+        border: Border(
           left: BorderSide(color: PulseTokens.strokeSubtle),
         ),
         boxShadow: [
@@ -58,7 +58,7 @@ class HealthDetailsPanel extends StatelessWidget {
             subtitle: _subtitle(),
             onClose: onClose,
           ),
-          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          Divider(height: 1, color: PulseTokens.strokeSubtle),
           Expanded(
             child: _sectionsBody(),
           ),
@@ -330,7 +330,7 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
             ),
           ),
         ),
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 5,
           child: DetailSection(
@@ -349,7 +349,7 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
           ),
         ),
         if (selectedEntry != null) ...[
-          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          Divider(height: 1, color: PulseTokens.strokeSubtle),
           SizedBox(
             height: 260,
             child: ProcessDetailPanel(
@@ -362,7 +362,7 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
             ),
           ),
         ],
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 3,
           child: DetailSection(
@@ -604,7 +604,7 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
             ),
           ),
         ),
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 6,
           child: DetailSection(
@@ -628,7 +628,7 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
           ),
         ),
         if (selectedGroup != null) ...[
-          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          Divider(height: 1, color: PulseTokens.strokeSubtle),
           SizedBox(
             height: 220,
             child: MemoryAppDetailPanel(
@@ -639,7 +639,7 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
             ),
           ),
         ],
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 2,
           child: DetailSection(
@@ -957,7 +957,7 @@ class _GpuPanelBody extends StatelessWidget {
             ),
           ),
         ),
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 6,
           child: DetailSection(
@@ -980,7 +980,7 @@ class _GpuPanelBody extends StatelessWidget {
                   ),
           ),
         ),
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 4,
           child: DetailSection(
@@ -1167,7 +1167,7 @@ class _DiskPanelBody extends StatelessWidget {
             ),
           ),
         ),
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 4,
           child: DetailSection(
@@ -1180,7 +1180,7 @@ class _DiskPanelBody extends StatelessWidget {
           ),
         ),
         if (volumeSpec.isNotEmpty) ...[
-          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          Divider(height: 1, color: PulseTokens.strokeSubtle),
           Expanded(
             flex: 3,
             child: DetailSection(
@@ -1192,7 +1192,7 @@ class _DiskPanelBody extends StatelessWidget {
           ),
         ],
         if (diskSpec.isNotEmpty) ...[
-          const Divider(height: 1, color: PulseTokens.strokeSubtle),
+          Divider(height: 1, color: PulseTokens.strokeSubtle),
           Expanded(
             flex: 3,
             child: DetailSection(
@@ -1203,7 +1203,7 @@ class _DiskPanelBody extends StatelessWidget {
             ),
           ),
         ],
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 4,
           child: DetailSection(
@@ -1462,7 +1462,7 @@ class _NetworkPanelBody extends StatelessWidget {
             ),
           ),
         ),
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 8,
           child: DetailSection(
@@ -1680,7 +1680,7 @@ class _NetworkPanelBody extends StatelessWidget {
             ),
           ),
         ),
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 3,
           child: DetailSection(
@@ -1703,7 +1703,7 @@ class _NetworkPanelBody extends StatelessWidget {
                   ),
           ),
         ),
-        const Divider(height: 1, color: PulseTokens.strokeSubtle),
+        Divider(height: 1, color: PulseTokens.strokeSubtle),
         Expanded(
           flex: 3,
           child: DetailSection(
