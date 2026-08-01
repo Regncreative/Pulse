@@ -12,6 +12,7 @@ import 'package:pulse_protocol/pulse_wire.dart';
 import '../ipc/pulse_ipc_client.dart';
 import '../logging/app_logger.dart';
 import '../presentation/utils/pulse_user_errors.dart';
+import 'client_frame_metrics.dart';
 import 'settings_controller.dart';
 import 'timeline_session_controller.dart';
 
@@ -22,14 +23,17 @@ class DiagnosticsController extends ChangeNotifier {
     required this.timeline,
     required this.settings,
     required this.logger,
+    required this.frameMetrics,
   }) {
     ipc.addListener(_onIpc);
+    frameMetrics.addListener(_onFrames);
   }
 
   final PulseIpcClient ipc;
   final TimelineSessionController timeline;
   final SettingsController settings;
   final AppLogger logger;
+  final ClientFrameMetrics frameMetrics;
 
   DiagnosticsSnapshot? snapshot;
   String? snapshotError;
@@ -39,11 +43,15 @@ class DiagnosticsController extends ChangeNotifier {
   HealthStaticInfo? lastHealthInfo;
   HealthSample? lastHealthSample;
 
+  /// Client-measured round-trip of GetDiagnosticsSnapshot (ms).
+  int? lastSnapshotLatencyMs;
+
   bool get connected => ipc.status.state == IpcConnectionState.connected;
 
   void startPolling() {
     if (polling) return;
     polling = true;
+    frameMetrics.noteRebuild();
     unawaited(refresh());
     _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       unawaited(refresh());
@@ -64,12 +72,17 @@ class DiagnosticsController extends ChangeNotifier {
       snapshot = null;
       snapshotError =
           'PulseService is offline. Start it to load service diagnostics.';
+      lastSnapshotLatencyMs = null;
       notifyListeners();
       return;
     }
     try {
+      final started = DateTime.now();
       snapshot = await ipc.getDiagnosticsSnapshot();
+      lastSnapshotLatencyMs =
+          DateTime.now().difference(started).inMilliseconds.clamp(0, 60000);
       snapshotError = null;
+      frameMetrics.refreshMemory();
       notifyListeners();
     } catch (e) {
       snapshotError = PulseUserErrors.fromObject(e);
@@ -119,6 +132,7 @@ class DiagnosticsController extends ChangeNotifier {
   String buildDiagnosticsText() {
     final s = snapshot;
     final st = ipc.status;
+    final fm = frameMetrics;
     final buf = StringBuffer()
       ..writeln('Pulse Diagnostics')
       ..writeln('App: $kAppVersion')
@@ -126,11 +140,29 @@ class DiagnosticsController extends ChangeNotifier {
       ..writeln('IPC state: ${st.state.name}')
       ..writeln(
           'Service version: ${s?.serviceVersion.isNotEmpty == true ? s!.serviceVersion : (st.serviceVersion.isEmpty ? '—' : st.serviceVersion)}')
+      ..writeln(
+          'Build version: ${s?.buildVersion.isNotEmpty == true ? s!.buildVersion : '—'}')
+      ..writeln(
+          'Git commit: ${s?.gitCommit.isNotEmpty == true ? s!.gitCommit : '—'}')
+      ..writeln(
+          'Executable: ${s?.executablePath.isNotEmpty == true ? s!.executablePath : '—'}')
+      ..writeln(
+          'Install path: ${s?.installPath.isNotEmpty == true ? s!.installPath : '—'}')
+      ..writeln(
+          'SHA256: ${s?.binarySha256.isNotEmpty == true ? s!.binarySha256 : '—'}')
+      ..writeln(
+          'SCM: ${s?.scmState.isNotEmpty == true ? s!.scmState : '—'} / ${s?.scmStartupType.isNotEmpty == true ? s!.scmStartupType : '—'}')
       ..writeln('Client reconnects: ${st.reconnectCount}')
       ..writeln('Last ping: ${st.lastPingLatencyMs ?? '—'} ms')
-      ..writeln('Avg ping: ${st.avgPingLatencyMs?.toStringAsFixed(1) ?? '—'} ms')
+      ..writeln('Snapshot RPC: ${lastSnapshotLatencyMs ?? '—'} ms')
+      ..writeln(
+          'Avg ping: ${st.avgPingLatencyMs?.toStringAsFixed(1) ?? '—'} ms')
       ..writeln('Messages sent: ${st.messagesSent}')
-      ..writeln('Messages failed: ${st.messagesFailed}');
+      ..writeln('Messages failed: ${st.messagesFailed}')
+      ..writeln('Client FPS: ${fm.fps?.toStringAsFixed(1) ?? '—'}')
+      ..writeln(
+          'Client frame ms: ${fm.avgTotalFrameMs?.toStringAsFixed(2) ?? '—'}')
+      ..writeln('Client RSS: ${fm.rssBytes ?? '—'}');
     if (s != null) {
       buf
         ..writeln('Run mode: ${s.runMode}')
@@ -144,9 +176,26 @@ class DiagnosticsController extends ChangeNotifier {
         ..writeln(
             'Service CPU: ${s.hasCpuPercent ? '${s.cpuPercent.toStringAsFixed(1)}%' : '—'}')
         ..writeln('Working set: ${s.workingSetBytes}')
-        ..writeln('Threads: ${s.threadCount} Handles: ${s.handleCount}');
+        ..writeln('Threads: ${s.threadCount} Handles: ${s.handleCount}')
+        ..writeln('IPC bytes rx/tx: ${s.ipcBytesReceived}/${s.ipcBytesSent}')
+        ..writeln(
+            'IPC msg/s: ${s.hasIpcMessagesPerSec ? s.ipcMessagesPerSec.toStringAsFixed(1) : '—'}')
+        ..writeln(
+            'IPC bytes/s: ${s.hasIpcBytesPerSec ? s.ipcBytesPerSec.toStringAsFixed(0) : '—'}')
+        ..writeln('Health monitoring: ${s.healthMonitoringActive}')
+        ..writeln('Health sample Hz: ${s.healthSampleRateHz}')
+        ..writeln('Network ETW: ${s.networkEtwRunning}')
+        ..writeln(
+            'Network ETW error: ${s.networkEtwLastError.isEmpty ? '—' : s.networkEtwLastError}');
     } else if (snapshotError != null) {
       buf.writeln('Snapshot error: $snapshotError');
+    }
+    if (ipc.reconnectHistory.isNotEmpty) {
+      buf.writeln('Reconnect history:');
+      for (final e in ipc.reconnectHistory.reversed) {
+        buf.writeln(
+            '  ${DateTime.fromMillisecondsSinceEpoch(e.unixMs).toLocal()} — ${e.reason}');
+      }
     }
     return buf.toString();
   }
@@ -155,7 +204,12 @@ class DiagnosticsController extends ChangeNotifier {
         // Refresh service snapshot + hardware before packaging.
         if (connected) {
           try {
+            final started = DateTime.now();
             snapshot = await ipc.getDiagnosticsSnapshot();
+            lastSnapshotLatencyMs = DateTime.now()
+                .difference(started)
+                .inMilliseconds
+                .clamp(0, 60000);
             snapshotError = null;
           } catch (e) {
             snapshotError = PulseUserErrors.fromObject(e);
@@ -203,6 +257,7 @@ class DiagnosticsController extends ChangeNotifier {
         }).toList();
 
         final s = snapshot;
+        final fm = frameMetrics;
         final payload = <String, dynamic>{
           'exported_at': DateTime.now().toIso8601String(),
           'pulse_version': kAppVersion,
@@ -216,6 +271,19 @@ class DiagnosticsController extends ChangeNotifier {
               : {
                   'edition': s.windowsEdition,
                   'version': s.windowsVersion,
+                },
+          'service_identity': s == null
+              ? null
+              : {
+                  'executable_path': s.executablePath,
+                  'build_version': s.buildVersion,
+                  'git_commit': s.gitCommit,
+                  'binary_sha256': s.binarySha256,
+                  'install_path': s.installPath,
+                  'has_paths_match': s.hasPathsMatch,
+                  'paths_match': s.hasPathsMatch ? s.pathsMatch : null,
+                  'scm_state': s.scmState,
+                  'scm_startup_type': s.scmStartupType,
                 },
           'hardware_summary': lastHealthInfo == null
               ? null
@@ -237,12 +305,42 @@ class DiagnosticsController extends ChangeNotifier {
             'client_messages_failed': ipc.status.messagesFailed,
             'last_ping_ms': ipc.status.lastPingLatencyMs,
             'avg_ping_ms': ipc.status.avgPingLatencyMs,
+            'last_snapshot_rpc_ms': lastSnapshotLatencyMs,
             'service_messages_received': s?.ipcMessagesReceived,
             'service_messages_sent': s?.ipcMessagesSent,
             'service_ipc_errors': s?.ipcErrors,
+            'service_ipc_bytes_received': s?.ipcBytesReceived,
+            'service_ipc_bytes_sent': s?.ipcBytesSent,
+            'has_ipc_messages_per_sec': s?.hasIpcMessagesPerSec,
+            'ipc_messages_per_sec':
+                s?.hasIpcMessagesPerSec == true ? s!.ipcMessagesPerSec : null,
+            'has_ipc_bytes_per_sec': s?.hasIpcBytesPerSec,
+            'ipc_bytes_per_sec':
+                s?.hasIpcBytesPerSec == true ? s!.ipcBytesPerSec : null,
             'connected_clients': s?.connectedClients,
             'last_transport_error':
                 ipc.status.lastError.isEmpty ? null : ipc.status.lastError,
+            'reconnect_history': ipc.reconnectHistory
+                .map((e) => {'unix_ms': e.unixMs, 'reason': e.reason})
+                .toList(),
+          },
+          'collectors': s == null
+              ? null
+              : {
+                  'health_monitoring_active': s.healthMonitoringActive,
+                  'health_sample_rate_hz': s.healthSampleRateHz,
+                  'network_etw_running': s.networkEtwRunning,
+                  'network_etw_last_error': s.networkEtwLastError.isEmpty
+                      ? null
+                      : s.networkEtwLastError,
+                },
+          'flutter_client': {
+            'fps': fm.fps,
+            'avg_build_ms': fm.avgBuildMs,
+            'avg_raster_ms': fm.avgRasterMs,
+            'avg_total_frame_ms': fm.avgTotalFrameMs,
+            'rss_bytes': fm.rssBytes,
+            'rebuild_count': fm.rebuildCount,
           },
           'live_monitoring': {
             'client_active': timeline.liveActive,
@@ -278,6 +376,10 @@ class DiagnosticsController extends ChangeNotifier {
                   'stage_intelligence': s.stageIntelligence,
                   'stage_ipc': s.stageIpc,
                   'stage_detail': s.stageDetail,
+                  'stage_event_log_detail': s.stageEventLogDetail,
+                  'stage_collector_detail': s.stageCollectorDetail,
+                  'stage_intelligence_detail': s.stageIntelligenceDetail,
+                  'stage_ipc_detail': s.stageIpcDetail,
                 },
           'recent_logs': logger.lines.length > 200
               ? logger.lines.sublist(logger.lines.length - 200)
@@ -322,11 +424,15 @@ class DiagnosticsController extends ChangeNotifier {
   }
 
   void _onIpc() => notifyListeners();
+  void _onFrames() {
+    if (polling) notifyListeners();
+  }
 
   @override
   void dispose() {
     stopPolling();
     ipc.removeListener(_onIpc);
+    frameMetrics.removeListener(_onFrames);
     super.dispose();
   }
 }

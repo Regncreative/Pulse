@@ -516,6 +516,37 @@ message DiagnosticsSnapshot {
 
   string windows_edition = 31;
   string windows_version = 32;
+
+  // Phase 5 — service identity
+  string executable_path = 33;
+  string build_version = 34;
+  string git_commit = 35;
+  string binary_sha256 = 36;
+  string install_path = 37;
+  bool has_paths_match = 38;
+  bool paths_match = 39;
+  string scm_state = 40;
+  string scm_startup_type = 41;
+
+  // Phase 5 — IPC throughput (cumulative + rates when a prior sample exists)
+  uint64 ipc_bytes_received = 42;
+  uint64 ipc_bytes_sent = 43;
+  bool has_ipc_messages_per_sec = 44;
+  double ipc_messages_per_sec = 45;
+  bool has_ipc_bytes_per_sec = 46;
+  double ipc_bytes_per_sec = 47;
+
+  // Phase 5 — collectors
+  bool health_monitoring_active = 48;
+  double health_sample_rate_hz = 49;
+  bool network_etw_running = 50;
+  string network_etw_last_error = 51;
+
+  // Phase 5 — per-stage detail (status text; no invented timings)
+  string stage_event_log_detail = 52;
+  string stage_collector_detail = 53;
+  string stage_intelligence_detail = 54;
+  string stage_ipc_detail = 55;
 }
 
 // Client → Service: push one synthetic Pulse.Diagnostics TimelineEvent (no Event Log write).

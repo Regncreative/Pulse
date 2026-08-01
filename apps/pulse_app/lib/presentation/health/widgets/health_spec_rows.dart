@@ -47,6 +47,8 @@ class HealthSpecSection extends StatelessWidget {
         if (hasTitle) ...[
           Text(
             title!.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelSmall?.copyWith(
               color: PulseTokens.textTertiary,
               letterSpacing: 0.7,
@@ -77,6 +79,44 @@ class _HealthSpecRowTile extends StatelessWidget {
     final isPlaceholder =
         row.value == kUnavailableDash || row.value == kNotSupported;
     final hasDescription = row.description?.trim().isNotEmpty ?? false;
+    final tooltipMessage = isPlaceholder
+        ? null
+        : [
+            row.value,
+            if (hasDescription) row.description!.trim(),
+          ].join('\n');
+
+    final valueColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          row.value,
+          textAlign: TextAlign.right,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: isPlaceholder
+                ? PulseTokens.textDisabled
+                : PulseTokens.textPrimary,
+            fontWeight: FontWeight.w600,
+            fontSize: compact ? 11.5 : null,
+          ),
+        ),
+        if (hasDescription) ...[
+          const SizedBox(height: 2),
+          Text(
+            row.description!,
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: PulseTokens.textTertiary,
+              fontSize: compact ? 10 : null,
+            ),
+          ),
+        ],
+      ],
+    );
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,6 +124,8 @@ class _HealthSpecRowTile extends StatelessWidget {
         Expanded(
           child: Text(
             row.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: PulseTokens.textTertiary,
               fontSize: compact ? 11.5 : null,
@@ -92,37 +134,13 @@ class _HealthSpecRowTile extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                row.value,
-                textAlign: TextAlign.right,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: isPlaceholder
-                      ? PulseTokens.textDisabled
-                      : PulseTokens.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: compact ? 11.5 : null,
+          child: tooltipMessage == null
+              ? valueColumn
+              : Tooltip(
+                  message: tooltipMessage,
+                  waitDuration: const Duration(milliseconds: 450),
+                  child: valueColumn,
                 ),
-              ),
-              if (hasDescription) ...[
-                const SizedBox(height: 2),
-                Text(
-                  row.description!,
-                  textAlign: TextAlign.right,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: PulseTokens.textTertiary,
-                    fontSize: compact ? 10 : null,
-                  ),
-                ),
-              ],
-            ],
-          ),
         ),
       ],
     );

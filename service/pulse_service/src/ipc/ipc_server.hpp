@@ -67,6 +67,7 @@ class IpcServer {
 
   ipc::DiagnosticsSnapshot BuildDiagnosticsSnapshot();
   void FillServiceProcessMetrics(ipc::DiagnosticsSnapshot* out);
+  void FillIpcThroughputRates(ipc::DiagnosticsSnapshot* out);
   void InjectTestEvent();
 
   std::wstring pipe_name_;
@@ -94,6 +95,8 @@ class IpcServer {
   std::atomic<uint64_t> ipc_messages_received_{0};
   std::atomic<uint64_t> ipc_messages_sent_{0};
   std::atomic<uint64_t> ipc_errors_{0};
+  std::atomic<uint64_t> ipc_bytes_received_{0};
+  std::atomic<uint64_t> ipc_bytes_sent_{0};
   std::atomic<uint64_t> live_events_pushed_{0};
   std::atomic<uint64_t> live_events_dropped_{0};
   std::mutex last_live_mu_;
@@ -104,6 +107,13 @@ class IpcServer {
   uint64_t prev_proc_cpu_100ns_ = 0;
   uint64_t prev_proc_cpu_tick_ms_ = 0;
   bool have_proc_cpu_baseline_ = false;
+
+  // IPC throughput baseline (messages + bytes over wall time).
+  std::mutex ipc_rate_mu_;
+  bool have_ipc_rate_baseline_ = false;
+  uint64_t prev_ipc_msgs_total_ = 0;
+  uint64_t prev_ipc_bytes_total_ = 0;
+  uint64_t prev_ipc_rate_tick_ms_ = 0;
 };
 
 }  // namespace pulse

@@ -14,8 +14,10 @@ enum ProcessListMetrics { standard, memory, gpu, network }
 class _ProcessColumns {
   static const double padX = 10;
   static const double iconGap = 8;
-  static const double icon = 16;
-  static const double chevron = 18;
+  /// Logical pixels — matches compact process rows in health details.
+  static const double icon = 20;
+  /// Visual chevron glyph width; hit target is expanded to [_kMinHitTarget].
+  static const double chevron = 24;
   static const double cpu = 56;
   static const double memory = 72;
   static const double disk = 72;
@@ -29,6 +31,8 @@ class _ProcessColumns {
   static const double metricGap = 4;
   static const double childIndent = 22;
 }
+
+const double _kMinHitTarget = 24;
 
 /// Virtualized, categorized process list with Task Manager–style app groups.
 class ProcessInventoryList extends StatefulWidget {
@@ -90,11 +94,17 @@ class _ProcessInventoryListState extends State<ProcessInventoryList> {
 
         if (items.isEmpty) {
           return Center(
-            child: Text(
-              'Waiting for process inventory…',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: PulseTokens.textTertiary,
-                  ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Waiting for process inventory…\n'
+                'Live process metrics appear once PulseService reports them.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: PulseTokens.textTertiary,
+                      height: 1.45,
+                    ),
+              ),
             ),
           );
         }
@@ -294,58 +304,70 @@ class _AppGroupRow extends StatelessWidget {
         );
     final title = '${group.displayName} (${group.memberCount})';
 
-    return Material(
-      color: selected
-          ? PulseTokens.accent.withValues(alpha: 0.12)
-          : Colors.transparent,
-      child: InkWell(
-        onTap: onSelect,
-        onDoubleTap: onToggleExpand,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: _ProcessColumns.padX),
-          child: Row(
-            children: [
-              SizedBox(
-                width: _ProcessColumns.chevron,
-                child: group.memberCount > 1
-                    ? IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: _ProcessColumns.chevron,
-                          minHeight: _ProcessColumns.chevron,
-                        ),
-                        iconSize: 16,
-                        onPressed: onToggleExpand,
-                        icon: Icon(
-                          expanded
-                              ? Icons.expand_more
-                              : Icons.chevron_right,
-                          color: PulseTokens.textTertiary,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-              ProcessAppIcon(
-                path: group.iconPath,
-                name: group.iconName,
-                pid: group.representativePid,
-                size: _ProcessColumns.icon,
-              ),
-              const SizedBox(width: _ProcessColumns.iconGap),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: PulseTokens.textPrimary,
-                      ),
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: title,
+      child: Material(
+        color: selected
+            ? PulseTokens.accent.withValues(alpha: 0.12)
+            : Colors.transparent,
+        child: InkWell(
+          onTap: onSelect,
+          onDoubleTap: onToggleExpand,
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: _ProcessColumns.padX),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: _ProcessColumns.chevron,
+                  child: group.memberCount > 1
+                      ? IconButton(
+                          tooltip: expanded ? 'Collapse' : 'Expand',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: _kMinHitTarget,
+                            minHeight: _kMinHitTarget,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          iconSize: 16,
+                          onPressed: onToggleExpand,
+                          icon: Icon(
+                            expanded
+                                ? Icons.expand_more
+                                : Icons.chevron_right,
+                            color: PulseTokens.textTertiary,
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
-              ),
-              ..._metricCells(metricStyle),
-            ],
+                ProcessAppIcon(
+                  path: group.iconPath,
+                  name: group.iconName,
+                  pid: group.representativePid,
+                  size: _ProcessColumns.icon,
+                ),
+                const SizedBox(width: _ProcessColumns.iconGap),
+                Expanded(
+                  child: Tooltip(
+                    message: title,
+                    waitDuration: const Duration(milliseconds: 450),
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: PulseTokens.textPrimary,
+                          ),
+                    ),
+                  ),
+                ),
+                ..._metricCells(metricStyle),
+              ],
+            ),
           ),
         ),
       ),
@@ -441,40 +463,49 @@ class _ProcessChildRow extends StatelessWidget {
         );
     final title = '$imageName (PID ${entry.pid})';
 
-    return Material(
-      color: selected
-          ? PulseTokens.accent.withValues(alpha: 0.12)
-          : Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.only(
-            left: _ProcessColumns.padX + _ProcessColumns.childIndent,
-            right: _ProcessColumns.padX,
-          ),
-          child: Row(
-            children: [
-              ProcessAppIcon(
-                path: entry.path,
-                name: imageName,
-                pid: entry.pid,
-                size: _ProcessColumns.icon,
-              ),
-              const SizedBox(width: _ProcessColumns.iconGap),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: PulseTokens.textPrimary,
-                      ),
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: title,
+      child: Material(
+        color: selected
+            ? PulseTokens.accent.withValues(alpha: 0.12)
+            : Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.only(
+              left: _ProcessColumns.padX + _ProcessColumns.childIndent,
+              right: _ProcessColumns.padX,
+            ),
+            child: Row(
+              children: [
+                ProcessAppIcon(
+                  path: entry.path,
+                  name: imageName,
+                  pid: entry.pid,
+                  size: _ProcessColumns.icon,
                 ),
-              ),
-              ..._metricCells(metricStyle),
-            ],
+                const SizedBox(width: _ProcessColumns.iconGap),
+                Expanded(
+                  child: Tooltip(
+                    message: title,
+                    waitDuration: const Duration(milliseconds: 450),
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: PulseTokens.textPrimary,
+                          ),
+                    ),
+                  ),
+                ),
+                ..._metricCells(metricStyle),
+              ],
+            ),
           ),
         ),
       ),
@@ -546,17 +577,26 @@ class _ProcessChildRow extends StatelessWidget {
 }
 
 Widget _metricCell(String text, double width, TextStyle? style) {
+  final isPlaceholder =
+      text == kUnavailableDash || text == kNotSupported;
+  final cell = SizedBox(
+    width: width,
+    child: Text(
+      text,
+      textAlign: TextAlign.right,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    ),
+  );
   return Padding(
     padding: const EdgeInsets.only(left: _ProcessColumns.metricGap),
-    child: SizedBox(
-      width: width,
-      child: Text(
-        text,
-        textAlign: TextAlign.right,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: style,
-      ),
-    ),
+    child: isPlaceholder
+        ? cell
+        : Tooltip(
+            message: text,
+            waitDuration: const Duration(milliseconds: 450),
+            child: cell,
+          ),
   );
 }

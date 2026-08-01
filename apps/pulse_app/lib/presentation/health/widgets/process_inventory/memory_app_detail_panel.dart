@@ -71,7 +71,7 @@ class MemoryAppDetailPanel extends StatelessWidget {
                 path: group.iconPath,
                 name: group.iconName,
                 pid: group.representativePid,
-                size: 16,
+                size: 20,
               ),
               SizedBox(width: compact ? 8 : 10),
               Expanded(
@@ -141,7 +141,7 @@ class MemoryAppDetailPanel extends StatelessWidget {
             path: e.path,
             name: name,
             pid: e.pid,
-            size: 14,
+            size: 16,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -155,23 +155,35 @@ class MemoryAppDetailPanel extends StatelessWidget {
                   ),
             ),
           ),
-          Text(
-            mem,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontSize: 11,
-                  color: PulseTokens.textSecondary,
-                ),
+          Tooltip(
+            message: mem,
+            waitDuration: const Duration(milliseconds: 450),
+            child: Text(
+              mem,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 11,
+                    color: PulseTokens.textSecondary,
+                  ),
+            ),
           ),
           const SizedBox(width: 8),
           SizedBox(
             width: 64,
-            child: Text(
-              commit,
-              textAlign: TextAlign.right,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 11,
-                    color: PulseTokens.textTertiary,
-                  ),
+            child: Tooltip(
+              message: commit,
+              waitDuration: const Duration(milliseconds: 450),
+              child: Text(
+                commit,
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontSize: 11,
+                      color: PulseTokens.textTertiary,
+                    ),
+              ),
             ),
           ),
         ],

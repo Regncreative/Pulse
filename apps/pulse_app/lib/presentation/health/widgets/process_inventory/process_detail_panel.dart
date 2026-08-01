@@ -108,7 +108,7 @@ class ProcessDetailPanel extends StatelessWidget {
                 path: entry.path,
                 name: imageName,
                 pid: entry.pid,
-                size: 16,
+                size: 20,
               ),
               SizedBox(width: compact ? 8 : 10),
               Expanded(

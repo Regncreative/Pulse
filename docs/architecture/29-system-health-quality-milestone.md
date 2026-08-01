@@ -1,6 +1,6 @@
 # 29 — System Health Quality Milestone
 
-Status: **In progress** (Phases 1–4 complete)
+Status: **In progress** (Phases 1–5 complete)
 
 ## Goal
 
@@ -19,7 +19,7 @@ Bring every System Health surface to the same quality bar as CPU and Memory:
 | **2 Network** | Overview polish + per-process ETW (ADR-009) | **Complete** |
 | **3 Hardware** | Sensors Windows can expose (SMART, Storage temp IOCTLs, D3DKMT) | **Complete** |
 | **4 Timeline** | Event-type depth (crash/BSOD/update/device/power) via Event Log channels + intelligence | **Complete** |
-| **5 Diagnostics** | Service/IPC/collector/Flutter instrumentation | Pending |
+| **5 Diagnostics** | Service/IPC/collector/Flutter instrumentation | **Complete** |
 | **6 UX** | Polish overflow, empty states, virtualization, a11y | Pending |
 | **7 Validation** | Compare vs Task Manager / Resource Monitor / PerfMon / System Informer | Pending |
 | **8 Docs + beta** | ADRs, release notes, package `0.1.3-beta` | Pending |
@@ -92,9 +92,65 @@ Documented Event IDs only (Kernel-Power 41/42/107, EventLog 6008, WER/BugCheck 1
 
 Timeline filters: severity, source (System / Application / Security / Other), type/category chips (Crash, Service, Power, Update, Device, Boot, Security, Storage). Empty states when filters match nothing. Live stream unchanged.
 
+## Phase 5 notes
+
+Diagnostics surfaces **real** service, IPC, collector, and Flutter client metrics only. Missing data shows `—` / Not supported — never invent.
+
+### Service identity (`DiagnosticsSnapshot` fields 33–41)
+
+| Field | Source |
+|-------|--------|
+| `executable_path` | `GetModuleFileNameW` |
+| `build_version` | `VersionInfo` / `ServiceVersion().ToString()` |
+| `git_commit` | CMake configure → `pulse_build_info.hpp` (`git rev-parse --short HEAD`, or `-DPULSE_GIT_COMMIT=…`, else `unknown`) |
+| `binary_sha256` | BCrypt SHA-256 of running `PulseService.exe`, cached once at first request |
+| `install_path` | SCM `QueryServiceConfig` ImagePath exe |
+| `paths_match` | Normalized case-insensitive compare (only when both paths exist) |
+| `scm_state` / `scm_startup_type` | SCM `QueryServiceStatusEx` + `QueryServiceConfig` |
+
+### IPC (fields 42–47 + client)
+
+| Metric | Source |
+|--------|--------|
+| Protocol version | Existing `kProtocolVersion` on snapshot |
+| Message / byte counters | Service frame I/O (`ipc_messages_*`, `ipc_bytes_*`) |
+| Messages/sec, bytes/sec | Delta over wall time between Diagnostics polls (`has_*` after second sample) |
+| Ping / snapshot latency | Flutter client wall-clock RTT (`IpcStatus` + Diagnostics RPC) — not inventable on the service without clock sync |
+| Reconnect history | Flutter ring of last N reconnect timestamps/reasons |
+
+### Collectors (fields 48–51)
+
+| Metric | Source |
+|--------|--------|
+| Health sample rate | Documented ~1 Hz when a client has health monitoring enabled; `0` when idle |
+| Network ETW running + last_error | `NetworkEtwEngine` (ADR-009) |
+| Dropped samples | **Not supported** — no counter instrumented |
+
+### Flutter client (UI-only)
+
+| Metric | Source |
+|--------|--------|
+| FPS / build / raster / frame time | `SchedulerBinding` `FrameTiming` callbacks |
+| Memory (RSS) | `ProcessInfo.currentRss` (WorkingSet on Windows) |
+| Rebuild notes | Light counter on Diagnostics entry |
+
+### Event pipeline
+
+Per-stage status + detail strings (`stage_*_detail`) from live subscribe / queue pressure / intelligence in-process. No fabricated stage timings.
+
+### Intentional Not supported (Phase 5)
+
+| Metric | Reason |
+|--------|--------|
+| Collector dropped samples | No drop counter exists |
+| Service-side ping RTT in snapshot | Requires synchronized clocks; client measures RTT instead |
+| Structured collector log tail | Skipped (heavy); export zip already includes recent app logs |
+
 ## Related
 
 - [24 — Health metrics vs Task Manager](24-health-metrics-task-manager.md)
 - [28 — App grouping](28-task-manager-app-grouping.md)
 - [20 — ETW](20-etw-integration.md) (Health engine implemented; Timeline deferred)
 - [ADR-009](decisions/ADR-009-health-network-etw.md)
+- [05 — IPC](05-ipc.md)
+- [04 — Native service](04-native-service.md)

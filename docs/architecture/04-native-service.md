@@ -105,6 +105,8 @@ Admin elevation is required for install and service control. The Pulse UI may la
 
 The Flutter client queries SCM state without elevation and offers Start / Stop / Restart / Repair on Diagnostics and offline recovery screens (issues #5–#7).
 
+Diagnostics also reports service identity from the running process: executable path, build/`VersionInfo`, git commit (CMake `pulse_build_info.hpp`), binary SHA-256 (BCrypt, cached), SCM ImagePath vs running path, and SCM state/startup type. See [29 — Phase 5](29-system-health-quality-milestone.md).
+
 ---
 
 ## Security
@@ -121,3 +123,4 @@ The Flutter client queries SCM state without elevation and offers Start / Stop /
 - [01 — System Overview](01-system-overview.md)
 - [05 — IPC](05-ipc.md)
 - [21 — Event Viewer Integration](21-event-viewer-integration.md)
+- [29 — System Health quality](29-system-health-quality-milestone.md)

@@ -39,6 +39,14 @@ class HealthMetricsCollector {
   /// Best-effort enrichment for process detail panel (may be partial).
   [[nodiscard]] ipc::ProcessDetails QueryProcessDetails(uint32_t pid);
 
+  /// Health Network ETW session status (ADR-009) for Diagnostics.
+  [[nodiscard]] bool network_etw_running() const {
+    return network_etw_.running();
+  }
+  [[nodiscard]] std::string network_etw_last_error() const {
+    return network_etw_.last_error();
+  }
+
   /// Default: TimeBased. CycleBased uses SPI CycleTime + idle cycles.
   void SetProcessCpuMode(ProcessCpuMode mode);
   [[nodiscard]] ProcessCpuMode process_cpu_mode() const;

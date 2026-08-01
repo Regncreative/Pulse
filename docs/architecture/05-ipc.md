@@ -90,6 +90,10 @@ Live pushes: `request_id = 0`, `LiveEventBatch` of **summaries** (Level 1 fields
 
 `PulseIpcClient` runs entirely on the **I/O isolate** ([03](03-flutter-architecture.md), [11](11-threading.md)).
 
+### Diagnostics counters (Phase 5)
+
+`GetDiagnosticsSnapshot` includes cumulative IPC message/byte counters and rates (messages/sec, bytes/sec) derived from framed pipe I/O. Client ping RTT and reconnect history remain Flutter-owned (`IpcStatus` + ring buffer). See [29 — System Health quality](29-system-health-quality-milestone.md) Phase 5.
+
 ---
 
 ## Related Documents
@@ -97,3 +101,4 @@ Live pushes: `request_id = 0`, `LiveEventBatch` of **summaries** (Level 1 fields
 - [03 — Flutter](03-flutter-architecture.md)
 - [07 — Timeline](07-timeline-engine.md)
 - [ADR-008](decisions/ADR-008-hot-cold-live-queues.md)
+- [29 — System Health quality](29-system-health-quality-milestone.md)

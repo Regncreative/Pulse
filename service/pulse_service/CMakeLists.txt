@@ -6,6 +6,26 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(PULSE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 
+# Embed short git commit at configure time (override with -DPULSE_GIT_COMMIT=...).
+if(NOT DEFINED PULSE_GIT_COMMIT OR PULSE_GIT_COMMIT STREQUAL "")
+  execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY "${PULSE_ROOT}"
+    OUTPUT_VARIABLE PULSE_GIT_COMMIT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+    RESULT_VARIABLE PULSE_GIT_RESULT
+  )
+  if(NOT PULSE_GIT_RESULT EQUAL 0 OR PULSE_GIT_COMMIT STREQUAL "")
+    set(PULSE_GIT_COMMIT "unknown")
+  endif()
+endif()
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/pulse_build_info.hpp.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/generated/pulse_build_info.hpp"
+  @ONLY
+)
+
 add_library(pulse_wire STATIC
   "${PULSE_ROOT}/shared/pulse_protocol/cpp/pulse_wire.cpp"
 )
@@ -31,6 +51,7 @@ add_executable(PulseService WIN32
   src/collectors/gpu_adapter_info.cpp
   src/collectors/system_overview_info.cpp
   src/collectors/process_metrics.cpp
+  src/diagnostics/service_identity.cpp
   src/windows/wevt_helpers.cpp
   src/logging/logger.cpp
   src/util/config.cpp
@@ -43,6 +64,7 @@ set_target_properties(PulseService PROPERTIES
 
 target_include_directories(PulseService PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${CMAKE_CURRENT_BINARY_DIR}/generated"
   "${PULSE_ROOT}/shared/pulse_common/include"
   "${PULSE_ROOT}/shared/pulse_protocol/cpp"
 )
@@ -63,6 +85,7 @@ target_link_libraries(PulseService PRIVATE
   wlanapi
   setupapi
   cfgmgr32
+  bcrypt
 )
 
 enable_testing()

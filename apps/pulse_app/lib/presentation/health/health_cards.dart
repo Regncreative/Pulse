@@ -49,61 +49,66 @@ class HealthSystemStatusCard extends StatelessWidget {
         : const EdgeInsets.fromLTRB(20, 18, 20, 18);
     final iconBox = compact ? 40.0 : 48.0;
 
-    return PulseCard(
-      elevated: true,
-      padding: pad,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: iconBox,
-            height: iconBox,
-            decoration: BoxDecoration(
-              color: soft,
-              borderRadius: BorderRadius.circular(PulseTokens.radiusCard),
+    return Semantics(
+      label: '${summary.title}. ${summary.message}',
+      child: PulseCard(
+        elevated: true,
+        padding: pad,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: iconBox,
+              height: iconBox,
+              decoration: BoxDecoration(
+                color: soft,
+                borderRadius: BorderRadius.circular(PulseTokens.radiusCard),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: compact ? 18 : 22, color: dot),
             ),
-            alignment: Alignment.center,
-            child: Icon(icon, size: compact ? 18 : 22, color: dot),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  summary.title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: PulseTokens.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        height: 1.2,
-                        fontSize: compact ? 15 : null,
-                      ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  summary.message,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: PulseTokens.textSecondary,
-                        height: 1.3,
-                        fontSize: compact ? 12.5 : null,
-                      ),
-                ),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    summary.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: PulseTokens.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          height: 1.2,
+                          fontSize: compact ? 15 : null,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    summary.message,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: PulseTokens.textSecondary,
+                          height: 1.3,
+                          fontSize: compact ? 12.5 : null,
+                        ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          if (hasMeta) ...[
-            const SizedBox(width: 16),
-            _StatusMetaColumn(
-              uptime: uptime,
-              healthScore: healthScore,
-              lastUpdated: lastUpdated,
-              compact: compact,
-            ),
+            if (hasMeta) ...[
+              const SizedBox(width: 16),
+              _StatusMetaColumn(
+                uptime: uptime,
+                healthScore: healthScore,
+                lastUpdated: lastUpdated,
+                compact: compact,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -172,13 +177,18 @@ class _StatusMetaRow extends StatelessWidget {
               ),
         ),
         SizedBox(width: compact ? 8 : 12),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: PulseTokens.textPrimary,
-                fontWeight: FontWeight.w600,
-                fontSize: compact ? 11.5 : null,
-              ),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: compact ? 96 : 140),
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: PulseTokens.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: compact ? 11.5 : null,
+                ),
+          ),
         ),
       ],
     );
@@ -209,85 +219,100 @@ class HealthHeroCard extends StatelessWidget {
     final valueSize = compact ? 20.0 : 28.0;
     final sparkH = compact ? 22.0 : 36.0;
 
-    return PulseCard(
-      elevated: true,
+    final valueLabel = metric.unit.isEmpty
+        ? metric.value
+        : '${metric.value} ${metric.unit}';
+
+    return Semantics(
+      button: onTap != null,
       selected: selected,
-      onTap: onTap,
-      padding: pad,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (!compact) ...[
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: PulseTokens.accentSoft,
-                    borderRadius: BorderRadius.circular(PulseTokens.radiusLg),
-                  ),
-                  child: Icon(
-                    metric.icon,
-                    size: 15,
-                    color: PulseTokens.accent,
-                  ),
-                ),
-                const SizedBox(width: 10),
-              ],
-              Expanded(
-                child: Text(
-                  metric.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: PulseTokens.textSecondary,
-                        fontWeight: FontWeight.w500,
-                        fontSize: compact ? 11.5 : null,
-                      ),
-                ),
-              ),
-              if (metric.needsAttention && !compact)
-                PulseBadge(
-                  label: metric.attentionLabel ??
-                      (metric.status == HealthStatus.elevated
-                          ? 'High Usage'
-                          : 'Fair'),
-                  tone: metric.status == HealthStatus.elevated
-                      ? PulseBadgeTone.error
-                      : PulseBadgeTone.warning,
-                  compact: true,
-                ),
-            ],
-          ),
-          SizedBox(height: compact ? 6 : 12),
-          Text.rich(
-            TextSpan(
+      label: '${metric.title}: $valueLabel',
+      excludeSemantics: true,
+      child: PulseCard(
+        elevated: true,
+        selected: selected,
+        onTap: onTap,
+        padding: pad,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                TextSpan(
-                  text: metric.value,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontSize: valueSize,
-                        letterSpacing: -0.8,
-                        height: 1,
-                        fontWeight: FontWeight.w600,
-                        color: PulseTokens.textPrimary,
-                      ),
-                ),
-                if (metric.unit.isNotEmpty)
-                  TextSpan(
-                    text: ' ${metric.unit}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: PulseTokens.textTertiary,
+                if (!compact) ...[
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: PulseTokens.accentSoft,
+                      borderRadius: BorderRadius.circular(PulseTokens.radiusLg),
+                    ),
+                    child: Icon(
+                      metric.icon,
+                      size: 15,
+                      color: PulseTokens.accent,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Text(
+                    metric.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: PulseTokens.textSecondary,
                           fontWeight: FontWeight.w500,
-                          fontSize: compact ? 11 : 14,
+                          fontSize: compact ? 11.5 : null,
                         ),
+                  ),
+                ),
+                if (metric.needsAttention && !compact)
+                  PulseBadge(
+                    label: metric.attentionLabel ??
+                        (metric.status == HealthStatus.elevated
+                            ? 'High Usage'
+                            : 'Fair'),
+                    tone: metric.status == HealthStatus.elevated
+                        ? PulseBadgeTone.error
+                        : PulseBadgeTone.warning,
+                    compact: true,
                   ),
               ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+            SizedBox(height: compact ? 6 : 12),
+            Tooltip(
+              message: valueLabel,
+              waitDuration: const Duration(milliseconds: 450),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: metric.value,
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontSize: valueSize,
+                                letterSpacing: -0.8,
+                                height: 1,
+                                fontWeight: FontWeight.w600,
+                                color: PulseTokens.textPrimary,
+                              ),
+                    ),
+                    if (metric.unit.isNotEmpty)
+                      TextSpan(
+                        text: ' ${metric.unit}',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: PulseTokens.textTertiary,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: compact ? 11 : 14,
+                                ),
+                      ),
+                  ],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           if (!compact && metric.description.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
@@ -332,6 +357,7 @@ class HealthHeroCard extends StatelessWidget {
               ),
             ),
         ],
+      ),
       ),
     );
   }
@@ -479,15 +505,27 @@ class HealthSparklineTile extends StatelessWidget {
                       ),
                 ),
               ),
-              Text(
-                metric.unit.isEmpty
-                    ? metric.value
-                    : '${metric.value} ${metric.unit}',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: PulseTokens.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: fillHeight ? 12.5 : null,
-                    ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Tooltip(
+                  message: metric.unit.isEmpty
+                      ? metric.value
+                      : '${metric.value} ${metric.unit}',
+                  waitDuration: const Duration(milliseconds: 450),
+                  child: Text(
+                    metric.unit.isEmpty
+                        ? metric.value
+                        : '${metric.value} ${metric.unit}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: PulseTokens.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: fillHeight ? 12.5 : null,
+                        ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -586,11 +624,15 @@ class HealthGroupedCard extends StatelessWidget {
             children: [
               Icon(icon, size: compact ? 14 : 18, color: PulseTokens.accent),
               SizedBox(width: compact ? 8 : 10),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontSize: compact ? 13.5 : null,
-                    ),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontSize: compact ? 13.5 : null,
+                      ),
+                ),
               ),
             ],
           ),
@@ -667,19 +709,23 @@ class _DetailRow extends StatelessWidget {
               SizedBox(width: compact ? 8 : 16),
               Expanded(
                 flex: 3,
-                child: Text(
-                  display,
-                  textAlign: TextAlign.right,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: row.available
-                            ? PulseTokens.textPrimary
-                            : PulseTokens.textDisabled,
-                        fontWeight:
-                            row.available ? FontWeight.w500 : FontWeight.w400,
-                        fontSize: compact ? 11.5 : null,
-                      ),
+                child: Tooltip(
+                  message: display,
+                  waitDuration: const Duration(milliseconds: 450),
+                  child: Text(
+                    display,
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: row.available
+                              ? PulseTokens.textPrimary
+                              : PulseTokens.textDisabled,
+                          fontWeight:
+                              row.available ? FontWeight.w500 : FontWeight.w400,
+                          fontSize: compact ? 11.5 : null,
+                        ),
+                  ),
                 ),
               ),
             ],

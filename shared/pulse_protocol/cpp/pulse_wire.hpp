@@ -480,6 +480,37 @@ struct DiagnosticsSnapshot {
 
   std::string windows_edition;
   std::string windows_version;
+
+  // Phase 5 — service identity
+  std::string executable_path;
+  std::string build_version;
+  std::string git_commit;
+  std::string binary_sha256;
+  std::string install_path;
+  bool has_paths_match = false;
+  bool paths_match = false;
+  std::string scm_state;
+  std::string scm_startup_type;
+
+  // Phase 5 — IPC throughput
+  uint64_t ipc_bytes_received = 0;
+  uint64_t ipc_bytes_sent = 0;
+  bool has_ipc_messages_per_sec = false;
+  double ipc_messages_per_sec = 0.0;
+  bool has_ipc_bytes_per_sec = false;
+  double ipc_bytes_per_sec = 0.0;
+
+  // Phase 5 — collectors
+  bool health_monitoring_active = false;
+  double health_sample_rate_hz = 0.0;
+  bool network_etw_running = false;
+  std::string network_etw_last_error;
+
+  // Phase 5 — per-stage detail
+  std::string stage_event_log_detail;
+  std::string stage_collector_detail;
+  std::string stage_intelligence_detail;
+  std::string stage_ipc_detail;
 };
 
 struct InjectDiagnosticsTestEvent {};

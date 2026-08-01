@@ -2,10 +2,12 @@
 
 #include "collectors/event_log_channels.hpp"
 #include "collectors/event_log_collector.hpp"
+#include "diagnostics/service_identity.hpp"
 #include "ipc/event_mapper.hpp"
 #include "logging/logger.hpp"
 #include "pulse/constants.hpp"
 #include "pulse/version.hpp"
+#include "pulse_build_info.hpp"
 #include "windows/wevt_helpers.hpp"
 
 #include <algorithm>
@@ -224,6 +226,7 @@ bool IpcServer::WriteEnvelopeLocked(
     return false;
   }
   ++ipc_messages_sent_;
+  ipc_bytes_sent_.fetch_add(frame.size());
   return true;
 }
 
@@ -721,6 +724,7 @@ void IpcServer::ClientReader(std::shared_ptr<ClientConnection> conn) {
     }
     if (read == 0) break;
     buffer.insert(buffer.end(), temp, temp + read);
+    ipc_bytes_received_.fetch_add(read);
 
     while (true) {
       std::vector<uint8_t> payload;
@@ -831,6 +835,33 @@ void IpcServer::FillServiceProcessMetrics(ipc::DiagnosticsSnapshot* out) {
   have_proc_cpu_baseline_ = true;
 }
 
+void IpcServer::FillIpcThroughputRates(ipc::DiagnosticsSnapshot* out) {
+  if (!out) return;
+  const uint64_t msgs =
+      out->ipc_messages_received + out->ipc_messages_sent;
+  const uint64_t bytes = out->ipc_bytes_received + out->ipc_bytes_sent;
+  const uint64_t now_tick = GetTickCount64();
+
+  std::lock_guard lock(ipc_rate_mu_);
+  if (have_ipc_rate_baseline_ && now_tick > prev_ipc_rate_tick_ms_) {
+    const double dt_s =
+        static_cast<double>(now_tick - prev_ipc_rate_tick_ms_) / 1000.0;
+    if (dt_s > 0.0 && msgs >= prev_ipc_msgs_total_ &&
+        bytes >= prev_ipc_bytes_total_) {
+      out->ipc_messages_per_sec =
+          static_cast<double>(msgs - prev_ipc_msgs_total_) / dt_s;
+      out->has_ipc_messages_per_sec = true;
+      out->ipc_bytes_per_sec =
+          static_cast<double>(bytes - prev_ipc_bytes_total_) / dt_s;
+      out->has_ipc_bytes_per_sec = true;
+    }
+  }
+  prev_ipc_msgs_total_ = msgs;
+  prev_ipc_bytes_total_ = bytes;
+  prev_ipc_rate_tick_ms_ = now_tick;
+  have_ipc_rate_baseline_ = true;
+}
+
 ipc::DiagnosticsSnapshot IpcServer::BuildDiagnosticsSnapshot() {
   ipc::DiagnosticsSnapshot snap;
   snap.service_version = kServiceVersion;
@@ -843,7 +874,21 @@ ipc::DiagnosticsSnapshot IpcServer::BuildDiagnosticsSnapshot() {
   snap.run_mode = run_mode_;
   snap.ipc_listening = running_.load();
 
+  snap.executable_path = diagnostics::ExecutablePath();
+  snap.build_version = ServiceVersion().ToString();
+  snap.git_commit = build_info::kGitCommit;
+  snap.binary_sha256 = diagnostics::BinarySha256Hex();
+  snap.install_path = diagnostics::InstalledServiceExePath();
+  if (!snap.install_path.empty() && !snap.executable_path.empty()) {
+    snap.has_paths_match = true;
+    snap.paths_match =
+        diagnostics::PathsMatch(snap.executable_path, snap.install_path);
+  }
+  snap.scm_state = diagnostics::ScmStateLabel();
+  snap.scm_startup_type = diagnostics::ScmStartupTypeLabel();
+
   bool any_live = false;
+  bool any_health = false;
   uint32_t clients = 0;
   uint32_t queue_depth = 0;
   {
@@ -852,6 +897,7 @@ ipc::DiagnosticsSnapshot IpcServer::BuildDiagnosticsSnapshot() {
       if (!c || !c->alive) continue;
       ++clients;
       if (c->live_enabled) any_live = true;
+      if (c->health_enabled) any_health = true;
       std::lock_guard qlock(c->queue_mu);
       queue_depth += static_cast<uint32_t>(c->outbound.size());
     }
@@ -892,33 +938,15 @@ ipc::DiagnosticsSnapshot IpcServer::BuildDiagnosticsSnapshot() {
   snap.ipc_messages_received = ipc_messages_received_.load();
   snap.ipc_messages_sent = ipc_messages_sent_.load();
   snap.ipc_errors = ipc_errors_.load();
+  snap.ipc_bytes_received = ipc_bytes_received_.load();
+  snap.ipc_bytes_sent = ipc_bytes_sent_.load();
+  FillIpcThroughputRates(&snap);
 
   FillServiceProcessMetrics(&snap);
 
-  // Pipeline stages: 0 healthy, 1 warning, 2 error
-  if (!snap.live_subscribed && any_live) {
-    snap.stage_event_log = 2;
-    snap.stage_detail = "Live Event Log subscription is not running";
-  } else if (!snap.live_subscribed) {
-    snap.stage_event_log = 1;
-    snap.stage_detail = "Event Log subscription starts when a client enables live monitoring";
-  } else {
-    snap.stage_event_log = 0;
-  }
-
-  snap.stage_collector = snap.stage_event_log == 2 ? 2 : (snap.live_subscribed ? 0 : 1);
-  snap.stage_intelligence = 0;  // Always applied in-process when events flow
-  if (!snap.ipc_listening) {
-    snap.stage_ipc = 2;
-  } else if (snap.live_events_dropped > 0 ||
-             snap.live_queue_depth > snap.live_queue_capacity / 2) {
-    snap.stage_ipc = 1;
-    if (snap.stage_detail.empty()) {
-      snap.stage_detail = "IPC outbound queue pressure or dropped live events";
-    }
-  } else {
-    snap.stage_ipc = 0;
-  }
+  // Collectors — health sample rate is documented ~1 Hz when monitoring is on.
+  snap.health_monitoring_active = any_health;
+  snap.health_sample_rate_hz = any_health ? 1.0 : 0.0;
 
   EnsureHealthCollector();
   {
@@ -927,7 +955,66 @@ ipc::DiagnosticsSnapshot IpcServer::BuildDiagnosticsSnapshot() {
       const auto info = health_collector_.CollectStatic();
       snap.windows_edition = info.windows_edition;
       snap.windows_version = info.windows_version;
+      snap.network_etw_running = health_collector_.network_etw_running();
+      snap.network_etw_last_error = health_collector_.network_etw_last_error();
     }
+  }
+
+  // Pipeline stages: 0 healthy, 1 warning, 2 error
+  if (!snap.live_subscribed && any_live) {
+    snap.stage_event_log = 2;
+    snap.stage_event_log_detail =
+        "Live Event Log subscription is not running";
+    snap.stage_detail = snap.stage_event_log_detail;
+  } else if (!snap.live_subscribed) {
+    snap.stage_event_log = 1;
+    snap.stage_event_log_detail =
+        "Event Log subscription starts when a client enables live monitoring";
+    snap.stage_detail = snap.stage_event_log_detail;
+  } else {
+    snap.stage_event_log = 0;
+    snap.stage_event_log_detail =
+        "Subscribed: " +
+        (snap.live_channel.empty() ? std::string("channels active")
+                                   : snap.live_channel);
+  }
+
+  if (snap.stage_event_log == 2) {
+    snap.stage_collector = 2;
+    snap.stage_collector_detail = "Collector idle — Event Log subscribe failed";
+  } else if (snap.live_subscribed) {
+    snap.stage_collector = 0;
+    snap.stage_collector_detail =
+        "Live Event Log collector running; health sample rate " +
+        std::to_string(static_cast<int>(snap.health_sample_rate_hz)) + " Hz" +
+        (any_health ? " (active)" : " (idle until health monitoring)");
+  } else {
+    snap.stage_collector = 1;
+    snap.stage_collector_detail =
+        "Collector waiting for live monitoring; health ETW " +
+        std::string(snap.network_etw_running ? "running" : "stopped");
+  }
+
+  snap.stage_intelligence = 0;
+  snap.stage_intelligence_detail =
+      "Humanizer + intelligence applied in-process on Event Log records";
+
+  if (!snap.ipc_listening) {
+    snap.stage_ipc = 2;
+    snap.stage_ipc_detail = "Named pipe not listening";
+  } else if (snap.live_events_dropped > 0 ||
+             (snap.live_queue_capacity > 0 &&
+              snap.live_queue_depth > snap.live_queue_capacity / 2)) {
+    snap.stage_ipc = 1;
+    snap.stage_ipc_detail =
+        "IPC outbound queue pressure or dropped live events";
+    if (snap.stage_detail.empty()) {
+      snap.stage_detail = snap.stage_ipc_detail;
+    }
+  } else {
+    snap.stage_ipc = 0;
+    snap.stage_ipc_detail =
+        "Named pipe listening; clients=" + std::to_string(snap.connected_clients);
   }
 
   return snap;

@@ -1140,7 +1140,9 @@ class _DiskPanelBody extends StatelessWidget {
           child: DetailSection(
             title: 'Overview',
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            expandChild: true,
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _UsageGauge(
                   percent: usagePct,
@@ -1778,10 +1780,15 @@ class _DetailsHeader extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Close',
-            onPressed: onClose,
-            icon: const Icon(LucideIcons.x, size: 17),
+          Semantics(
+            button: true,
+            label: 'Close details panel',
+            child: IconButton(
+              tooltip: 'Close',
+              onPressed: onClose,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              icon: const Icon(LucideIcons.x, size: 17),
+            ),
           ),
         ],
       ),
@@ -1804,43 +1811,58 @@ class _UsageGauge extends StatelessWidget {
   Widget build(BuildContext context) {
     final pct = percent?.clamp(0.0, 100.0);
     final size = compact ? 96.0 : 148.0;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: size,
-          height: size,
-          child: CustomPaint(
-            painter: _UsageDonutPainter(
-              percent: pct ?? 0,
-              hasValue: pct != null,
-              accent: PulseTokens.accent,
-              track: PulseTokens.strokeSubtle,
-              strokeWidth: compact ? 8 : 11,
-            ),
-            child: Center(
-              child: Text(
-                pct != null ? '${pct.toStringAsFixed(0)}%' : kUnavailableDash,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontSize: compact ? 20 : 28,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.6,
-                      color: PulseTokens.textPrimary,
-                    ),
+    final valueText =
+        pct != null ? '${pct.toStringAsFixed(0)}%' : kUnavailableDash;
+    final semanticsLabel = pct != null
+        ? '$label, ${pct.toStringAsFixed(0)} percent'
+        : '$label, unavailable';
+    return Semantics(
+      label: semanticsLabel,
+      value: valueText,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: size,
+            height: size,
+            child: CustomPaint(
+              painter: _UsageDonutPainter(
+                percent: pct ?? 0,
+                hasValue: pct != null,
+                accent: PulseTokens.accent,
+                track: PulseTokens.strokeSubtle,
+                strokeWidth: compact ? 8 : 11,
+              ),
+              child: Center(
+                child: Text(
+                  valueText,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontSize: compact ? 20 : 28,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.6,
+                        color: PulseTokens.textPrimary,
+                      ),
+                ),
               ),
             ),
           ),
-        ),
-        SizedBox(height: compact ? 6 : 12),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: PulseTokens.textSecondary,
-                fontWeight: FontWeight.w500,
-                fontSize: compact ? 11.5 : null,
-              ),
-        ),
-      ],
+          SizedBox(height: compact ? 6 : 12),
+          SizedBox(
+            width: size,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: PulseTokens.textSecondary,
+                    fontWeight: FontWeight.w500,
+                    fontSize: compact ? 11.5 : null,
+                  ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1943,40 +1965,51 @@ class _ThroughputHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      decoration: BoxDecoration(
-        color: PulseTokens.surface.withValues(alpha: 0.65),
-        borderRadius: BorderRadius.circular(PulseTokens.radiusMd),
-        border: Border.all(color: PulseTokens.strokeSubtle),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: PulseTokens.accent),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: PulseTokens.textTertiary,
+    return Semantics(
+      label: '$label $value',
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        decoration: BoxDecoration(
+          color: PulseTokens.surface.withValues(alpha: 0.65),
+          borderRadius: BorderRadius.circular(PulseTokens.radiusMd),
+          border: Border.all(color: PulseTokens.strokeSubtle),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 14, color: PulseTokens.accent),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: PulseTokens.textTertiary,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Tooltip(
+              message: value,
+              waitDuration: const Duration(milliseconds: 450),
+              child: Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: PulseTokens.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.4,
                     ),
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: PulseTokens.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.4,
-                ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1990,42 +2023,68 @@ class _SpecList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return Center(
+        child: Text(
+          'No details available yet.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: PulseTokens.textTertiary,
+              ),
+        ),
+      );
+    }
     return Column(
       mainAxisAlignment:
           compact ? MainAxisAlignment.center : MainAxisAlignment.start,
       children: [
         for (var i = 0; i < rows.length; i++) ...[
           if (i > 0) SizedBox(height: compact ? 5 : 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  rows[i].$1,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: PulseTokens.textTertiary,
-                        fontSize: compact ? 11.5 : null,
-                      ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  rows[i].$2,
-                  textAlign: TextAlign.right,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: rows[i].$2 == kNotSupported ||
-                                rows[i].$2 == kUnavailableDash
-                            ? PulseTokens.textDisabled
-                            : PulseTokens.textPrimary,
-                        fontWeight: FontWeight.w500,
-                        fontSize: compact ? 11.5 : null,
-                      ),
-                ),
-              ),
-            ],
+          Builder(
+            builder: (context) {
+              final label = rows[i].$1;
+              final value = rows[i].$2;
+              final isPlaceholder =
+                  value == kNotSupported || value == kUnavailableDash;
+              final valueText = Text(
+                value,
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isPlaceholder
+                          ? PulseTokens.textDisabled
+                          : PulseTokens.textPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: compact ? 11.5 : null,
+                    ),
+              );
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: PulseTokens.textTertiary,
+                            fontSize: compact ? 11.5 : null,
+                          ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: isPlaceholder
+                        ? valueText
+                        : Tooltip(
+                            message: value,
+                            waitDuration: const Duration(milliseconds: 450),
+                            child: valueText,
+                          ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ],
@@ -2047,11 +2106,18 @@ class _ProcessList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (processes.isEmpty) {
-      return Text(
-        kUnavailableDash,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: PulseTokens.textDisabled,
-            ),
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            'No top processes yet.\nMetrics appear as Windows activity is sampled.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: PulseTokens.textTertiary,
+                  height: 1.45,
+                ),
+          ),
+        ),
       );
     }
 
@@ -2151,7 +2217,28 @@ class _ProcessRow extends StatelessWidget {
     final metric = formatProcessPrimaryMetric(entry, kind);
     final secondary = formatProcessSecondaryMetric(entry, kind);
     final showSecondary = processSecondaryColumnLabel(kind) != null;
-    final iconSize = compact ? 22.0 : 28.0;
+    // Match ProcessInventoryList row icons (20 logical px).
+    const iconSize = 20.0;
+    final secondaryValue = secondary ?? kUnavailableDash;
+
+    Widget metricText(String text, Color color) {
+      final child = Text(
+        text,
+        textAlign: TextAlign.right,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: color,
+              fontSize: compact ? 12 : null,
+            ),
+      );
+      if (text == kUnavailableDash || text == kNotSupported) return child;
+      return Tooltip(
+        message: text,
+        waitDuration: const Duration(milliseconds: 450),
+        child: child,
+      );
+    }
 
     return Row(
       children: [
@@ -2163,44 +2250,30 @@ class _ProcessRow extends StatelessWidget {
         ),
         SizedBox(width: compact ? 8 : 10),
         Expanded(
-          child: Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: PulseTokens.textPrimary,
-                  fontWeight: FontWeight.w500,
-                  fontSize: compact ? 12 : null,
-                ),
+          child: Tooltip(
+            message: name,
+            waitDuration: const Duration(milliseconds: 450),
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: PulseTokens.textPrimary,
+                    fontWeight: FontWeight.w500,
+                    fontSize: compact ? 12 : null,
+                  ),
+            ),
           ),
         ),
         const SizedBox(width: 8),
         SizedBox(
           width: compact ? 56 : 72,
-          child: Text(
-            metric,
-            textAlign: TextAlign.right,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: PulseTokens.textSecondary,
-                  fontSize: compact ? 12 : null,
-                ),
-          ),
+          child: metricText(metric, PulseTokens.textSecondary),
         ),
         if (showSecondary)
           SizedBox(
             width: compact ? 56 : 72,
-            child: Text(
-              secondary ?? kUnavailableDash,
-              textAlign: TextAlign.right,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: PulseTokens.textTertiary,
-                    fontSize: compact ? 12 : null,
-                  ),
-            ),
+            child: metricText(secondaryValue, PulseTokens.textTertiary),
           ),
       ],
     );
@@ -2226,7 +2299,14 @@ class _CoreHistoryGrid extends StatelessWidget {
       builder: (context, constraints) {
         final count = histories.length;
         if (count == 0) {
-          return const SizedBox.shrink();
+          return Center(
+            child: Text(
+              'Collecting history…',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: PulseTokens.textTertiary,
+                  ),
+            ),
+          );
         }
 
         final gap = compact ? 6.0 : 10.0;
@@ -2363,11 +2443,13 @@ class _HistorySparkline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (values.length < 2) {
-      return Text(
-        kUnavailableDash,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: PulseTokens.textDisabled,
-            ),
+      return Center(
+        child: Text(
+          'Collecting history…',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: PulseTokens.textTertiary,
+              ),
+        ),
       );
     }
 

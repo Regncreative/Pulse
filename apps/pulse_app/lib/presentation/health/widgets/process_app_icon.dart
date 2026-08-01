@@ -32,7 +32,7 @@ class ProcessAppIcon extends StatefulWidget {
   final String name;
   final int pid;
 
-  /// Logical CSS pixels. Prefer 16 for list rows.
+  /// Logical CSS pixels. Prefer 20 for list rows; 16 for nested children.
   final double size;
 
   @override

@@ -575,11 +575,19 @@ class _TimelineBody extends StatelessWidget {
                                 ? 'Export selected event as JSON'
                                 : 'Export visible events as JSON',
                             onPressed: onExport,
+                            constraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
+                            ),
                             icon: const Icon(LucideIcons.download, size: 16),
                           ),
                           IconButton(
                             tooltip: 'Refresh snapshot',
                             onPressed: onRefresh,
+                            constraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
+                            ),
                             icon: const Icon(LucideIcons.refreshCw, size: 16),
                           ),
                         ],
@@ -637,69 +645,49 @@ class _TimelineBody extends StatelessWidget {
                   PulseTokens.pagePadX,
                   PulseTokens.pagePadBottom,
                 ),
-                sliver: SliverToBoxAdapter(
-                  child: AnimatedSwitcher(
-                    duration: PulseTokens.motionSlow,
-                    switchInCurve: PulseTokens.motionCurve,
-                    switchOutCurve: Curves.easeInCubic,
-                    transitionBuilder: (child, animation) {
-                      return FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0, 0.02),
-                            end: Offset.zero,
-                          ).animate(animation),
-                          child: child,
+                sliver: visible.isEmpty
+                    ? SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 48),
+                          child: PulseEmptyState(
+                            useBrandIllustration: true,
+                            title: hasStoredEvents
+                                ? 'Nothing matches'
+                                : 'Waiting for Windows',
+                            message: emptyMessage,
+                            actionLabel:
+                                filtersActive ? 'Clear filters' : null,
+                            onAction:
+                                filtersActive ? onClearFilters : null,
+                          ),
                         ),
-                      );
-                    },
-                    child: KeyedSubtree(
-                      key: ValueKey(
-                        '${severity.name}-${source.name}-${category.name}-${visible.length}-$filtersActive',
-                      ),
-                      child: visible.isEmpty
-                          ? Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 48),
-                              child: PulseEmptyState(
-                                useBrandIllustration: true,
-                                title: hasStoredEvents
-                                    ? 'Nothing matches'
-                                    : 'Waiting for Windows',
-                                message: emptyMessage,
-                                actionLabel:
-                                    filtersActive ? 'Clear filters' : null,
-                                onAction:
-                                    filtersActive ? onClearFilters : null,
+                      )
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) {
+                            final event = visible[i];
+                            return TimelineEventTile(
+                              key: ValueKey(
+                                event.eventId.isNotEmpty
+                                    ? event.eventId
+                                    : 'row-$i',
                               ),
-                            )
-                          : Column(
-                              children: [
-                                for (var i = 0; i < visible.length; i++)
-                                  TimelineEventTile(
-                                    key: ValueKey(
-                                      visible[i].eventId.isNotEmpty
-                                          ? visible[i].eventId
-                                          : 'row-$i',
-                                    ),
-                                    event: visible[i],
-                                    isFirst: i == 0,
-                                    isLast: i == visible.length - 1,
-                                    emphasize: i == 0 &&
-                                        severity == _SeverityFilter.all &&
-                                        source == _SourceFilter.all &&
-                                        category == _CategoryFilter.all,
-                                    animationIndex: i.clamp(0, 12),
-                                    selected: selectedEventId != null &&
-                                        visible[i].eventId == selectedEventId,
-                                    onTap: () => onSelect(visible[i]),
-                                  ),
-                              ],
-                            ),
-                    ),
-                  ),
-                ),
+                              event: event,
+                              isFirst: i == 0,
+                              isLast: i == visible.length - 1,
+                              emphasize: i == 0 &&
+                                  severity == _SeverityFilter.all &&
+                                  source == _SourceFilter.all &&
+                                  category == _CategoryFilter.all,
+                              animationIndex: i.clamp(0, 12),
+                              selected: selectedEventId != null &&
+                                  event.eventId == selectedEventId,
+                              onTap: () => onSelect(event),
+                            );
+                          },
+                          childCount: visible.length,
+                        ),
+                      ),
               ),
             ],
           ),
@@ -796,36 +784,40 @@ class _NewEventsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = count == 1 ? '1 new event' : '$count new events';
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(999),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: PulseTokens.accent,
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: PulseTokens.elevationLift,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  LucideIcons.arrowUp,
-                  size: 14,
-                  color: PulseTokens.onAccent,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: PulseTokens.onAccent,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ],
+    return Semantics(
+      button: true,
+      label: '$label. Jump to newest',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(999),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: PulseTokens.accent,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: PulseTokens.elevationLift,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    LucideIcons.arrowUp,
+                    size: 14,
+                    color: PulseTokens.onAccent,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: PulseTokens.onAccent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -979,39 +971,46 @@ class _FilterChipState extends State<_FilterChip> with SafeHoverState {
   @override
   Widget build(BuildContext context) {
     final selected = widget.selected;
-    return MouseRegion(
-      onEnter: (_) => setHovered(true),
-      onExit: (_) => setHovered(false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: PulseTokens.motionFast,
-          curve: PulseTokens.motionCurve,
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-          decoration: BoxDecoration(
-            color: selected
-                ? PulseTokens.accentSoft
-                : hover
-                    ? PulseTokens.surfaceHover
-                    : PulseTokens.surface.withValues(alpha: 0.9),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: selected
-                  ? PulseTokens.accent.withValues(alpha: 0.38)
-                  : PulseTokens.stroke.withValues(alpha: 0.65),
-            ),
-            boxShadow: selected ? PulseTokens.elevationSoft : null,
-          ),
-          child: AnimatedDefaultTextStyle(
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: widget.label,
+      child: MouseRegion(
+        onEnter: (_) => setHovered(true),
+        onExit: (_) => setHovered(false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
             duration: PulseTokens.motionFast,
-            style: Theme.of(context).textTheme.labelMedium!.copyWith(
-                  color:
-                      selected ? PulseTokens.accent : PulseTokens.textSecondary,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                  fontSize: 12.5,
-                ),
-            child: Text(widget.label),
+            curve: PulseTokens.motionCurve,
+            constraints: const BoxConstraints(minHeight: 28),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+            decoration: BoxDecoration(
+              color: selected
+                  ? PulseTokens.accentSoft
+                  : hover
+                      ? PulseTokens.surfaceHover
+                      : PulseTokens.surface.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: selected
+                    ? PulseTokens.accent.withValues(alpha: 0.38)
+                    : PulseTokens.stroke.withValues(alpha: 0.65),
+              ),
+              boxShadow: selected ? PulseTokens.elevationSoft : null,
+            ),
+            child: AnimatedDefaultTextStyle(
+              duration: PulseTokens.motionFast,
+              style: Theme.of(context).textTheme.labelMedium!.copyWith(
+                    color: selected
+                        ? PulseTokens.accent
+                        : PulseTokens.textSecondary,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    fontSize: 12.5,
+                  ),
+              child: Text(widget.label),
+            ),
           ),
         ),
       ),

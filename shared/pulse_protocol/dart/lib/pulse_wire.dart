@@ -843,6 +843,29 @@ class DiagnosticsSnapshot {
     this.stageDetail = '',
     this.windowsEdition = '',
     this.windowsVersion = '',
+    this.executablePath = '',
+    this.buildVersion = '',
+    this.gitCommit = '',
+    this.binarySha256 = '',
+    this.installPath = '',
+    this.hasPathsMatch = false,
+    this.pathsMatch = false,
+    this.scmState = '',
+    this.scmStartupType = '',
+    this.ipcBytesReceived = 0,
+    this.ipcBytesSent = 0,
+    this.hasIpcMessagesPerSec = false,
+    this.ipcMessagesPerSec = 0.0,
+    this.hasIpcBytesPerSec = false,
+    this.ipcBytesPerSec = 0.0,
+    this.healthMonitoringActive = false,
+    this.healthSampleRateHz = 0.0,
+    this.networkEtwRunning = false,
+    this.networkEtwLastError = '',
+    this.stageEventLogDetail = '',
+    this.stageCollectorDetail = '',
+    this.stageIntelligenceDetail = '',
+    this.stageIpcDetail = '',
   });
   String serviceVersion;
   int protocolVersion;
@@ -881,6 +904,33 @@ class DiagnosticsSnapshot {
 
   String windowsEdition;
   String windowsVersion;
+
+  String executablePath;
+  String buildVersion;
+  String gitCommit;
+  String binarySha256;
+  String installPath;
+  bool hasPathsMatch;
+  bool pathsMatch;
+  String scmState;
+  String scmStartupType;
+
+  int ipcBytesReceived;
+  int ipcBytesSent;
+  bool hasIpcMessagesPerSec;
+  double ipcMessagesPerSec;
+  bool hasIpcBytesPerSec;
+  double ipcBytesPerSec;
+
+  bool healthMonitoringActive;
+  double healthSampleRateHz;
+  bool networkEtwRunning;
+  String networkEtwLastError;
+
+  String stageEventLogDetail;
+  String stageCollectorDetail;
+  String stageIntelligenceDetail;
+  String stageIpcDetail;
 }
 
 class InjectDiagnosticsTestEvent {
@@ -1448,6 +1498,33 @@ Uint8List _encodeDiagnosticsSnapshot(DiagnosticsSnapshot m) {
 
   _writeString(31, m.windowsEdition, out);
   _writeString(32, m.windowsVersion, out);
+
+  _writeString(33, m.executablePath, out);
+  _writeString(34, m.buildVersion, out);
+  _writeString(35, m.gitCommit, out);
+  _writeString(36, m.binarySha256, out);
+  _writeString(37, m.installPath, out);
+  _writeBool(38, m.hasPathsMatch, out);
+  _writeBool(39, m.pathsMatch, out);
+  _writeString(40, m.scmState, out);
+  _writeString(41, m.scmStartupType, out);
+
+  _writeU64(42, m.ipcBytesReceived, out);
+  _writeU64(43, m.ipcBytesSent, out);
+  _writeBool(44, m.hasIpcMessagesPerSec, out);
+  _writeDouble(45, m.ipcMessagesPerSec, out);
+  _writeBool(46, m.hasIpcBytesPerSec, out);
+  _writeDouble(47, m.ipcBytesPerSec, out);
+
+  _writeBool(48, m.healthMonitoringActive, out);
+  _writeDouble(49, m.healthSampleRateHz, out);
+  _writeBool(50, m.networkEtwRunning, out);
+  _writeString(51, m.networkEtwLastError, out);
+
+  _writeString(52, m.stageEventLogDetail, out);
+  _writeString(53, m.stageCollectorDetail, out);
+  _writeString(54, m.stageIntelligenceDetail, out);
+  _writeString(55, m.stageIpcDetail, out);
   return out.toBytes();
 }
 
@@ -2644,6 +2721,52 @@ DiagnosticsSnapshot _decodeDiagnosticsSnapshot(Uint8List data) {
       m.windowsEdition = r.readString();
     } else if (field == 32 && wire == 2) {
       m.windowsVersion = r.readString();
+    } else if (field == 33 && wire == 2) {
+      m.executablePath = r.readString();
+    } else if (field == 34 && wire == 2) {
+      m.buildVersion = r.readString();
+    } else if (field == 35 && wire == 2) {
+      m.gitCommit = r.readString();
+    } else if (field == 36 && wire == 2) {
+      m.binarySha256 = r.readString();
+    } else if (field == 37 && wire == 2) {
+      m.installPath = r.readString();
+    } else if (field == 38 && wire == 0) {
+      m.hasPathsMatch = r.readVarint() != 0;
+    } else if (field == 39 && wire == 0) {
+      m.pathsMatch = r.readVarint() != 0;
+    } else if (field == 40 && wire == 2) {
+      m.scmState = r.readString();
+    } else if (field == 41 && wire == 2) {
+      m.scmStartupType = r.readString();
+    } else if (field == 42 && wire == 0) {
+      m.ipcBytesReceived = r.readVarint();
+    } else if (field == 43 && wire == 0) {
+      m.ipcBytesSent = r.readVarint();
+    } else if (field == 44 && wire == 0) {
+      m.hasIpcMessagesPerSec = r.readVarint() != 0;
+    } else if (field == 45 && wire == 1) {
+      m.ipcMessagesPerSec = r.readDouble();
+    } else if (field == 46 && wire == 0) {
+      m.hasIpcBytesPerSec = r.readVarint() != 0;
+    } else if (field == 47 && wire == 1) {
+      m.ipcBytesPerSec = r.readDouble();
+    } else if (field == 48 && wire == 0) {
+      m.healthMonitoringActive = r.readVarint() != 0;
+    } else if (field == 49 && wire == 1) {
+      m.healthSampleRateHz = r.readDouble();
+    } else if (field == 50 && wire == 0) {
+      m.networkEtwRunning = r.readVarint() != 0;
+    } else if (field == 51 && wire == 2) {
+      m.networkEtwLastError = r.readString();
+    } else if (field == 52 && wire == 2) {
+      m.stageEventLogDetail = r.readString();
+    } else if (field == 53 && wire == 2) {
+      m.stageCollectorDetail = r.readString();
+    } else if (field == 54 && wire == 2) {
+      m.stageIntelligenceDetail = r.readString();
+    } else if (field == 55 && wire == 2) {
+      m.stageIpcDetail = r.readString();
     } else {
       r.skip(wire);
     }

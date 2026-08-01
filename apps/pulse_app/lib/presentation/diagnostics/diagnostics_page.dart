@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:pulse_protocol/pulse_constants.dart';
 import 'package:pulse_protocol/pulse_wire.dart';
 
+import '../../application/client_frame_metrics.dart';
 import '../../application/connection_controller.dart';
 import '../../application/diagnostics_controller.dart';
 import '../../application/timeline_session_controller.dart';
@@ -16,6 +17,8 @@ import '../components/pulse_button.dart';
 import '../components/pulse_card.dart';
 import '../components/pulse_section_header.dart';
 import '../components/service_lifecycle_controls.dart';
+import '../health/health_view_models.dart';
+import '../health/widgets/health_spec_rows.dart';
 import '../utils/pulse_snack.dart';
 import '../utils/pulse_user_errors.dart';
 import '../../application/service_lifecycle_controller.dart';
@@ -36,7 +39,9 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<DiagnosticsController>().startPolling();
+      final diag = context.read<DiagnosticsController>();
+      diag.frameMetrics.noteRebuild();
+      diag.startPolling();
     });
   }
 
@@ -125,6 +130,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                 status: ipcStatus,
                 snap: snap,
                 busy: busy,
+                snapshotLatencyMs: diag.lastSnapshotLatencyMs,
                 expand: wide,
                 onPing: () => _run(
                   () async => diag.ping(),
@@ -150,6 +156,12 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                 expand: wide,
               );
               final perf = _PerformanceCard(
+                snap: snap,
+                error: diag.snapshotError,
+                frameMetrics: context.watch<ClientFrameMetrics>(),
+                expand: wide,
+              );
+              final collectors = _CollectorsCard(
                 snap: snap,
                 error: diag.snapshotError,
                 expand: wide,
@@ -227,12 +239,14 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: perf),
+                          Expanded(child: collectors),
                           const SizedBox(width: 12),
-                          Expanded(child: tools),
+                          Expanded(child: perf),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    tools,
                   ] else ...[
                     service,
                     const SizedBox(height: 12),
@@ -241,6 +255,8 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                     ipc,
                     const SizedBox(height: 12),
                     pipeline,
+                    const SizedBox(height: 12),
+                    collectors,
                     const SizedBox(height: 12),
                     perf,
                     const SizedBox(height: 12),
@@ -281,54 +297,121 @@ class _ServiceCard extends StatelessWidget {
       icon: LucideIcons.server,
       expand: expand,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _kv('Windows service', life.statusLabel),
-          _kv(
-            'IPC',
-            connected
-                ? 'Connected'
-                : switch (status.state) {
-                    IpcConnectionState.connecting => 'Connecting…',
-                    IpcConnectionState.disconnected => 'Offline',
-                    IpcConnectionState.error => 'Connection issue',
-                    IpcConnectionState.connected => 'Connected',
-                  },
+          HealthSpecSection(
+            title: 'Status',
+            compact: true,
+            rows: [
+              HealthSpecRow(label: 'Windows service', value: life.statusLabel),
+              HealthSpecRow(
+                label: 'IPC',
+                value: connected
+                    ? 'Connected'
+                    : switch (status.state) {
+                        IpcConnectionState.connecting => 'Connecting…',
+                        IpcConnectionState.disconnected => 'Offline',
+                        IpcConnectionState.error => 'Connection issue',
+                        IpcConnectionState.connected => 'Connected',
+                      },
+              ),
+              HealthSpecRow(
+                label: 'SCM state',
+                value: snap?.scmState.isNotEmpty == true
+                    ? snap!.scmState
+                    : unavailable ?? kUnavailableDash,
+              ),
+              HealthSpecRow(
+                label: 'Startup type',
+                value: snap?.scmStartupType.isNotEmpty == true
+                    ? snap!.scmStartupType
+                    : unavailable ?? kUnavailableDash,
+              ),
+              HealthSpecRow(
+                label: 'Mode',
+                value: snap?.runMode.isNotEmpty == true
+                    ? snap!.runMode
+                    : unavailable ?? kUnavailableDash,
+              ),
+            ],
           ),
-          _kv(
-            'Service version',
-            snap?.serviceVersion.isNotEmpty == true
-                ? snap!.serviceVersion
-                : unavailable ?? '—',
-          ),
-          _kv(
-            'IPC protocol',
-            snap != null
-                ? '${snap!.protocolVersion}'
-                : unavailable ?? '—',
-          ),
-          _kv(
-            'Start time',
-            snap != null && snap!.serviceStartUnixMs > 0
-                ? DateTime.fromMillisecondsSinceEpoch(snap!.serviceStartUnixMs)
-                    .toLocal()
-                    .toString()
-                    .split('.')
-                    .first
-                : unavailable ?? '—',
-          ),
-          _kv(
-            'Uptime',
-            snap != null
-                ? _formatDuration(
-                    Duration(milliseconds: snap!.serviceUptimeMs),
-                  )
-                : unavailable ?? '—',
-          ),
-          _kv(
-            'Mode',
-            snap?.runMode.isNotEmpty == true
-                ? snap!.runMode
-                : unavailable ?? '—',
+          const SizedBox(height: 12),
+          HealthSpecSection(
+            title: 'Identity',
+            compact: true,
+            rows: [
+              HealthSpecRow(
+                label: 'Service version',
+                value: snap?.serviceVersion.isNotEmpty == true
+                    ? snap!.serviceVersion
+                    : unavailable ?? kUnavailableDash,
+              ),
+              HealthSpecRow(
+                label: 'Build version',
+                value: snap?.buildVersion.isNotEmpty == true
+                    ? snap!.buildVersion
+                    : unavailable ?? kUnavailableDash,
+              ),
+              HealthSpecRow(
+                label: 'Git commit',
+                value: snap?.gitCommit.isNotEmpty == true
+                    ? snap!.gitCommit
+                    : unavailable ?? kUnavailableDash,
+              ),
+              HealthSpecRow(
+                label: 'IPC protocol',
+                value: snap != null
+                    ? '${snap!.protocolVersion}'
+                    : unavailable ?? kUnavailableDash,
+              ),
+              HealthSpecRow(
+                label: 'Binary SHA-256',
+                value: snap?.binarySha256.isNotEmpty == true
+                    ? snap!.binarySha256
+                    : unavailable ?? kUnavailableDash,
+              ),
+              HealthSpecRow(
+                label: 'Executable path',
+                value: snap?.executablePath.isNotEmpty == true
+                    ? snap!.executablePath
+                    : unavailable ?? kUnavailableDash,
+              ),
+              HealthSpecRow(
+                label: 'Install path',
+                value: snap?.installPath.isNotEmpty == true
+                    ? snap!.installPath
+                    : (snap == null
+                        ? (unavailable ?? kUnavailableDash)
+                        : 'Not installed / no SCM ImagePath'),
+              ),
+              HealthSpecRow(
+                label: 'Paths match',
+                value: snap == null
+                    ? (unavailable ?? kUnavailableDash)
+                    : (snap!.hasPathsMatch
+                        ? (snap!.pathsMatch ? 'Yes' : 'No')
+                        : kUnavailableDash),
+              ),
+              HealthSpecRow(
+                label: 'Start time',
+                value: snap != null && snap!.serviceStartUnixMs > 0
+                    ? DateTime.fromMillisecondsSinceEpoch(
+                            snap!.serviceStartUnixMs)
+                        .toLocal()
+                        .toString()
+                        .split('.')
+                        .first
+                    : unavailable ?? kUnavailableDash,
+              ),
+              HealthSpecRow(
+                label: 'Uptime',
+                value: snap != null
+                    ? _formatDuration(
+                        Duration(milliseconds: snap!.serviceUptimeMs),
+                      )
+                    : unavailable ?? kUnavailableDash,
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           const Divider(height: 1, color: PulseTokens.strokeSubtle),
@@ -426,6 +509,7 @@ class _IpcCard extends StatelessWidget {
     required this.onPing,
     required this.onRestart,
     required this.onCopy,
+    this.snapshotLatencyMs,
     this.expand = false,
   });
 
@@ -435,10 +519,13 @@ class _IpcCard extends StatelessWidget {
   final VoidCallback onPing;
   final VoidCallback onRestart;
   final VoidCallback onCopy;
+  final int? snapshotLatencyMs;
   final bool expand;
 
   @override
   Widget build(BuildContext context) {
+    final ipcClient = context.watch<PulseIpcClient>();
+    final history = ipcClient.reconnectHistory;
     return _DiagSection(
       title: 'IPC',
       icon: LucideIcons.plug,
@@ -451,33 +538,113 @@ class _IpcCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _kv(
-            'Last latency',
-            status.lastPingLatencyMs == null
-                ? 'Not measured yet — use Ping Service'
-                : '${status.lastPingLatencyMs} ms',
+          HealthSpecSection(
+            title: 'Latency',
+            compact: true,
+            rows: [
+              HealthSpecRow(
+                label: 'Last ping',
+                value: status.lastPingLatencyMs == null
+                    ? 'Not measured yet — use Ping Service'
+                    : '${status.lastPingLatencyMs} ms',
+              ),
+              HealthSpecRow(
+                label: 'Average ping',
+                value: status.avgPingLatencyMs == null
+                    ? kUnavailableDash
+                    : '${status.avgPingLatencyMs!.toStringAsFixed(1)} ms',
+              ),
+              HealthSpecRow(
+                label: 'Snapshot RPC',
+                value: snapshotLatencyMs == null
+                    ? kUnavailableDash
+                    : '$snapshotLatencyMs ms',
+              ),
+              HealthSpecRow(
+                label: 'Protocol version',
+                value: snap != null
+                    ? '${snap!.protocolVersion}'
+                    : '$kProtocolVersion (client)',
+              ),
+            ],
           ),
-          _kv(
-            'Average latency',
-            status.avgPingLatencyMs == null
-                ? '—'
-                : '${status.avgPingLatencyMs!.toStringAsFixed(1)} ms',
+          const SizedBox(height: 12),
+          HealthSpecSection(
+            title: 'Throughput',
+            compact: true,
+            rows: [
+              HealthSpecRow(
+                label: 'Messages received',
+                value: snap == null ? kUnavailableDash : '${snap!.ipcMessagesReceived}',
+              ),
+              HealthSpecRow(
+                label: 'Messages sent',
+                value: snap == null ? kUnavailableDash : '${snap!.ipcMessagesSent}',
+              ),
+              HealthSpecRow(
+                label: 'Bytes received',
+                value: snap == null
+                    ? kUnavailableDash
+                    : formatBytesBinary(snap!.ipcBytesReceived),
+              ),
+              HealthSpecRow(
+                label: 'Bytes sent',
+                value: snap == null
+                    ? kUnavailableDash
+                    : formatBytesBinary(snap!.ipcBytesSent),
+              ),
+              HealthSpecRow(
+                label: 'Messages / sec',
+                value: snap?.hasIpcMessagesPerSec == true
+                    ? snap!.ipcMessagesPerSec.toStringAsFixed(1)
+                    : (snap == null
+                        ? kUnavailableDash
+                        : 'Measuring… (needs a second sample)'),
+              ),
+              HealthSpecRow(
+                label: 'Bytes / sec',
+                value: snap?.hasIpcBytesPerSec == true
+                    ? '${formatBytesBinary(snap!.ipcBytesPerSec.round())}/s'
+                    : (snap == null
+                        ? kUnavailableDash
+                        : 'Measuring… (needs a second sample)'),
+              ),
+              HealthSpecRow(
+                label: 'IPC errors',
+                value: snap == null ? kUnavailableDash : '${snap!.ipcErrors}',
+              ),
+              HealthSpecRow(
+                label: 'Client messages',
+                value: '${status.messagesSent}',
+              ),
+              HealthSpecRow(
+                label: 'Client failures',
+                value: '${status.messagesFailed}',
+              ),
+              HealthSpecRow(
+                label: 'Reconnect count',
+                value: '${status.reconnectCount}',
+              ),
+            ],
           ),
-          _kv('Total messages (client)', '${status.messagesSent}'),
-          _kv('Failed messages (client)', '${status.messagesFailed}'),
-          _kv('Reconnect count (client)', '${status.reconnectCount}'),
-          _kv(
-            'Messages received (service)',
-            snap == null ? '—' : '${snap!.ipcMessagesReceived}',
-          ),
-          _kv(
-            'Messages sent (service)',
-            snap == null ? '—' : '${snap!.ipcMessagesSent}',
-          ),
-          _kv(
-            'IPC errors (service)',
-            snap == null ? '—' : '${snap!.ipcErrors}',
-          ),
+          if (history.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            HealthSpecSection(
+              title: 'Reconnect history',
+              compact: true,
+              rows: [
+                for (final e in history.reversed.take(6))
+                  HealthSpecRow(
+                    label: DateTime.fromMillisecondsSinceEpoch(e.unixMs)
+                        .toLocal()
+                        .toString()
+                        .split('.')
+                        .first,
+                    value: e.reason,
+                  ),
+              ],
+            ),
+          ],
           if (status.lastError.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
@@ -536,32 +703,51 @@ class _PipelineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final offline = !connected || snap == null;
+    String stageDetail(int level, String specific, String fallback) {
+      if (offline) return 'Unavailable — PulseService offline';
+      if (specific.trim().isNotEmpty) return specific;
+      if (snap!.stageDetail.isNotEmpty && level > 0) return snap!.stageDetail;
+      return fallback;
+    }
+
     final stages = <(String, int, String)>[
       (
         'Windows Event Log',
         offline ? 2 : snap!.stageEventLog,
-        offline
-            ? 'Unavailable — PulseService offline'
-            : (snap!.stageDetail.isNotEmpty && snap!.stageEventLog > 0
-                ? snap!.stageDetail
-                : 'Service stage report'),
+        stageDetail(
+          offline ? 2 : snap!.stageEventLog,
+          snap?.stageEventLogDetail ?? '',
+          'Service stage report',
+        ),
       ),
       (
         'Collector',
         offline ? 2 : snap!.stageCollector,
-        offline ? 'Unavailable — PulseService offline' : 'Service stage report',
+        stageDetail(
+          offline ? 2 : snap!.stageCollector,
+          snap?.stageCollectorDetail ?? '',
+          'Service stage report',
+        ),
       ),
       (
         'Intelligence',
         offline ? 2 : snap!.stageIntelligence,
-        offline ? 'Unavailable — PulseService offline' : 'Service stage report',
+        stageDetail(
+          offline ? 2 : snap!.stageIntelligence,
+          snap?.stageIntelligenceDetail ?? '',
+          'Service stage report',
+        ),
       ),
       (
         'IPC',
         offline ? 2 : snap!.stageIpc,
-        offline
-            ? 'Named pipe unavailable'
-            : (snap!.ipcListening ? 'Named pipe listening' : 'Not listening'),
+        stageDetail(
+          offline ? 2 : snap!.stageIpc,
+          snap?.stageIpcDetail ?? '',
+          snap?.ipcListening == true
+              ? 'Named pipe listening'
+              : 'Not listening',
+        ),
       ),
       (
         'Flutter',
@@ -633,9 +819,19 @@ class _PipelineStage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const SizedBox(height: 2),
-                Text(detail, style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  detail,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ],
             ),
           ),
@@ -647,8 +843,8 @@ class _PipelineStage extends StatelessWidget {
   }
 }
 
-class _PerformanceCard extends StatelessWidget {
-  const _PerformanceCard({
+class _CollectorsCard extends StatelessWidget {
+  const _CollectorsCard({
     required this.snap,
     required this.error,
     this.expand = false,
@@ -660,37 +856,161 @@ class _PerformanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final unavailable = snap == null
+        ? (error ?? 'Unavailable — waiting for PulseService')
+        : null;
+    return _DiagSection(
+      title: 'Collectors',
+      icon: LucideIcons.activity,
+      expand: expand,
+      child: HealthSpecSection(
+        compact: true,
+        rows: [
+          HealthSpecRow(
+            label: 'Health monitoring',
+            value: snap == null
+                ? (unavailable ?? kUnavailableDash)
+                : (snap!.healthMonitoringActive ? 'Active' : 'Idle'),
+          ),
+          HealthSpecRow(
+            label: 'Health sample rate',
+            value: snap == null
+                ? (unavailable ?? kUnavailableDash)
+                : (snap!.healthMonitoringActive
+                    ? '${snap!.healthSampleRateHz.toStringAsFixed(0)} Hz'
+                    : '0 Hz (starts with health monitoring)'),
+          ),
+          HealthSpecRow(
+            label: 'Network ETW',
+            value: snap == null
+                ? (unavailable ?? kUnavailableDash)
+                : (snap!.networkEtwRunning ? 'Running' : 'Stopped'),
+          ),
+          HealthSpecRow(
+            label: 'Network ETW last error',
+            value: snap == null
+                ? (unavailable ?? kUnavailableDash)
+                : (snap!.networkEtwLastError.isNotEmpty
+                    ? snap!.networkEtwLastError
+                    : 'None'),
+          ),
+          const HealthSpecRow(
+            label: 'Dropped samples',
+            value: kNotSupported,
+            description: 'No collector drop counter is instrumented yet',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PerformanceCard extends StatelessWidget {
+  const _PerformanceCard({
+    required this.snap,
+    required this.error,
+    required this.frameMetrics,
+    this.expand = false,
+  });
+
+  final DiagnosticsSnapshot? snap;
+  final String? error;
+  final ClientFrameMetrics frameMetrics;
+  final bool expand;
+
+  @override
+  Widget build(BuildContext context) {
     return _DiagSection(
       title: 'Pulse Performance',
       icon: LucideIcons.gauge,
       expand: expand,
-      child: snap == null
-          ? Text(
-              error ??
-                  'Service process metrics are unavailable while PulseService is offline.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            )
-          : Column(
-              children: [
-                _kv(
-                  'CPU usage',
-                  snap!.hasCpuPercent
-                      ? '${snap!.cpuPercent.toStringAsFixed(1)} %'
-                      : 'Measuring… (needs a second sample)',
-                ),
-                _kv(
-                  'Memory (working set)',
-                  _formatBytes(snap!.workingSetBytes),
-                ),
-                _kv('Thread count', '${snap!.threadCount}'),
-                _kv('Handle count', '${snap!.handleCount}'),
-                _kv(
-                  'Queue size',
-                  '${snap!.liveQueueDepth} / ${snap!.liveQueueCapacity}',
-                ),
-                _kv('Service PID', '${snap!.servicePid}'),
-              ],
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          HealthSpecSection(
+            title: 'Service process',
+            compact: true,
+            rows: snap == null
+                ? [
+                    HealthSpecRow(
+                      label: 'Status',
+                      value: error ??
+                          'Service process metrics are unavailable while PulseService is offline.',
+                    ),
+                  ]
+                : [
+                    HealthSpecRow(
+                      label: 'CPU usage',
+                      value: snap!.hasCpuPercent
+                          ? '${snap!.cpuPercent.toStringAsFixed(1)} %'
+                          : 'Measuring… (needs a second sample)',
+                    ),
+                    HealthSpecRow(
+                      label: 'Memory (working set)',
+                      value: formatBytesBinary(snap!.workingSetBytes),
+                    ),
+                    HealthSpecRow(
+                      label: 'Thread count',
+                      value: '${snap!.threadCount}',
+                    ),
+                    HealthSpecRow(
+                      label: 'Handle count',
+                      value: '${snap!.handleCount}',
+                    ),
+                    HealthSpecRow(
+                      label: 'Queue size',
+                      value:
+                          '${snap!.liveQueueDepth} / ${snap!.liveQueueCapacity}',
+                    ),
+                    HealthSpecRow(
+                      label: 'Service PID',
+                      value: '${snap!.servicePid}',
+                    ),
+                  ],
+          ),
+          const SizedBox(height: 12),
+          HealthSpecSection(
+            title: 'Flutter client',
+            compact: true,
+            rows: [
+              HealthSpecRow(
+                label: 'FPS',
+                value: frameMetrics.fps == null
+                    ? 'Measuring…'
+                    : frameMetrics.fps!.toStringAsFixed(1),
+              ),
+              HealthSpecRow(
+                label: 'Frame time',
+                value: frameMetrics.avgTotalFrameMs == null
+                    ? 'Measuring…'
+                    : '${frameMetrics.avgTotalFrameMs!.toStringAsFixed(2)} ms',
+              ),
+              HealthSpecRow(
+                label: 'Build time',
+                value: frameMetrics.avgBuildMs == null
+                    ? 'Measuring…'
+                    : '${frameMetrics.avgBuildMs!.toStringAsFixed(2)} ms',
+              ),
+              HealthSpecRow(
+                label: 'Raster time',
+                value: frameMetrics.avgRasterMs == null
+                    ? 'Measuring…'
+                    : '${frameMetrics.avgRasterMs!.toStringAsFixed(2)} ms',
+              ),
+              HealthSpecRow(
+                label: 'Memory (RSS)',
+                value: frameMetrics.rssBytes == null
+                    ? kUnavailableDash
+                    : formatBytesBinary(frameMetrics.rssBytes!),
+              ),
+              HealthSpecRow(
+                label: 'Rebuild notes',
+                value: '${frameMetrics.rebuildCount}',
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -818,10 +1138,12 @@ Widget _kv(String label, String value) {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 168,
+        Flexible(
+          flex: 2,
           child: Text(
             label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: PulseTokens.textTertiary,
               fontSize: 12.5,
@@ -829,14 +1151,22 @@ Widget _kv(String label, String value) {
             ),
           ),
         ),
+        const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              color: PulseTokens.textPrimary,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w500,
-              height: 1.35,
+          flex: 3,
+          child: Tooltip(
+            message: value,
+            waitDuration: const Duration(milliseconds: 450),
+            child: Text(
+              value,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: PulseTokens.textPrimary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                height: 1.35,
+              ),
             ),
           ),
         ),
@@ -852,15 +1182,4 @@ String _formatDuration(Duration d) {
   if (h > 0) return '${h}h ${m}m';
   if (m > 0) return '${m}m ${s}s';
   return '${s}s';
-}
-
-String _formatBytes(int bytes) {
-  if (bytes <= 0) return '—';
-  const kb = 1024.0;
-  const mb = kb * 1024;
-  const gb = mb * 1024;
-  if (bytes >= gb) return '${(bytes / gb).toStringAsFixed(2)} GB';
-  if (bytes >= mb) return '${(bytes / mb).toStringAsFixed(1)} MB';
-  if (bytes >= kb) return '${(bytes / kb).toStringAsFixed(0)} KB';
-  return '$bytes B';
 }

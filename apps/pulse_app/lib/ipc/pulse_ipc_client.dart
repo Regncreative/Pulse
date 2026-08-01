@@ -12,6 +12,17 @@ import 'package:win32/win32.dart';
 
 enum IpcConnectionState { disconnected, connecting, connected, error }
 
+/// One IPC reconnect transition recorded on the Flutter client.
+class IpcReconnectEvent {
+  const IpcReconnectEvent({
+    required this.unixMs,
+    required this.reason,
+  });
+
+  final int unixMs;
+  final String reason;
+}
+
 class IpcStatus {
   const IpcStatus({
     required this.state,
@@ -101,13 +112,19 @@ class IpcStatus {
 
 /// UI-facing IPC client. Pipe I/O runs on a dedicated isolate (ADR-008 / P0-5).
 class PulseIpcClient extends ChangeNotifier {
-  PulseIpcClient();
+  PulseIpcClient({this.reconnectHistoryCapacity = 12});
 
   /// Reserved for ClientHello only — must stay out of UI RPC id space (>= 1000).
   static const int kHandshakeRequestId = 1;
 
+  final int reconnectHistoryCapacity;
+
   IpcStatus _status = const IpcStatus(state: IpcConnectionState.disconnected);
   IpcStatus get status => _status;
+
+  final List<IpcReconnectEvent> _reconnectHistory = [];
+  List<IpcReconnectEvent> get reconnectHistory =>
+      List.unmodifiable(_reconnectHistory);
 
   SendPort? _cmdPort;
   Isolate? _isolate;
@@ -198,6 +215,7 @@ class PulseIpcClient extends ChangeNotifier {
 
   void resetDiagnosticsCounters() {
     _pingLatencySumMs = 0;
+    _reconnectHistory.clear();
     _status = IpcStatus(
       state: _status.state,
       message: _status.message,
@@ -444,6 +462,18 @@ class PulseIpcClient extends ChangeNotifier {
       if (_prevTrackedState != null) {
         reconnectCount = _status.reconnectCount + 1;
         s = s.copyWith(reconnectCount: reconnectCount);
+        final reason = _status.lastError.isNotEmpty
+            ? _status.lastError
+            : (prev == IpcConnectionState.error
+                ? 'Recovered after connection error'
+                : 'Reconnected after disconnect');
+        _reconnectHistory.add(IpcReconnectEvent(
+          unixMs: DateTime.now().millisecondsSinceEpoch,
+          reason: reason,
+        ));
+        while (_reconnectHistory.length > reconnectHistoryCapacity) {
+          _reconnectHistory.removeAt(0);
+        }
       }
     }
     _prevTrackedState = s.state;

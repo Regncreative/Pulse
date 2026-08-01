@@ -603,6 +603,33 @@ std::vector<uint8_t> EncodeDiagnosticsSnapshot(const DiagnosticsSnapshot& m) {
 
   WriteString(31, m.windows_edition, &out);
   WriteString(32, m.windows_version, &out);
+
+  WriteString(33, m.executable_path, &out);
+  WriteString(34, m.build_version, &out);
+  WriteString(35, m.git_commit, &out);
+  WriteString(36, m.binary_sha256, &out);
+  WriteString(37, m.install_path, &out);
+  WriteBool(38, m.has_paths_match, &out);
+  WriteBool(39, m.paths_match, &out);
+  WriteString(40, m.scm_state, &out);
+  WriteString(41, m.scm_startup_type, &out);
+
+  WriteU64(42, m.ipc_bytes_received, &out);
+  WriteU64(43, m.ipc_bytes_sent, &out);
+  WriteBool(44, m.has_ipc_messages_per_sec, &out);
+  WriteDouble(45, m.ipc_messages_per_sec, &out);
+  WriteBool(46, m.has_ipc_bytes_per_sec, &out);
+  WriteDouble(47, m.ipc_bytes_per_sec, &out);
+
+  WriteBool(48, m.health_monitoring_active, &out);
+  WriteDouble(49, m.health_sample_rate_hz, &out);
+  WriteBool(50, m.network_etw_running, &out);
+  WriteString(51, m.network_etw_last_error, &out);
+
+  WriteString(52, m.stage_event_log_detail, &out);
+  WriteString(53, m.stage_collector_detail, &out);
+  WriteString(54, m.stage_intelligence_detail, &out);
+  WriteString(55, m.stage_ipc_detail, &out);
   return out;
 }
 
@@ -2285,6 +2312,68 @@ bool DecodeDiagnosticsSnapshot(const uint8_t* data, size_t len,
       if (!DecodeString(p, end, &m->windows_edition)) return false;
     } else if (field == 32 && wire == 2) {
       if (!DecodeString(p, end, &m->windows_version)) return false;
+    } else if (field == 33 && wire == 2) {
+      if (!DecodeString(p, end, &m->executable_path)) return false;
+    } else if (field == 34 && wire == 2) {
+      if (!DecodeString(p, end, &m->build_version)) return false;
+    } else if (field == 35 && wire == 2) {
+      if (!DecodeString(p, end, &m->git_commit)) return false;
+    } else if (field == 36 && wire == 2) {
+      if (!DecodeString(p, end, &m->binary_sha256)) return false;
+    } else if (field == 37 && wire == 2) {
+      if (!DecodeString(p, end, &m->install_path)) return false;
+    } else if (field == 38 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_paths_match = v != 0;
+    } else if (field == 39 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->paths_match = v != 0;
+    } else if (field == 40 && wire == 2) {
+      if (!DecodeString(p, end, &m->scm_state)) return false;
+    } else if (field == 41 && wire == 2) {
+      if (!DecodeString(p, end, &m->scm_startup_type)) return false;
+    } else if (field == 42 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->ipc_bytes_received = v;
+    } else if (field == 43 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->ipc_bytes_sent = v;
+    } else if (field == 44 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_ipc_messages_per_sec = v != 0;
+    } else if (field == 45 && wire == 1) {
+      if (!ReadDouble(p, end, &m->ipc_messages_per_sec)) return false;
+    } else if (field == 46 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_ipc_bytes_per_sec = v != 0;
+    } else if (field == 47 && wire == 1) {
+      if (!ReadDouble(p, end, &m->ipc_bytes_per_sec)) return false;
+    } else if (field == 48 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->health_monitoring_active = v != 0;
+    } else if (field == 49 && wire == 1) {
+      if (!ReadDouble(p, end, &m->health_sample_rate_hz)) return false;
+    } else if (field == 50 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->network_etw_running = v != 0;
+    } else if (field == 51 && wire == 2) {
+      if (!DecodeString(p, end, &m->network_etw_last_error)) return false;
+    } else if (field == 52 && wire == 2) {
+      if (!DecodeString(p, end, &m->stage_event_log_detail)) return false;
+    } else if (field == 53 && wire == 2) {
+      if (!DecodeString(p, end, &m->stage_collector_detail)) return false;
+    } else if (field == 54 && wire == 2) {
+      if (!DecodeString(p, end, &m->stage_intelligence_detail)) return false;
+    } else if (field == 55 && wire == 2) {
+      if (!DecodeString(p, end, &m->stage_ipc_detail)) return false;
     } else if (!SkipField(wire, p, end)) {
       return false;
     }

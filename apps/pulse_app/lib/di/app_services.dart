@@ -1,3 +1,4 @@
+import '../application/client_frame_metrics.dart';
 import '../application/connection_controller.dart';
 import '../application/diagnostics_controller.dart';
 import '../application/service_lifecycle_controller.dart';
@@ -15,6 +16,7 @@ class AppServices {
     required this.timelineSession,
     required this.diagnosticsController,
     required this.serviceLifecycle,
+    required this.clientFrameMetrics,
   });
 
   final PulseIpcClient ipcClient;
@@ -24,6 +26,7 @@ class AppServices {
   final TimelineSessionController timelineSession;
   final DiagnosticsController diagnosticsController;
   final ServiceLifecycleController serviceLifecycle;
+  final ClientFrameMetrics clientFrameMetrics;
 
   static Future<AppServices> create() async {
     final logger = AppLogger();
@@ -31,6 +34,8 @@ class AppServices {
     await settings.load();
 
     final ipc = PulseIpcClient();
+    final frameMetrics = ClientFrameMetrics();
+    frameMetrics.start();
     final connection = ConnectionController(ipc: ipc, logger: logger);
     final timeline = TimelineSessionController(
       ipc: ipc,
@@ -42,6 +47,7 @@ class AppServices {
       timeline: timeline,
       settings: settings,
       logger: logger,
+      frameMetrics: frameMetrics,
     );
     final serviceLifecycle = ServiceLifecycleController(logger: logger);
     serviceLifecycle.startPolling();
@@ -60,6 +66,7 @@ class AppServices {
       timelineSession: timeline,
       diagnosticsController: diagnostics,
       serviceLifecycle: serviceLifecycle,
+      clientFrameMetrics: frameMetrics,
     );
   }
 }
