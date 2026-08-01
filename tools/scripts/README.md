@@ -11,6 +11,6 @@ PowerShell helpers to run service, app, ping, and R1 stability tooling.
 | `package_beta.ps1` | Build installer payload |
 | `verify_runtime_deps.ps1` | VC++ runtime checks |
 | `measure_performance.ps1` | One-shot WS / optional diagnostics ping (R1) |
-| `soak_overnight.ps1` | ≥8 h sampling CSV + exit warnings (R1) |
+| `soak_overnight.ps1` | ≥8 h sampling + final JSON/MD verdict in `tools/soak-results/` |
 
 See [35-product-stability.md](../../docs/architecture/35-product-stability.md).

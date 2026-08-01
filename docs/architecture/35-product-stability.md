@@ -74,10 +74,16 @@ Repeatable checks (check off for each release train):
 2. Confirm no hang; spot-check RSS vs start.
 
 ### Overnight soak (≥ 8 h)
-1. `powershell -ExecutionPolicy Bypass -File .\tools\scripts\soak_overnight.ps1 -Hours 8`
-2. Keep Pulse UI open; machine awake (disable sleep if needed).
-3. Archive `artifacts/soak/<stamp>/` with release notes.
-4. Fail if unexpected process exit in `soak-events.txt` or unbounded WS growth without explanation.
+1. Rebuild service tools so `pulse_diagnostics_ping.exe` prints `SOAK_METRICS` (current tree).
+2. `powershell -ExecutionPolicy Bypass -File .\tools\scripts\soak_overnight.ps1 -Hours 8`
+3. Keep Pulse UI open; machine awake (disable sleep if needed).
+4. Review **final reports**:
+   - `tools/soak-results/soak-report-<stamp>.json`
+   - `tools/soak-results/soak-report-<stamp>.md`
+5. Archive `artifacts/soak/<stamp>/` with the reports.
+6. Accept only **PASS** or explicitly justified **PASS WITH WARNINGS**. **FAIL** is an R1 regression.
+
+Verdict fields include runtime, uptimes, CPU/memory peak & growth, queue overflows (`live_events_dropped`), subscription reconnects, service restarts, crash dumps, and Pulse-related Event Log hits.
 
 ### Installer / upgrade
 1. Clean VM or secondary PC: install current Setup.exe ([25](25-beta-release.md)).
@@ -107,9 +113,10 @@ Repeatable checks (check off for each release train):
 | Script | Role |
 |--------|------|
 | `tools/scripts/measure_performance.ps1` | One-shot process WS + optional diagnostics ping |
-| `tools/scripts/soak_overnight.ps1` | Periodic CSV + exit warnings for overnight soak |
+| `tools/scripts/soak_overnight.ps1` | Overnight soak + **JSON/MD verdict** under `tools/soak-results/` |
+| `tools/scripts/measure_performance.ps1` | One-shot process WS + optional diagnostics ping |
 
-Artifacts default under `artifacts/perf/` and `artifacts/soak/` (gitignored if configured).
+Session CSV/logs default under `artifacts/soak/` (gitignored). Final reports: `tools/soak-results/soak-report-*.{json,md}`.
 
 ---
 

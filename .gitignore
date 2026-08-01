@@ -26,6 +26,8 @@ apps/pulse_app/windows/flutter/ephemeral/
 
 # Compiled / packaged artifacts
 artifacts/
+tools/soak-results/*
+!tools/soak-results/README.md
 *.exe
 *.dll
 *.pdb

@@ -219,6 +219,16 @@ int wmain() {
   const auto snap2 = std::get<pulse::ipc::DiagnosticsSnapshot>(reply.body);
   std::cout << "DIAGNOSTICS_AFTER pushed=" << snap2.live_events_pushed
             << " last=" << snap2.last_live_event_title << "\n";
+  // Machine-readable line for soak_overnight.ps1 (do not invent fields).
+  std::cout << "SOAK_METRICS"
+            << " live_events_dropped=" << snap2.live_events_dropped
+            << " live_subscriber_reconnects=" << snap2.live_subscriber_reconnects
+            << " live_queue_depth=" << snap2.live_queue_depth
+            << " live_queue_capacity=" << snap2.live_queue_capacity
+            << " live_events_pushed=" << snap2.live_events_pushed
+            << " ipc_errors=" << snap2.ipc_errors
+            << " service_uptime_ms=" << snap2.service_uptime_ms
+            << "\n";
   std::cout << "SMOKE_OK\n";
   CloseHandle(pipe);
   return 0;
