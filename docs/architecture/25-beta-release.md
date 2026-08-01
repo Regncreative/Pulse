@@ -6,7 +6,7 @@ Ship a **normal Windows installer** so a clean PC reaches Connected without Powe
 
 ## Primary deliverable
 
-`dist/Pulse-Setup-0.1.3-beta-windows-x64.exe` (Inno Setup)
+`dist/Pulse-Setup-0.2.0-beta-windows-x64.exe` (Inno Setup)
 
 The installer (admin / UAC):
 
@@ -27,9 +27,9 @@ Prerequisites: Flutter, VS C++ Build Tools, [Inno Setup 6](https://jrsoftware.or
 
 | Output | Role |
 |--------|------|
-| `dist/Pulse-Setup-0.1.3-beta-windows-x64.exe` | **End-user installer** |
+| `dist/Pulse-Setup-0.2.0-beta-windows-x64.exe` | **End-user installer** |
 | `dist/Pulse/` | Payload used by Inno |
-| `dist/Pulse-0.1.3-beta-windows-x64.zip` | Optional payload archive |
+| `dist/Pulse-0.2.0-beta-windows-x64.zip` | Optional payload archive |
 
 ## Fresh machine checklist
 

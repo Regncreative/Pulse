@@ -59,6 +59,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 29 | [System Health quality milestone](29-system-health-quality-milestone.md) | Phased GPU/Network/Hardware/Timeline/Diagnostics quality |
 | 30 | [Health validation methodology](30-health-validation.md) | TM / RM / PerfMon / SI comparison matrix |
 | 31 | [UI design system](31-ui-design-system.md) | ThemeExtension, accents, PulseSection, PulseThemeScope |
+| 32 | [UX / UI redesign milestone](32-ux-redesign-milestone.md) | Themes, Settings, Reports, Health sections, command palette |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 

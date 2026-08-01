@@ -144,7 +144,7 @@ ETW, WMI, and plugins are intentional future milestones — see [docs/architectu
 
 ### For everyone (beta package)
 
-1. Download **`Pulse-Setup-0.1.3-beta-windows-x64.exe`** from [GitHub Releases](https://github.com/Regncreative/Pulse/releases)
+1. Download **`Pulse-Setup-0.2.0-beta-windows-x64.exe`** from [GitHub Releases](https://github.com/Regncreative/Pulse/releases)
 2. Run the installer and accept the UAC prompt
 3. PulseService is registered and started automatically
 4. Skip or complete the short welcome — then open Timeline or System Health
@@ -157,7 +157,7 @@ Developers can also build a local package:
 .\tools\scripts\package_beta.ps1
 ```
 
-Output: `dist\Pulse-Setup-0.1.3-beta-windows-x64.exe`, `dist\Pulse\`, and `dist\Pulse-0.1.3-beta-windows-x64.zip`
+Output: `dist\Pulse-Setup-0.2.0-beta-windows-x64.exe`, `dist\Pulse\`, and `dist\Pulse-0.2.0-beta-windows-x64.zip`
 
 ### For developers (day-to-day)
 
