@@ -336,6 +336,25 @@ class _TimelineDetailsPanelState extends State<TimelineDetailsPanel> {
                   ),
                 ),
                 Divider(height: 1, color: PulseTokens.strokeSubtle),
+                if (widget.rcaHint != null)
+                  DetailSection(
+                    title: 'Possible cause',
+                    child: _RcaHintBox(hint: widget.rcaHint!),
+                  ),
+                if (widget.rcaHint != null)
+                  Divider(height: 1, color: PulseTokens.strokeSubtle),
+                if (widget.onSelectRelated != null)
+                  DetailSection(
+                    title: 'Event links',
+                    child: _EventLinks(
+                      event: event,
+                      relatedIds: widget.rcaHint?.relatedEventIds ?? const [],
+                      pool: widget.relatedEvents,
+                      onSelect: widget.onSelectRelated!,
+                    ),
+                  ),
+                if (widget.onSelectRelated != null)
+                  Divider(height: 1, color: PulseTokens.strokeSubtle),
                 DetailSection(
                   title: 'Technical Information',
                   child: MetadataTable(
@@ -397,6 +416,143 @@ class _TimelineDetailsPanelState extends State<TimelineDetailsPanel> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RcaHintBox extends StatelessWidget {
+  const _RcaHintBox({required this.hint});
+
+  final TimelineRcaHint hint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          hint.possibleCause,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: PulseTokens.textSecondary,
+                height: 1.45,
+              ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            PulseBadge(
+              label: 'Confidence: ${hint.confidenceLabel}',
+              compact: true,
+            ),
+            PulseBadge(
+              label: 'Rule ${hint.ruleId}',
+              compact: true,
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Suggested next step',
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          hint.nextStep,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: PulseTokens.textSecondary,
+                height: 1.45,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EventLinks extends StatelessWidget {
+  const _EventLinks({
+    required this.event,
+    required this.relatedIds,
+    required this.pool,
+    required this.onSelect,
+  });
+
+  final TimelineEvent event;
+  final List<String> relatedIds;
+  final List<TimelineEvent> pool;
+  final ValueChanged<TimelineEvent> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    TimelineEvent? byId(String id) {
+      for (final e in pool) {
+        if (e.eventId == id) return e;
+      }
+      return null;
+    }
+
+    final related = [
+      for (final id in relatedIds)
+        if (id != event.eventId) byId(id),
+    ].whereType<TimelineEvent>().toList();
+
+    final sameProvider = pool
+        .where(
+          (e) =>
+              e.eventId != event.eventId &&
+              e.providerName.isNotEmpty &&
+              e.providerName == event.providerName,
+        )
+        .take(3)
+        .toList();
+
+    final sameProcess = event.hasProcessId
+        ? pool
+            .where(
+              (e) =>
+                  e.eventId != event.eventId &&
+                  e.hasProcessId &&
+                  e.processId == event.processId,
+            )
+            .take(3)
+            .toList()
+        : const <TimelineEvent>[];
+
+    Widget link(String label, TimelineEvent target) {
+      return TextButton(
+        onPressed: () => onSelect(target),
+        child: Text(
+          '$label · ${target.displayTitle}',
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (related.isEmpty && sameProvider.isEmpty && sameProcess.isEmpty)
+          Text(
+            'No related events in the current Timeline view.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: PulseTokens.textTertiary,
+                ),
+          ),
+        for (var i = 0; i < related.length; i++)
+          link(i == 0 ? 'Previous related' : 'Next related', related[i]),
+        for (final e in sameProvider) link('Same provider', e),
+        for (final e in sameProcess) link('Same process', e),
+        if (relatedIds.length > 1)
+          Text(
+            'Same incident · ${relatedIds.length} events',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: PulseTokens.textTertiary,
+                ),
+          ),
+      ],
     );
   }
 }
