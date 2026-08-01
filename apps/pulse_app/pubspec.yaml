@@ -21,6 +21,7 @@ dependencies:
   shared_preferences: ^2.5.3
   path_provider: ^2.1.5
   archive: ^4.0.7
+  pdf: ^3.11.1
 
 dev_dependencies:
   flutter_test:

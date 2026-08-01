@@ -147,7 +147,8 @@ void main() {
     expect(find.text('Start PulseService'), findsOneWidget);
   });
 
-  testWidgets('Reports stub renders empty state', (tester) async {
+  testWidgets('Reports page shows templates and export controls',
+      (tester) async {
     await tester.binding.setSurfaceSize(const Size(900, 700));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -158,10 +159,9 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Reports'), findsWidgets);
-    expect(
-      find.textContaining('branded reports'),
-      findsOneWidget,
-    );
+    expect(find.text('Export report'), findsOneWidget);
+    expect(find.text('System Health snapshot'), findsOneWidget);
+    expect(find.text('Export'), findsOneWidget);
   });
 
   testWidgets('Health hero grid reflows without overflow at 2-column width',
