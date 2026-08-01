@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
 
 jobs:
@@ -14,8 +14,8 @@ jobs:
         run: cmake -S service/pulse_service -B build/service -G "Visual Studio 17 2022" -A x64
       - name: Build
         run: cmake --build build/service --config Release
-      - name: Test wire codec
-        run: .\build\service\Release\pulse_wire_tests.exe
+      - name: Test (ctest)
+        run: ctest --test-dir build/service -C Release --output-on-failure
 
   flutter:
     runs-on: windows-latest
@@ -33,3 +33,22 @@ jobs:
       - name: Test
         working-directory: apps/pulse_app
         run: flutter test
+
+  pulse_mcp:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/pulse_mcp/package-lock.json
+      - name: Install
+        working-directory: apps/pulse_mcp
+        run: npm ci
+      - name: Build
+        working-directory: apps/pulse_mcp
+        run: npm run build
+      - name: Test
+        working-directory: apps/pulse_mcp
+        run: npm test
