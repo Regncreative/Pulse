@@ -410,6 +410,15 @@ struct HealthSample {
   std::string net_wifi_channel;
   std::string net_wifi_frequency;
   std::string net_wifi_security;
+  // Phase 3 — storage SMART / lifetime (has_* false → Not supported)
+  bool has_disk_power_on_hours = false;
+  uint64_t disk_power_on_hours = 0;
+  bool has_disk_total_bytes_written = false;
+  uint64_t disk_total_bytes_written = 0;
+  bool has_disk_total_bytes_read = false;
+  uint64_t disk_total_bytes_read = 0;
+  bool has_disk_smart_ok = false;
+  bool disk_smart_ok = false;
 };
 
 struct GetHealthSnapshot {};

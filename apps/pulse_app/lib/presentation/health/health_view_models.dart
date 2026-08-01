@@ -7,7 +7,7 @@ import 'package:pulse_protocol/pulse_wire.dart';
 enum HealthStatus { good, fair, elevated, unavailable }
 
 /// Detail panel kinds for interactive System Health (TASK-007.2).
-enum HealthPanelKind { cpu, memory, gpu, disk, network }
+enum HealthPanelKind { cpu, memory, gpu, disk, network, hardware }
 
 extension HealthPanelKindX on HealthPanelKind {
   String get title => switch (this) {
@@ -16,6 +16,7 @@ extension HealthPanelKindX on HealthPanelKind {
         HealthPanelKind.gpu => 'GPU',
         HealthPanelKind.disk => 'Disk',
         HealthPanelKind.network => 'Network',
+        HealthPanelKind.hardware => 'Hardware',
       };
 }
 
@@ -237,6 +238,20 @@ String formatRpm(bool has, double rpm) {
   return '${rpm.toStringAsFixed(0)} RPM';
 }
 
+String formatPowerOnHours(bool has, int hours) {
+  if (!has) return kNotSupported;
+  if (hours < 24) return '$hours h';
+  final days = hours ~/ 24;
+  final rem = hours % 24;
+  if (rem == 0) return '$days d';
+  return '$days d $rem h';
+}
+
+String formatSmartHealth(bool has, bool ok) {
+  if (!has) return kNotSupported;
+  return ok ? 'OK' : 'Warning';
+}
+
 /// Boolean configuration flag — "Not supported" when the capability was never
 /// reported (e.g. Resizable BAR without a clean public query path).
 String formatBoolOrNotSupported(bool has, bool value,
@@ -317,6 +332,8 @@ String formatProcessPrimaryMetric(
       return entry.hasNetBps
           ? formatThroughputBps(entry.netBps)
           : kUnavailableDash;
+    case HealthPanelKind.hardware:
+      return kUnavailableDash;
   }
 }
 
@@ -337,6 +354,7 @@ String? formatProcessSecondaryMetric(
     case HealthPanelKind.gpu:
     case HealthPanelKind.disk:
     case HealthPanelKind.network:
+    case HealthPanelKind.hardware:
       return null;
   }
 }
@@ -347,6 +365,7 @@ String processMetricColumnLabel(HealthPanelKind kind) => switch (kind) {
       HealthPanelKind.gpu => 'GPU',
       HealthPanelKind.disk => 'Disk',
       HealthPanelKind.network => 'Network',
+      HealthPanelKind.hardware => '',
     };
 
 String? processSecondaryColumnLabel(HealthPanelKind kind) => switch (kind) {
@@ -354,7 +373,8 @@ String? processSecondaryColumnLabel(HealthPanelKind kind) => switch (kind) {
       HealthPanelKind.memory => 'CPU',
       HealthPanelKind.gpu ||
       HealthPanelKind.disk ||
-      HealthPanelKind.network =>
+      HealthPanelKind.network ||
+      HealthPanelKind.hardware =>
         null,
     };
 
@@ -790,25 +810,49 @@ class HealthViewState {
 
   List<HealthDetailRow> get hardwareRows {
     final s = sample;
-    final rows = <HealthDetailRow>[
+    return [
       HealthDetailRow(
-        label: 'CPU Temperature',
+        label: 'CPU Frequency',
+        value: formatMhzOrNotSupported(
+          s?.hasCpuCurrentMhz ?? false,
+          s?.cpuCurrentMhz ?? 0,
+        ),
+        available: s?.hasCpuCurrentMhz ?? false,
+      ),
+      HealthDetailRow(
+        label: 'CPU Package Temp',
         value: formatTempC(s?.hasCpuTempC ?? false, s?.cpuTempC ?? 0),
         available: s?.hasCpuTempC ?? false,
       ),
       HealthDetailRow(
-        label: 'GPU Temperature',
+        label: 'GPU Temp',
         value: formatTempC(s?.hasGpuTempC ?? false, s?.gpuTempC ?? 0),
         available: s?.hasGpuTempC ?? false,
       ),
       HealthDetailRow(
-        label: 'SSD Temperature',
+        label: 'GPU Fan',
+        value: formatRpm(s?.hasGpuFanRpm ?? false, s?.gpuFanRpm ?? 0),
+        available: s?.hasGpuFanRpm ?? false,
+      ),
+      HealthDetailRow(
+        label: 'SSD / NVMe Temp',
         value: formatTempC(s?.hasSsdTempC ?? false, s?.ssdTempC ?? 0),
         available: s?.hasSsdTempC ?? false,
       ),
+      HealthDetailRow(
+        label: 'SMART Health',
+        value: formatSmartHealth(
+          s?.hasDiskSmartOk ?? false,
+          s?.diskSmartOk ?? false,
+        ),
+        available: s?.hasDiskSmartOk ?? false,
+      ),
+      HealthDetailRow(
+        label: 'Chassis Fans',
+        value: kNotSupported,
+        available: false,
+      ),
     ];
-    // Keep unsupported sensors visible with "Not supported" (TASK-007.1).
-    return rows;
   }
 
   double? get storageProgress {

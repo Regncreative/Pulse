@@ -522,6 +522,14 @@ std::vector<uint8_t> EncodeHealthSample(const HealthSample& m) {
   WriteString(106, m.net_wifi_security, &out);
   WriteBool(107, m.has_gpu_util_video_processing, &out);
   WriteDouble(108, m.gpu_util_video_processing, &out);
+  WriteBool(109, m.has_disk_power_on_hours, &out);
+  WriteU64(110, m.disk_power_on_hours, &out);
+  WriteBool(111, m.has_disk_total_bytes_written, &out);
+  WriteU64(112, m.disk_total_bytes_written, &out);
+  WriteBool(113, m.has_disk_total_bytes_read, &out);
+  WriteU64(114, m.disk_total_bytes_read, &out);
+  WriteBool(115, m.has_disk_smart_ok, &out);
+  WriteBool(116, m.disk_smart_ok, &out);
   return out;
 }
 
@@ -2008,6 +2016,38 @@ bool DecodeHealthSample(const uint8_t* data, size_t len, HealthSample* m) {
       m->has_gpu_util_video_processing = v != 0;
     } else if (field == 108 && wire == 1) {
       if (!ReadDouble(p, end, &m->gpu_util_video_processing)) return false;
+    } else if (field == 109 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_disk_power_on_hours = v != 0;
+    } else if (field == 110 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->disk_power_on_hours = v;
+    } else if (field == 111 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_disk_total_bytes_written = v != 0;
+    } else if (field == 112 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->disk_total_bytes_written = v;
+    } else if (field == 113 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_disk_total_bytes_read = v != 0;
+    } else if (field == 114 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->disk_total_bytes_read = v;
+    } else if (field == 115 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_disk_smart_ok = v != 0;
+    } else if (field == 116 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->disk_smart_ok = v != 0;
     } else if (!SkipField(wire, p, end)) {
       return false;
     }

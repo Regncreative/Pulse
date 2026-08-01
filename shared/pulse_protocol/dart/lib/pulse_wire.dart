@@ -643,6 +643,14 @@ class HealthSample {
     this.netWifiChannel = '',
     this.netWifiFrequency = '',
     this.netWifiSecurity = '',
+    this.hasDiskPowerOnHours = false,
+    this.diskPowerOnHours = 0,
+    this.hasDiskTotalBytesWritten = false,
+    this.diskTotalBytesWritten = 0,
+    this.hasDiskTotalBytesRead = false,
+    this.diskTotalBytesRead = 0,
+    this.hasDiskSmartOk = false,
+    this.diskSmartOk = false,
   })  : topCpu = topCpu ?? <HealthProcessEntry>[],
         topMemory = topMemory ?? <HealthProcessEntry>[],
         topGpu = topGpu ?? <HealthProcessEntry>[],
@@ -759,6 +767,14 @@ class HealthSample {
   String netWifiChannel;
   String netWifiFrequency;
   String netWifiSecurity;
+  bool hasDiskPowerOnHours;
+  int diskPowerOnHours;
+  bool hasDiskTotalBytesWritten;
+  int diskTotalBytesWritten;
+  bool hasDiskTotalBytesRead;
+  int diskTotalBytesRead;
+  bool hasDiskSmartOk;
+  bool diskSmartOk;
 }
 
 class GetHealthSnapshot {
@@ -1345,6 +1361,14 @@ Uint8List _encodeHealthSample(HealthSample m) {
   _writeString(106, m.netWifiSecurity, out);
   _writeBool(107, m.hasGpuUtilVideoProcessing, out);
   _writeDouble(108, m.gpuUtilVideoProcessing, out);
+  _writeBool(109, m.hasDiskPowerOnHours, out);
+  _writeU64(110, m.diskPowerOnHours, out);
+  _writeBool(111, m.hasDiskTotalBytesWritten, out);
+  _writeU64(112, m.diskTotalBytesWritten, out);
+  _writeBool(113, m.hasDiskTotalBytesRead, out);
+  _writeU64(114, m.diskTotalBytesRead, out);
+  _writeBool(115, m.hasDiskSmartOk, out);
+  _writeBool(116, m.diskSmartOk, out);
   return out.toBytes();
 }
 
@@ -2450,6 +2474,22 @@ HealthSample _decodeHealthSample(Uint8List data) {
       m.hasGpuUtilVideoProcessing = r.readVarint() != 0;
     } else if (field == 108 && wire == 1) {
       m.gpuUtilVideoProcessing = r.readDouble();
+    } else if (field == 109 && wire == 0) {
+      m.hasDiskPowerOnHours = r.readVarint() != 0;
+    } else if (field == 110 && wire == 0) {
+      m.diskPowerOnHours = r.readVarint();
+    } else if (field == 111 && wire == 0) {
+      m.hasDiskTotalBytesWritten = r.readVarint() != 0;
+    } else if (field == 112 && wire == 0) {
+      m.diskTotalBytesWritten = r.readVarint();
+    } else if (field == 113 && wire == 0) {
+      m.hasDiskTotalBytesRead = r.readVarint() != 0;
+    } else if (field == 114 && wire == 0) {
+      m.diskTotalBytesRead = r.readVarint();
+    } else if (field == 115 && wire == 0) {
+      m.hasDiskSmartOk = r.readVarint() != 0;
+    } else if (field == 116 && wire == 0) {
+      m.diskSmartOk = r.readVarint() != 0;
     } else {
       r.skip(wire);
     }

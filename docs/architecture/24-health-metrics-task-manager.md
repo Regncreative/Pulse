@@ -182,7 +182,9 @@ This matches the usual Task Manager Details relationship without `OpenProcess` /
 |------|--------|-------|
 | CPU topology / caches / ISA | `GetLogicalProcessorInformationEx`, `IsProcessorFeaturePresent`, CPUID hypervisor leaf | Voltage / TDP / package power → `—` |
 | Memory modules | SMBIOS Type 17 via `GetSystemFirmwareTable('RSMB')` | Channels often unset |
-| Disk identity | `\\.\PhysicalDrive0` Storage IOCTLs | Temp / SMART POH → `—` unless official path |
+| Disk identity | `\\.\PhysicalDrive0` Storage IOCTLs | Model/serial/bus/TRIM/geometry |
+| Disk temperature | `StorageDeviceTemperatureProperty` (+ NVMe health log fallback) | `has_ssd_temp_c` when IOCTL succeeds |
+| Disk SMART / POH / lifetime I/O | NVMe `NVME_LOG_PAGE_HEALTH_INFO` + `IOCTL_STORAGE_PREDICT_FAILURE` | `has_disk_smart_ok`, `has_disk_power_on_hours`, `has_disk_total_bytes_*` |
 
 Code: `service/pulse_service/src/collectors/gpu_adapter_info.*`, `system_overview_info.*`, `health_metrics_collector.cpp`.
 
@@ -299,9 +301,18 @@ Runtime investigation (2026-08) proved `GetPerTcpConnectionEStats` is **not** a 
 
 Real-time Pulse-owned session `PulseHealthNet` on `Microsoft-Windows-Kernel-Network` send/recv events; aggregate cumulative bytes by PID; publish rates on `HealthProcessEntry` (`net_bps`, `net_upload_bps`, `net_download_bps`, `net_bytes_total`). Privilege model stays explicit — never bypass Windows security. Timeline remains Event Log–only.
 
-### Temperatures
+### Temperatures & hardware sensors (Phase 3)
 
-Not collected (never fabricated). No stable public Win32 package-temp API.
+| Sensor | Source | UI when unavailable |
+|--------|--------|---------------------|
+| GPU temp / fan / power % | D3DKMT `ADAPTERPERFDATA` | Not supported |
+| SSD / NVMe temp | `IOCTL_STORAGE_QUERY_PROPERTY` `StorageDeviceTemperatureProperty`; else NVMe SMART log Kelvin | Not supported |
+| Disk SMART health | NVMe CriticalWarning == 0, else `IOCTL_STORAGE_PREDICT_FAILURE` | Not supported |
+| Power-on hours / lifetime R/W | NVMe SMART health log (`PowerOnHours`, `DataUnitRead`/`Written`) | Not supported |
+| CPU package temp / power / voltage | — | Not supported (no public package sensor without vendor/WMI) |
+| Motherboard / chassis fans | — | Not supported |
+
+Code: `service/pulse_service/src/collectors/hardware_sensors_collector.*`.
 
 ---
 
@@ -309,7 +320,7 @@ Not collected (never fabricated). No stable public Win32 package-temp API.
 
 - Matching TM **Performance** Utility on every **process** row
 - Absolute GPU power **watts** / Resizable BAR without a documented userspace detection API or vendor SDK
-- Disk/SSD temperature sensors without a stable public API
+- CPU package temperature / motherboard sensors via undocumented or vendor-only APIs (NVAPI / ADL / Intel IGCL / WMI heuristics)
 - Exact adapter / GPU picker parity with Task Manager UI selection
 - Network drive capacity every second
 - TM App tree / UWP grouping beyond Phase A ([28-task-manager-app-grouping.md](28-task-manager-app-grouping.md))

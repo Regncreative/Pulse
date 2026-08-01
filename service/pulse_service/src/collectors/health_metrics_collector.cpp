@@ -1,6 +1,7 @@
 ﻿#include "collectors/health_metrics_collector.hpp"
 
 #include "collectors/gpu_adapter_info.hpp"
+#include "collectors/hardware_sensors_collector.hpp"
 #include "collectors/network_etw_engine.hpp"
 #include "collectors/process_metrics.hpp"
 #include "collectors/system_overview_info.hpp"
@@ -2161,6 +2162,7 @@ ipc::HealthUpdate HealthMetricsCollector::CollectHealthUpdate() {
                     &pdh_collected_this_sample_, nullptr, nullptr, &sample);
   SampleGpuAdapterMemory(&sample);
   SampleGpuD3dkmtTelemetry(gpu_adapter_, &sample);
+  SampleHardwareSensors(&sample);
   SampleCpuFrequency(&sample);
   SampleCpuCores(&sample);
   SampleNetworkAddresses(&sample);

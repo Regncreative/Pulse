@@ -87,6 +87,7 @@ class HealthDetailsPanel extends StatelessWidget {
             view: view,
             inventory: processInventory,
           ),
+      HealthPanelKind.hardware => _HardwarePanelBody(view: view),
     };
   }
 
@@ -102,6 +103,7 @@ class HealthDetailsPanel extends StatelessWidget {
           ? formatBytesBinary(i!.primaryStorageBytes, fractionDigits: 0)
           : null,
       HealthPanelKind.network => _orNull(i?.activeNetworkAdapter),
+      HealthPanelKind.hardware => 'Sensors',
     };
   }
 
@@ -1099,6 +1101,36 @@ class _DiskPanelBody extends StatelessWidget {
             ? kUnavailableDash
             : formatSupportOrDash(i.hasDiskTrim, i.diskTrimSupported),
       ),
+      HealthSpecRow(
+        label: 'Temperature',
+        value: formatTempC(s?.hasSsdTempC ?? false, s?.ssdTempC ?? 0),
+      ),
+      HealthSpecRow(
+        label: 'SMART Health',
+        value: formatSmartHealth(
+          s?.hasDiskSmartOk ?? false,
+          s?.diskSmartOk ?? false,
+        ),
+      ),
+      HealthSpecRow(
+        label: 'Power-On Hours',
+        value: formatPowerOnHours(
+          s?.hasDiskPowerOnHours ?? false,
+          s?.diskPowerOnHours ?? 0,
+        ),
+      ),
+      HealthSpecRow(
+        label: 'Total Data Read',
+        value: s?.hasDiskTotalBytesRead == true
+            ? formatBytesBinary(s!.diskTotalBytesRead)
+            : kNotSupported,
+      ),
+      HealthSpecRow(
+        label: 'Total Data Written',
+        value: s?.hasDiskTotalBytesWritten == true
+            ? formatBytesBinary(s!.diskTotalBytesWritten)
+            : kNotSupported,
+      ),
     ];
 
     return Column(
@@ -1204,6 +1236,141 @@ String _diskPanelVolumeUnavailable(HealthVolume v) {
 
 extension on String {
   String ifEmpty(String fallback) => trim().isEmpty ? fallback : this;
+}
+
+/// Phase 3 Hardware sensors panel — SpecRow layout; honest Not supported.
+class _HardwarePanelBody extends StatelessWidget {
+  const _HardwarePanelBody({required this.view});
+  final HealthViewState view;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = view.sample;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          HealthSpecSection(
+            title: 'CPU',
+            compact: true,
+            rows: [
+              HealthSpecRow(
+                label: 'Frequency',
+                value: formatMhzOrNotSupported(
+                  s?.hasCpuCurrentMhz ?? false,
+                  s?.cpuCurrentMhz ?? 0,
+                ),
+              ),
+              HealthSpecRow(
+                label: 'Package Temp',
+                value: formatTempC(s?.hasCpuTempC ?? false, s?.cpuTempC ?? 0),
+              ),
+              const HealthSpecRow(
+                label: 'Package Power',
+                value: kNotSupported,
+              ),
+              const HealthSpecRow(
+                label: 'Voltage',
+                value: kNotSupported,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          HealthSpecSection(
+            title: 'GPU',
+            compact: true,
+            rows: [
+              HealthSpecRow(
+                label: 'Temperature',
+                value: formatTempC(s?.hasGpuTempC ?? false, s?.gpuTempC ?? 0),
+              ),
+              HealthSpecRow(
+                label: 'Fan',
+                value: formatRpm(s?.hasGpuFanRpm ?? false, s?.gpuFanRpm ?? 0),
+              ),
+              HealthSpecRow(
+                label: 'Power',
+                value: formatPercentOrNotSupported(
+                  s?.hasGpuPowerPercent ?? false,
+                  s?.gpuPowerPercent ?? 0,
+                ),
+              ),
+              const HealthSpecRow(
+                label: 'Power (W)',
+                value: kNotSupported,
+              ),
+              const HealthSpecRow(
+                label: 'Hotspot Temp',
+                value: kNotSupported,
+              ),
+              const HealthSpecRow(
+                label: 'VRAM Junction Temp',
+                value: kNotSupported,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          HealthSpecSection(
+            title: 'Storage',
+            compact: true,
+            rows: [
+              HealthSpecRow(
+                label: 'SSD / NVMe Temp',
+                value: formatTempC(s?.hasSsdTempC ?? false, s?.ssdTempC ?? 0),
+              ),
+              HealthSpecRow(
+                label: 'SMART Health',
+                value: formatSmartHealth(
+                  s?.hasDiskSmartOk ?? false,
+                  s?.diskSmartOk ?? false,
+                ),
+              ),
+              HealthSpecRow(
+                label: 'Power-On Hours',
+                value: formatPowerOnHours(
+                  s?.hasDiskPowerOnHours ?? false,
+                  s?.diskPowerOnHours ?? 0,
+                ),
+              ),
+              HealthSpecRow(
+                label: 'Total Data Read',
+                value: s?.hasDiskTotalBytesRead == true
+                    ? formatBytesBinary(s!.diskTotalBytesRead)
+                    : kNotSupported,
+              ),
+              HealthSpecRow(
+                label: 'Total Data Written',
+                value: s?.hasDiskTotalBytesWritten == true
+                    ? formatBytesBinary(s!.diskTotalBytesWritten)
+                    : kNotSupported,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const HealthSpecSection(
+            title: 'Motherboard / Cooling',
+            compact: true,
+            rows: [
+              HealthSpecRow(
+                label: 'Motherboard Temp',
+                value: kNotSupported,
+              ),
+              HealthSpecRow(
+                label: 'Chassis Fans',
+                value: kNotSupported,
+              ),
+              HealthSpecRow(
+                label: 'VRM Temp',
+                value: kNotSupported,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _NetworkPanelBody extends StatelessWidget {

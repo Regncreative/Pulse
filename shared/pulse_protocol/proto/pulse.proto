@@ -445,6 +445,15 @@ message HealthSample {
   // GPU Video Processing engine (PDH engtype_VideoProcessing)
   bool has_gpu_util_video_processing = 107;
   double gpu_util_video_processing = 108;
+  // Phase 3 hardware sensors — storage SMART / lifetime (documented IOCTLs)
+  bool has_disk_power_on_hours = 109;
+  uint64 disk_power_on_hours = 110;
+  bool has_disk_total_bytes_written = 111;
+  uint64 disk_total_bytes_written = 112;
+  bool has_disk_total_bytes_read = 113;
+  uint64 disk_total_bytes_read = 114;
+  bool has_disk_smart_ok = 115;
+  bool disk_smart_ok = 116;  // true when SMART/critical warning reports healthy
 }
 
 message GetHealthSnapshot {}
