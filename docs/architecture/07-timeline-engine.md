@@ -14,7 +14,7 @@ Phase 4 expands Timeline into a **diagnostics history** by querying multiple Eve
 
 Register connection → attach empty live queue → receive `PulseEventSummary` batches.
 
-Filter (Flutter client): severity, **channel/source**, **intelligence category**, search text (simple), optional process name if present in event fields.
+Filter / search (Flutter client, R2 Timeline Intelligence): severity, channel/source, intelligence category, provider, Event ID, computer, process/PID (when present), date range, keyword, and case-insensitive full-text over message / XML (XML when loaded). See [36-timeline-intelligence-r2.md](36-timeline-intelligence-r2.md).
 
 Live monitoring starts one `EvtSubscribe` per accessible diagnostics channel and fans events into the same per-connection queues.
 
@@ -26,9 +26,9 @@ Per-channel fair share prevents one busy log from starving others. Inaccessible 
 
 SQLite-backed cold-path QueryRange remains the longer-term design (newest-first pagination with opaque cursor; page size default 100).
 
-### GetEvent
+### GetEvent / GetTimelineEventDetail
 
-Full event: Level 1+2 always; Level 3 if stored or lazily rendered/re-fetched by RecordId when possible.
+List rows carry Level 1+2 plus compact Wevtapi system metadata (task, opcode, keywords, PID, SID, activity IDs when present). **Raw Event XML** is Level 3 and is **lazy-loaded** via `GetTimelineEventDetail` (channel + record id) so 100k+ timelines stay memory-safe.
 
 ---
 
@@ -56,20 +56,34 @@ Full event: Level 1+2 always; Level 3 if stored or lazily rendered/re-fetched by
 | Op | Target |
 |----|--------|
 | Snapshot ≤100 rows (warm) | Keep UI responsive; bound total events |
-| GetEvent | < 5 ms p95 without lazy raw; raw may be slower |
+| GetTimelineEventDetail (raw XML) | Best-effort; may be slower than summary path |
 | Live enqueue | Non-blocking from ingest |
 
 Publisher metadata is cached in Wevt helpers so formatting does not dominate snapshot latency.
 
 ---
 
-## Explicitly Out of v1 / Phase 4
+## R2 — Flagship Timeline (Event Log only)
+
+Within Windows Event Log data (not ETW/WMI):
+
+- Incident collapse for **documented** correlation rules (no clustering without a rule)
+- Root-cause hints only from static documented rules (no AI)
+- Bookmarks, pins, saved searches, event links, rich metadata badges
+- Export preserving filters / marks / correlation groups
+
+See [36-timeline-intelligence-r2.md](36-timeline-intelligence-r2.md).
+
+**Wevtapi subscribe resume bookmarks:** deferred (explicit note; not required to close R2).
+
+## Explicitly Out of v1 / Phase 4 / R2
 
 - ETW as a Timeline source (Health may use ETW — ADR-009; Timeline does not)
+- Cross-source correlation (Event Log ↔ ETW ↔ WMI) — later Observability Platform
 - Process-centric story mode
-- Cross-source correlation
 - FTS5 requirement (optional later)
 - Replay / session recording
+- Fabricated incidents, correlations, or AI-generated explanations
 
 ---
 
@@ -78,5 +92,7 @@ Publisher metadata is cached in Wevt helpers so formatting does not dominate sna
 - [05 — IPC](05-ipc.md)
 - [06 — Event Engine](06-event-engine.md)
 - [08 — Data Flow](08-data-flow.md)
+- [09 — Event Model](09-event-model.md)
+- [36 — Timeline Intelligence R2](36-timeline-intelligence-r2.md)
 - [21 — Event Viewer Integration](21-event-viewer-integration.md)
 - [29 — System Health quality milestone](29-system-health-quality-milestone.md)

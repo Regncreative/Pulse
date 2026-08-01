@@ -48,9 +48,17 @@ enum SourceType {
 
 `PulseEventSummary`: id, timestamp, source, severity, category, summary (Level 1), optional process_name. **No Level 3.**
 
-### Wire `TimelineEvent` (current)
+### Wire `TimelineEvent` (current + R2 additive)
 
 IPC carries Level 1 title/summary from the Event Intelligence Engine, plus channel, provider, Win32 event id, record id, message, recommendation, importance, and `category` string (e.g. `Crash`, `Power`, `Update`).
+
+**R2 additive system fields** (empty / `has_* = false` when Windows does not provide them — never invented):
+
+task, opcode, keywords, process_id, process_name (best-effort image name when PID still resolvable), thread_id, user_sid, activity_id, related_activity_id, level_name.
+
+**Level 3 raw XML:** not on list rows; fetched via `GetTimelineEventDetail` and may populate `raw_xml` on the detail response only.
+
+Canonical plan: [36-timeline-intelligence-r2.md](36-timeline-intelligence-r2.md).
 
 ---
 

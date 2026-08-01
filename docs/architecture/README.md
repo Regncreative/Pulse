@@ -63,6 +63,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 33 | [PulseMCP product & API](33-mcp-bridge.md) | First-class MCP server, tools, resources, schemas |
 | 34 | [Engineering roadmap (remaining)](34-engineering-roadmap.md) | **Frozen** R0–R17; theme redesign excluded; ADR to change |
 | 35 | [Product stability (R1)](35-product-stability.md) | Budgets, diagnostics, soak — **Wave A closed** |
+| 36 | [Timeline Intelligence (R2)](36-timeline-intelligence-r2.md) | Flagship Timeline plan — incidents, RCA, details, export |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 
