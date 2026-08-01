@@ -254,6 +254,29 @@ class PulseIpcClient extends ChangeNotifier {
     return body;
   }
 
+  /// Lazy Level 3: re-fetch by channel + record id (includes raw Event XML).
+  Future<TimelineEventDetail> getTimelineEventDetail({
+    required String channel,
+    required int recordId,
+  }) async {
+    final env = Envelope(
+      requestId: _nextRequestId++,
+      body: GetTimelineEventDetail(channel: channel, recordId: recordId),
+    );
+    final reply = await _request(
+      env,
+      timeout: const Duration(seconds: 30),
+    );
+    final body = reply.body;
+    if (body is ErrorResponse) {
+      throw StateError('${body.message}: ${body.technicalDetail}');
+    }
+    if (body is! TimelineEventDetail) {
+      throw StateError('Expected TimelineEventDetail, got ${body.runtimeType}');
+    }
+    return body;
+  }
+
   /// Explicit live subscribe — call only after the historical snapshot finishes.
   Future<void> startLiveMonitoring({String channel = 'System'}) async {
     final env = Envelope(

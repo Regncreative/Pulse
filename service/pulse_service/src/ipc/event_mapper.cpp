@@ -65,6 +65,33 @@ ipc::TimelineEvent ToTimelineEvent(const EventRecord& record) {
   out.computer_name = record.computer_name;
   out.message = record.message;
 
+  if (record.task.has_value()) {
+    out.has_task = true;
+    out.task = *record.task;
+  }
+  if (record.opcode.has_value()) {
+    out.has_opcode = true;
+    out.opcode = *record.opcode;
+  }
+  if (record.keywords.has_value()) {
+    out.has_keywords = true;
+    out.keywords = *record.keywords;
+  }
+  if (record.process_id.has_value()) {
+    out.has_process_id = true;
+    out.process_id = *record.process_id;
+  }
+  out.process_name = record.process_name;
+  if (record.thread_id.has_value()) {
+    out.has_thread_id = true;
+    out.thread_id = *record.thread_id;
+  }
+  out.user_sid = record.user_sid;
+  out.activity_id = record.activity_id;
+  out.related_activity_id = record.related_activity_id;
+  out.level_name = EventLevelName(record.level);
+  out.raw_xml = record.raw_xml;
+
   const EventInsight insight = SharedIntelligence().Analyze(out);
   ApplyInsight(&out, insight);
 

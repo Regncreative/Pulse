@@ -88,6 +88,22 @@ class TimelineEvent {
     this.actionRequired = false,
     this.importance = Importance.low,
     this.category = '',
+    this.task = 0,
+    this.hasTask = false,
+    this.opcode = 0,
+    this.hasOpcode = false,
+    this.keywords = 0,
+    this.hasKeywords = false,
+    this.processId = 0,
+    this.hasProcessId = false,
+    this.processName = '',
+    this.threadId = 0,
+    this.hasThreadId = false,
+    this.userSid = '',
+    this.activityId = '',
+    this.relatedActivityId = '',
+    this.levelName = '',
+    this.rawXml = '',
   });
   String eventId;
   int timestampUnixMs;
@@ -106,6 +122,35 @@ class TimelineEvent {
   bool actionRequired;
   int importance;
   String category;
+  int task;
+  bool hasTask;
+  int opcode;
+  bool hasOpcode;
+  int keywords;
+  bool hasKeywords;
+  int processId;
+  bool hasProcessId;
+  String processName;
+  int threadId;
+  bool hasThreadId;
+  String userSid;
+  String activityId;
+  String relatedActivityId;
+  String levelName;
+  String rawXml;
+}
+
+class GetTimelineEventDetail {
+  GetTimelineEventDetail({this.channel = '', this.recordId = 0});
+  String channel;
+  int recordId;
+}
+
+class TimelineEventDetail {
+  TimelineEventDetail({this.found = false, TimelineEvent? event})
+      : event = event ?? TimelineEvent();
+  bool found;
+  TimelineEvent event;
 }
 
 class GetTimelineSnapshot {
@@ -944,7 +989,9 @@ class Envelope {
 }
 
 void _writeVarint(int value, BytesBuilder out) {
-  var v = value;
+  // Protobuf varints are unsigned. Dart `int` is signed, so uint64 values with
+  // the high bit set appear negative and must be encoded via toUnsigned(64).
+  var v = value.toUnsigned(64);
   while (v >= 0x80) {
     out.addByte((v & 0x7f) | 0x80);
     v >>= 7;
@@ -1043,6 +1090,36 @@ Uint8List _encodeTimelineEvent(TimelineEvent m) {
   _writeU64(15, m.actionRequired ? 1 : 0, out);
   _writeU64(16, m.importance, out);
   _writeString(17, m.category, out);
+  _writeU64(18, m.task, out);
+  _writeBool(19, m.hasTask, out);
+  _writeU64(20, m.opcode, out);
+  _writeBool(21, m.hasOpcode, out);
+  _writeU64(22, m.keywords, out);
+  _writeBool(23, m.hasKeywords, out);
+  _writeU64(24, m.processId, out);
+  _writeBool(25, m.hasProcessId, out);
+  _writeString(26, m.processName, out);
+  _writeU64(27, m.threadId, out);
+  _writeBool(28, m.hasThreadId, out);
+  _writeString(29, m.userSid, out);
+  _writeString(30, m.activityId, out);
+  _writeString(31, m.relatedActivityId, out);
+  _writeString(32, m.levelName, out);
+  _writeString(33, m.rawXml, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeGetTimelineEventDetail(GetTimelineEventDetail m) {
+  final out = BytesBuilder();
+  _writeString(1, m.channel, out);
+  _writeU64(2, m.recordId, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeTimelineEventDetail(TimelineEventDetail m) {
+  final out = BytesBuilder();
+  _writeBool(1, m.found, out);
+  _writeBytesField(2, _encodeTimelineEvent(m.event), out);
   return out.toBytes();
 }
 
@@ -1582,6 +1659,10 @@ Uint8List encodeEnvelope(Envelope env) {
     _writeBytesField(33, _encodeGetProcessDetails(body), out);
   } else if (body is ProcessDetails) {
     _writeBytesField(34, _encodeProcessDetails(body), out);
+  } else if (body is GetTimelineEventDetail) {
+    _writeBytesField(35, _encodeGetTimelineEventDetail(body), out);
+  } else if (body is TimelineEventDetail) {
+    _writeBytesField(36, _encodeTimelineEventDetail(body), out);
   } else if (body is ErrorResponse) {
     _writeBytesField(99, _encodeError(body), out);
   }
@@ -1810,6 +1891,74 @@ TimelineEvent _decodeTimelineEvent(Uint8List data) {
       m.importance = r.readVarint();
     } else if (field == 17 && wire == 2) {
       m.category = r.readString();
+    } else if (field == 18 && wire == 0) {
+      m.task = r.readVarint();
+    } else if (field == 19 && wire == 0) {
+      m.hasTask = r.readVarint() != 0;
+    } else if (field == 20 && wire == 0) {
+      m.opcode = r.readVarint();
+    } else if (field == 21 && wire == 0) {
+      m.hasOpcode = r.readVarint() != 0;
+    } else if (field == 22 && wire == 0) {
+      m.keywords = r.readVarint();
+    } else if (field == 23 && wire == 0) {
+      m.hasKeywords = r.readVarint() != 0;
+    } else if (field == 24 && wire == 0) {
+      m.processId = r.readVarint();
+    } else if (field == 25 && wire == 0) {
+      m.hasProcessId = r.readVarint() != 0;
+    } else if (field == 26 && wire == 2) {
+      m.processName = r.readString();
+    } else if (field == 27 && wire == 0) {
+      m.threadId = r.readVarint();
+    } else if (field == 28 && wire == 0) {
+      m.hasThreadId = r.readVarint() != 0;
+    } else if (field == 29 && wire == 2) {
+      m.userSid = r.readString();
+    } else if (field == 30 && wire == 2) {
+      m.activityId = r.readString();
+    } else if (field == 31 && wire == 2) {
+      m.relatedActivityId = r.readString();
+    } else if (field == 32 && wire == 2) {
+      m.levelName = r.readString();
+    } else if (field == 33 && wire == 2) {
+      m.rawXml = r.readString();
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+GetTimelineEventDetail _decodeGetTimelineEventDetail(Uint8List data) {
+  final r = _Reader(data);
+  final m = GetTimelineEventDetail();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.channel = r.readString();
+    } else if (field == 2 && wire == 0) {
+      m.recordId = r.readVarint();
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+TimelineEventDetail _decodeTimelineEventDetail(Uint8List data) {
+  final r = _Reader(data);
+  final m = TimelineEventDetail();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 0) {
+      m.found = r.readVarint() != 0;
+    } else if (field == 2 && wire == 2) {
+      m.event = _decodeTimelineEvent(r.readBytes());
     } else {
       r.skip(wire);
     }
@@ -2814,6 +2963,8 @@ Envelope decodeEnvelope(Uint8List data) {
             field == 32 ||
             field == 33 ||
             field == 34 ||
+            field == 35 ||
+            field == 36 ||
             field == 99)) {
       final len = r.readVarint();
       final sub = r.data.sublist(r.offset, r.offset + len);
@@ -2878,6 +3029,12 @@ Envelope decodeEnvelope(Uint8List data) {
           break;
         case 34:
           env.body = _decodeProcessDetails(sub);
+          break;
+        case 35:
+          env.body = _decodeGetTimelineEventDetail(sub);
+          break;
+        case 36:
+          env.body = _decodeTimelineEventDetail(sub);
           break;
         case 99:
           env.body = _decodeError(sub);

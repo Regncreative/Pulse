@@ -573,6 +573,46 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
     return;
   }
 
+  if (std::holds_alternative<ipc::GetTimelineEventDetail>(env.body)) {
+    const auto& req = std::get<ipc::GetTimelineEventDetail>(env.body);
+    if (req.channel.empty() || req.record_id == 0) {
+      ipc::Envelope err;
+      err.request_id = env.request_id;
+      err.body = ipc::ErrorResponse{
+          2, "channel and record_id are required",
+          "GetTimelineEventDetail", "IpcServer"};
+      WriteEnvelopeLocked(conn, err);
+      return;
+    }
+
+    EventLogCollector collector;
+    const std::wstring wide(req.channel.begin(), req.channel.end());
+    auto collected = collector.CollectByRecordId(wide, req.record_id, true);
+    if (!collected) {
+      ipc::Envelope err;
+      err.request_id = env.request_id;
+      err.body = ipc::ErrorResponse{
+          3, "Failed to load Event Log detail", collected.error(),
+          "EventLogCollector"};
+      WriteEnvelopeLocked(conn, err);
+      return;
+    }
+
+    ipc::TimelineEventDetail detail;
+    if (!collected.value().has_value()) {
+      detail.found = false;
+    } else {
+      detail.found = true;
+      detail.event = ToTimelineEvent(*collected.value());
+    }
+
+    ipc::Envelope reply;
+    reply.request_id = env.request_id;
+    reply.body = std::move(detail);
+    WriteEnvelopeLocked(conn, reply);
+    return;
+  }
+
   if (std::holds_alternative<ipc::StartLiveMonitoring>(env.body)) {
     Logger::Instance().Info("IpcServer", "StartLiveMonitoring received");
     const auto& req = std::get<ipc::StartLiveMonitoring>(env.body);

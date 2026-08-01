@@ -117,4 +117,47 @@ void main() {
     expect(decoded.body, isA<GetProcessDetails>());
     expect((decoded.body! as GetProcessDetails).pid, 4242);
   });
+
+  test('TimelineEventDetail R2 fields roundtrip', () {
+    final env = Envelope(
+      requestId: 15,
+      body: TimelineEventDetail(
+        found: true,
+        event: TimelineEvent(
+          eventId: 'System|1|1000|x',
+          hasProcessId: true,
+          processId: 4242,
+          processName: 'app.exe',
+          hasKeywords: true,
+          keywords: 0x11,
+          userSid: 'S-1-5-18',
+          activityId: '{11111111-2222-3333-4444-555555555555}',
+          levelName: 'Error',
+          rawXml: '<Event/>',
+        ),
+      ),
+    );
+    final decoded = decodeEnvelope(encodeEnvelope(env));
+    expect(decoded.body, isA<TimelineEventDetail>());
+    final d = decoded.body! as TimelineEventDetail;
+    expect(d.found, isTrue);
+    expect(d.event.hasProcessId, isTrue);
+    expect(d.event.processId, 4242);
+    expect(d.event.processName, 'app.exe');
+    expect(d.event.hasKeywords, isTrue);
+    expect(d.event.keywords, 0x11);
+    expect(d.event.rawXml, '<Event/>');
+  });
+
+  test('uint64 keywords high-bit varint roundtrip', () {
+    final high = BigInt.parse('8000000000000011', radix: 16).toInt();
+    final env = Envelope(
+      requestId: 16,
+      body: TimelineEvent(hasKeywords: true, keywords: high),
+    );
+    final decoded = decodeEnvelope(encodeEnvelope(env));
+    final ev = decoded.body! as TimelineEvent;
+    expect(ev.hasKeywords, isTrue);
+    expect(ev.keywords.toUnsigned(64), high.toUnsigned(64));
+  });
 }

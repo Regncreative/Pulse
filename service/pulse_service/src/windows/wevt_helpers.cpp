@@ -6,6 +6,9 @@
 #include <sstream>
 #include <unordered_map>
 
+#include <objbase.h>
+#include <sddl.h>
+
 namespace pulse {
 namespace wevt {
 namespace {
@@ -384,6 +387,94 @@ std::string FormatEventMessage(EVT_HANDLE event,
 
   // Keep line breaks for the details panel; sanitize for UTF-8 safety.
   return SanitizeUtf8(WideToUtf8(buffer));
+}
+
+std::string RenderEventXml(EVT_HANDLE event) {
+  if (event == nullptr) {
+    return {};
+  }
+
+  DWORD used = 0;
+  DWORD property_count = 0;
+  EvtRender(nullptr, event, EvtRenderEventXml, 0, nullptr, &used,
+            &property_count);
+  if (used == 0) {
+    return {};
+  }
+
+  std::wstring buffer(used / sizeof(wchar_t), L'\0');
+  if (!EvtRender(nullptr, event, EvtRenderEventXml,
+                 static_cast<DWORD>(buffer.size() * sizeof(wchar_t)),
+                 buffer.data(), &used, &property_count)) {
+    const DWORD err = GetLastError();
+    if (err != ERROR_INSUFFICIENT_BUFFER) {
+      return {};
+    }
+    buffer.assign(used / sizeof(wchar_t), L'\0');
+    if (!EvtRender(nullptr, event, EvtRenderEventXml,
+                   static_cast<DWORD>(buffer.size() * sizeof(wchar_t)),
+                   buffer.data(), &used, &property_count)) {
+      return {};
+    }
+  }
+
+  const size_t chars = used / sizeof(wchar_t);
+  if (chars > 0 && buffer[chars - 1] == L'\0') {
+    buffer.resize(chars - 1);
+  } else {
+    buffer.resize(chars);
+  }
+  return SanitizeUtf8(WideToUtf8(buffer));
+}
+
+std::string GuidToString(const GUID* guid) {
+  if (guid == nullptr) {
+    return {};
+  }
+  wchar_t buffer[64] = {};
+  if (StringFromGUID2(*guid, buffer, 64) == 0) {
+    return {};
+  }
+  return WideToUtf8(buffer);
+}
+
+std::string SidToString(PSID sid) {
+  if (sid == nullptr || !IsValidSid(sid)) {
+    return {};
+  }
+  LPWSTR sd = nullptr;
+  if (!ConvertSidToStringSidW(sid, &sd) || sd == nullptr) {
+    return {};
+  }
+  std::string out = WideToUtf8(sd);
+  LocalFree(sd);
+  return out;
+}
+
+std::string TryProcessImageName(std::uint32_t process_id) {
+  if (process_id == 0) {
+    return {};
+  }
+  HANDLE process =
+      OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, process_id);
+  if (process == nullptr) {
+    return {};
+  }
+
+  wchar_t path[MAX_PATH] = {};
+  DWORD size = MAX_PATH;
+  std::string name;
+  if (QueryFullProcessImageNameW(process, 0, path, &size) && size > 0) {
+    const wchar_t* base = path;
+    for (const wchar_t* p = path; *p != L'\0'; ++p) {
+      if (*p == L'\\' || *p == L'/') {
+        base = p + 1;
+      }
+    }
+    name = WideToUtf8(base);
+  }
+  CloseHandle(process);
+  return name;
 }
 
 }  // namespace wevt

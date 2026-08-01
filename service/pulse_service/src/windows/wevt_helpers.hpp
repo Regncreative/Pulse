@@ -108,5 +108,18 @@ class EvtHandle {
 [[nodiscard]] std::string FormatEventMessage(EVT_HANDLE event,
                                              const std::wstring& provider_name);
 
+/// Render the full Event XML (EvtRenderEventXml). Empty on failure.
+[[nodiscard]] std::string RenderEventXml(EVT_HANDLE event);
+
+/// GUID → canonical string (e.g. "{...}"); empty when null.
+[[nodiscard]] std::string GuidToString(const GUID* guid);
+
+/// SID → SDDL string; empty when null or conversion fails.
+[[nodiscard]] std::string SidToString(PSID sid);
+
+/// Best-effort process image basename for a live PID. Empty when unavailable.
+/// Never invents a name — OpenProcess / QueryFullProcessImageName only.
+[[nodiscard]] std::string TryProcessImageName(std::uint32_t process_id);
+
 }  // namespace wevt
 }  // namespace pulse

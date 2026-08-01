@@ -153,6 +153,36 @@ std::vector<uint8_t> EncodeTimelineEvent(const TimelineEvent& m) {
   WriteU32(15, m.action_required ? 1u : 0u, &out);
   WriteI32(16, static_cast<int32_t>(m.importance), &out);
   WriteString(17, m.category, &out);
+  WriteU32(18, m.task, &out);
+  WriteBool(19, m.has_task, &out);
+  WriteU32(20, m.opcode, &out);
+  WriteBool(21, m.has_opcode, &out);
+  WriteU64(22, m.keywords, &out);
+  WriteBool(23, m.has_keywords, &out);
+  WriteU32(24, m.process_id, &out);
+  WriteBool(25, m.has_process_id, &out);
+  WriteString(26, m.process_name, &out);
+  WriteU32(27, m.thread_id, &out);
+  WriteBool(28, m.has_thread_id, &out);
+  WriteString(29, m.user_sid, &out);
+  WriteString(30, m.activity_id, &out);
+  WriteString(31, m.related_activity_id, &out);
+  WriteString(32, m.level_name, &out);
+  WriteString(33, m.raw_xml, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeGetTimelineEventDetail(const GetTimelineEventDetail& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.channel, &out);
+  WriteU64(2, m.record_id, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeTimelineEventDetail(const TimelineEventDetail& m) {
+  std::vector<uint8_t> out;
+  WriteBool(1, m.found, &out);
+  WriteBytesField(2, EncodeTimelineEvent(m.event), &out);
   return out;
 }
 
@@ -860,6 +890,106 @@ bool DecodeTimelineEvent(const uint8_t* data, size_t len, TimelineEvent* m) {
       m->importance = static_cast<Importance>(static_cast<int32_t>(v));
     } else if (field == 17 && wire == 2) {
       if (!DecodeString(p, end, &m->category)) return false;
+    } else if (field == 18 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->task = static_cast<uint32_t>(v);
+    } else if (field == 19 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_task = v != 0;
+    } else if (field == 20 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->opcode = static_cast<uint32_t>(v);
+    } else if (field == 21 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_opcode = v != 0;
+    } else if (field == 22 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->keywords = v;
+    } else if (field == 23 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_keywords = v != 0;
+    } else if (field == 24 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->process_id = static_cast<uint32_t>(v);
+    } else if (field == 25 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_process_id = v != 0;
+    } else if (field == 26 && wire == 2) {
+      if (!DecodeString(p, end, &m->process_name)) return false;
+    } else if (field == 27 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->thread_id = static_cast<uint32_t>(v);
+    } else if (field == 28 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_thread_id = v != 0;
+    } else if (field == 29 && wire == 2) {
+      if (!DecodeString(p, end, &m->user_sid)) return false;
+    } else if (field == 30 && wire == 2) {
+      if (!DecodeString(p, end, &m->activity_id)) return false;
+    } else if (field == 31 && wire == 2) {
+      if (!DecodeString(p, end, &m->related_activity_id)) return false;
+    } else if (field == 32 && wire == 2) {
+      if (!DecodeString(p, end, &m->level_name)) return false;
+    } else if (field == 33 && wire == 2) {
+      if (!DecodeString(p, end, &m->raw_xml)) return false;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeGetTimelineEventDetail(const uint8_t* data, size_t len,
+                                  GetTimelineEventDetail* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->channel)) return false;
+    } else if (field == 2 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->record_id = v;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeTimelineEventDetail(const uint8_t* data, size_t len,
+                               TimelineEventDetail* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->found = v != 0;
+    } else if (field == 2 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      if (!DecodeTimelineEvent(p, static_cast<size_t>(blen), &m->event)) return false;
+      p += static_cast<size_t>(blen);
     } else if (!SkipField(wire, p, end)) {
       return false;
     }
@@ -2450,6 +2580,13 @@ bool EncodeEnvelope(const Envelope& env, std::vector<uint8_t>* out) {
                     out);
   } else if (std::holds_alternative<ProcessDetails>(env.body)) {
     WriteBytesField(34, EncodeProcessDetails(std::get<ProcessDetails>(env.body)), out);
+  } else if (std::holds_alternative<GetTimelineEventDetail>(env.body)) {
+    WriteBytesField(
+        35, EncodeGetTimelineEventDetail(std::get<GetTimelineEventDetail>(env.body)),
+        out);
+  } else if (std::holds_alternative<TimelineEventDetail>(env.body)) {
+    WriteBytesField(
+        36, EncodeTimelineEventDetail(std::get<TimelineEventDetail>(env.body)), out);
   } else if (std::holds_alternative<ErrorResponse>(env.body)) {
     WriteBytesField(99, EncodeError(std::get<ErrorResponse>(env.body)), out);
   }
@@ -2476,7 +2613,7 @@ bool DecodeEnvelope(const uint8_t* data, size_t len, Envelope* out) {
                 field == 23 || field == 24 || field == 25 || field == 26 ||
                 field == 27 || field == 28 || field == 29 || field == 30 ||
                 field == 31 || field == 32 || field == 33 || field == 34 ||
-                field == 99)) {
+                field == 35 || field == 36 || field == 99)) {
       uint64_t blen = 0;
       if (!ReadVarint(p, end, &blen)) return false;
       if (p + blen > end) return false;
@@ -2563,6 +2700,18 @@ bool DecodeEnvelope(const uint8_t* data, size_t len, Envelope* out) {
       } else if (field == 34) {
         ProcessDetails m;
         if (!DecodeProcessDetails(sub, static_cast<size_t>(blen), &m)) return false;
+        out->body = std::move(m);
+      } else if (field == 35) {
+        GetTimelineEventDetail m;
+        if (!DecodeGetTimelineEventDetail(sub, static_cast<size_t>(blen), &m)) {
+          return false;
+        }
+        out->body = std::move(m);
+      } else if (field == 36) {
+        TimelineEventDetail m;
+        if (!DecodeTimelineEventDetail(sub, static_cast<size_t>(blen), &m)) {
+          return false;
+        }
         out->body = std::move(m);
       } else if (field == 99) {
         ErrorResponse m;

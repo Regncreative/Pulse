@@ -37,6 +37,20 @@ struct EventRecord {
 
   /// Record id from the log (when available).
   std::optional<std::uint64_t> record_id;
+
+  // R2 — additional Wevtapi system properties (nullopt / empty when absent).
+  std::optional<std::uint16_t> task;
+  std::optional<std::uint8_t> opcode;
+  std::optional<std::uint64_t> keywords;
+  std::optional<std::uint32_t> process_id;
+  std::string process_name;
+  std::optional<std::uint32_t> thread_id;
+  std::string user_sid;
+  std::string activity_id;
+  std::string related_activity_id;
+
+  /// Raw Event XML from EvtRender(EvtRenderEventXml). Empty unless requested.
+  std::string raw_xml;
 };
 
 inline const char* EventLevelName(EventLevel level) {

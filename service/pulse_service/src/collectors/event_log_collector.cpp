@@ -105,9 +105,68 @@ EventRecord ParseSystemProperties(const EVT_VARIANT* properties,
     }
   }
 
+  if (const EVT_VARIANT* task = at(EvtSystemTask)) {
+    if (task->Type == EvtVarTypeUInt16) {
+      record.task = task->UInt16Val;
+    } else if (task->Type == EvtVarTypeByte) {
+      record.task = task->ByteVal;
+    } else if (task->Type == EvtVarTypeUInt32) {
+      record.task = static_cast<std::uint16_t>(task->UInt32Val);
+    }
+  }
+
+  if (const EVT_VARIANT* opcode = at(EvtSystemOpcode)) {
+    if (opcode->Type == EvtVarTypeByte) {
+      record.opcode = opcode->ByteVal;
+    } else if (opcode->Type == EvtVarTypeUInt16) {
+      record.opcode = static_cast<std::uint8_t>(opcode->UInt16Val);
+    }
+  }
+
+  if (const EVT_VARIANT* keywords = at(EvtSystemKeywords)) {
+    if (keywords->Type == EvtVarTypeUInt64 ||
+        keywords->Type == EvtVarTypeHexInt64) {
+      record.keywords = keywords->UInt64Val;
+    }
+  }
+
+  if (const EVT_VARIANT* process_id = at(EvtSystemProcessID)) {
+    if (process_id->Type == EvtVarTypeUInt32) {
+      record.process_id = process_id->UInt32Val;
+    }
+  }
+
+  if (const EVT_VARIANT* thread_id = at(EvtSystemThreadID)) {
+    if (thread_id->Type == EvtVarTypeUInt32) {
+      record.thread_id = thread_id->UInt32Val;
+    }
+  }
+
+  if (const EVT_VARIANT* user = at(EvtSystemUserID)) {
+    if (user->Type == EvtVarTypeSid && user->SidVal != nullptr) {
+      record.user_sid = wevt::SidToString(user->SidVal);
+    }
+  }
+
+  if (const EVT_VARIANT* activity = at(EvtSystemActivityID)) {
+    if (activity->Type == EvtVarTypeGuid && activity->GuidVal != nullptr) {
+      record.activity_id = wevt::GuidToString(activity->GuidVal);
+    }
+  }
+
+  if (const EVT_VARIANT* related = at(EvtSystemRelatedActivityID)) {
+    if (related->Type == EvtVarTypeGuid && related->GuidVal != nullptr) {
+      record.related_activity_id = wevt::GuidToString(related->GuidVal);
+    }
+  }
+
   // Best-effort message — missing publisher metadata is common and non-fatal.
   if (!provider_wide.empty()) {
     record.message = wevt::FormatEventMessage(event_handle, provider_wide);
+  }
+
+  if (record.process_id.has_value() && *record.process_id != 0) {
+    record.process_name = wevt::TryProcessImageName(*record.process_id);
   }
 
   return record;
@@ -279,6 +338,58 @@ CollectResult<std::vector<EventRecord>> EventLogCollector::CollectLatestMulti(
           std::to_string(channels.size()));
 
   return CollectResult<std::vector<EventRecord>>::Success(std::move(merged));
+}
+
+CollectResult<std::optional<EventRecord>> EventLogCollector::CollectByRecordId(
+    const std::wstring& channel,
+    std::uint64_t record_id,
+    bool include_raw_xml) const {
+  if (channel.empty()) {
+    return CollectResult<std::optional<EventRecord>>::Failure(
+        "Channel name is empty");
+  }
+
+  std::wstring query = L"*[System[(EventRecordID=";
+  query += std::to_wstring(record_id);
+  query += L")]]";
+
+  DWORD query_error = ERROR_SUCCESS;
+  EVT_HANDLE raw =
+      EvtQuery(nullptr, channel.c_str(), query.c_str(), EvtQueryChannelPath);
+  if (raw == nullptr) {
+    query_error = GetLastError();
+    return CollectResult<std::optional<EventRecord>>::Failure(
+        "EvtQuery by record id failed: " + wevt::FormatWin32Error(query_error));
+  }
+  wevt::EvtHandle query_handle{raw};
+
+  DWORD render_error = ERROR_SUCCESS;
+  wevt::EvtHandle context = wevt::CreateSystemRenderContext(&render_error);
+  if (!context) {
+    return CollectResult<std::optional<EventRecord>>::Failure(
+        "EvtCreateRenderContext failed: " +
+        wevt::FormatWin32Error(render_error));
+  }
+
+  DWORD next_error = ERROR_SUCCESS;
+  auto events = wevt::NextEvents(query_handle.get(), 1, &next_error);
+  if (events.empty()) {
+    return CollectResult<std::optional<EventRecord>>::Success(std::nullopt);
+  }
+
+  auto parsed =
+      ParseEvtHandle(events.front().get(), context.get());
+  if (!parsed) {
+    return CollectResult<std::optional<EventRecord>>::Failure(
+        "Failed to parse event for record id");
+  }
+  if (include_raw_xml) {
+    parsed->raw_xml = wevt::RenderEventXml(events.front().get());
+  }
+  if (parsed->channel.empty()) {
+    parsed->channel = wevt::WideToUtf8(channel);
+  }
+  return CollectResult<std::optional<EventRecord>>::Success(std::move(parsed));
 }
 
 std::optional<EventRecord> EventLogCollector::ParseEvtHandle(

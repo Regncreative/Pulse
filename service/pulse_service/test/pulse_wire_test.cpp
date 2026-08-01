@@ -80,6 +80,73 @@ int main() {
   assert(out.events[0].importance == ev.importance);
   assert(out.events[0].category == ev.category);
 
+  // R2 additive TimelineEvent fields roundtrip.
+  TimelineEvent rich;
+  rich.event_id = "System|99|41|2026-08-01T00:00:00Z";
+  rich.has_process_id = true;
+  rich.process_id = 1234;
+  rich.process_name = "explorer.exe";
+  rich.has_task = true;
+  rich.task = 7;
+  rich.has_opcode = true;
+  rich.opcode = 1;
+  rich.has_keywords = true;
+  rich.keywords = 0x8000000000000011ULL;
+  rich.user_sid = "S-1-5-18";
+  rich.activity_id = "{11111111-2222-3333-4444-555555555555}";
+  rich.related_activity_id = "{AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE}";
+  rich.level_name = "Critical";
+  rich.raw_xml =
+      "<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'/>";
+
+  Envelope detail_env;
+  detail_env.request_id = 11;
+  detail_env.body = TimelineEventDetail{true, rich};
+  std::vector<uint8_t> detail_payload;
+  if (!EncodeEnvelope(detail_env, &detail_payload)) {
+    std::cerr << "TimelineEventDetail encode failed\n";
+    return 12;
+  }
+  Envelope detail_decoded;
+  if (!DecodeEnvelope(detail_payload.data(), detail_payload.size(),
+                      &detail_decoded) ||
+      !std::holds_alternative<TimelineEventDetail>(detail_decoded.body)) {
+    std::cerr << "TimelineEventDetail decode failed\n";
+    return 12;
+  }
+  const auto& detail_out = std::get<TimelineEventDetail>(detail_decoded.body);
+  if (!detail_out.found || !detail_out.event.has_process_id ||
+      detail_out.event.process_id != 1234 ||
+      detail_out.event.process_name != "explorer.exe" ||
+      !detail_out.event.has_keywords ||
+      detail_out.event.keywords != 0x8000000000000011ULL ||
+      detail_out.event.raw_xml != rich.raw_xml) {
+    std::cerr << "TimelineEventDetail fields mismatch\n";
+    return 12;
+  }
+
+  GetTimelineEventDetail tl_detail_req;
+  tl_detail_req.channel = "System";
+  tl_detail_req.record_id = 99;
+  Envelope tl_detail_req_env;
+  tl_detail_req_env.request_id = 12;
+  tl_detail_req_env.body = tl_detail_req;
+  std::vector<uint8_t> tl_detail_req_payload;
+  if (!EncodeEnvelope(tl_detail_req_env, &tl_detail_req_payload)) {
+    std::cerr << "GetTimelineEventDetail encode failed\n";
+    return 13;
+  }
+  Envelope tl_detail_req_decoded;
+  if (!DecodeEnvelope(tl_detail_req_payload.data(),
+                      tl_detail_req_payload.size(), &tl_detail_req_decoded) ||
+      !std::holds_alternative<GetTimelineEventDetail>(
+          tl_detail_req_decoded.body) ||
+      std::get<GetTimelineEventDetail>(tl_detail_req_decoded.body).record_id !=
+          99) {
+    std::cerr << "GetTimelineEventDetail decode failed\n";
+    return 13;
+  }
+
   Envelope req;
   req.request_id = 8;
   req.body = GetTimelineSnapshot{100, "System"};
@@ -362,18 +429,19 @@ int main() {
 
   GetProcessDetails get_det;
   get_det.pid = 4242;
-  Envelope get_env;
-  get_env.request_id = 13;
-  get_env.body = get_det;
-  std::vector<uint8_t> get_payload;
-  if (!EncodeEnvelope(get_env, &get_payload)) {
+  Envelope get_proc_env;
+  get_proc_env.request_id = 13;
+  get_proc_env.body = get_det;
+  std::vector<uint8_t> get_proc_payload;
+  if (!EncodeEnvelope(get_proc_env, &get_proc_payload)) {
     std::cerr << "GetProcessDetails encode failed\n";
     return 11;
   }
-  Envelope get_decoded;
-  if (!DecodeEnvelope(get_payload.data(), get_payload.size(), &get_decoded) ||
-      !std::holds_alternative<GetProcessDetails>(get_decoded.body) ||
-      std::get<GetProcessDetails>(get_decoded.body).pid != 4242) {
+  Envelope get_proc_decoded;
+  if (!DecodeEnvelope(get_proc_payload.data(), get_proc_payload.size(),
+                      &get_proc_decoded) ||
+      !std::holds_alternative<GetProcessDetails>(get_proc_decoded.body) ||
+      std::get<GetProcessDetails>(get_proc_decoded.body).pid != 4242) {
     std::cerr << "GetProcessDetails decode failed\n";
     return 11;
   }

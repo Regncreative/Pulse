@@ -78,6 +78,34 @@ struct TimelineEvent {
   bool action_required = false;
   Importance importance = Importance::Low;
   std::string category;
+
+  // R2 additive Wevtapi fields
+  uint32_t task = 0;
+  bool has_task = false;
+  uint32_t opcode = 0;
+  bool has_opcode = false;
+  uint64_t keywords = 0;
+  bool has_keywords = false;
+  uint32_t process_id = 0;
+  bool has_process_id = false;
+  std::string process_name;
+  uint32_t thread_id = 0;
+  bool has_thread_id = false;
+  std::string user_sid;
+  std::string activity_id;
+  std::string related_activity_id;
+  std::string level_name;
+  std::string raw_xml;
+};
+
+struct GetTimelineEventDetail {
+  std::string channel;
+  uint64_t record_id = 0;
+};
+
+struct TimelineEventDetail {
+  bool found = false;
+  TimelineEvent event;
 };
 
 struct GetTimelineSnapshot {
@@ -523,7 +551,8 @@ struct Envelope {
                HealthSnapshot, HealthUpdate, StartHealthMonitoring,
                StopHealthMonitoring, GetDiagnosticsSnapshot,
                DiagnosticsSnapshot, InjectDiagnosticsTestEvent,
-               GetProcessDetails, ProcessDetails, ErrorResponse>
+               GetProcessDetails, ProcessDetails, GetTimelineEventDetail,
+               TimelineEventDetail, ErrorResponse>
       body;
 };
 

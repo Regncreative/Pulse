@@ -61,6 +61,14 @@ class EventLogCollector {
       const std::vector<std::wstring>& channels,
       std::size_t limit = 100) const;
 
+  /// Fetch one event by record id (XPath EventRecordID). Optionally render raw XML.
+  /// Returns Failure when the channel cannot be queried; Success with empty
+  /// optional when the record is not found.
+  [[nodiscard]] CollectResult<std::optional<EventRecord>> CollectByRecordId(
+      const std::wstring& channel,
+      std::uint64_t record_id,
+      bool include_raw_xml = true) const;
+
   /// Parse a single EVT_HANDLE into EventRecord (shared by snapshot + live).
   /// `system_context` must be from EvtCreateRenderContext(..., System).
   [[nodiscard]] static std::optional<EventRecord> ParseEvtHandle(

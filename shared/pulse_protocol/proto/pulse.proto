@@ -8,6 +8,7 @@ package pulse.ipc;
 // TASK-003: humanized title / recommendation on TimelineEvent.
 // TASK-005: Event Intelligence (importance, action_required, category).
 // TASK-006: Live Monitoring (EvtSubscribe push).
+// R2: additive TimelineEvent Wevtapi system fields + lazy GetTimelineEventDetail.
 option csharp_namespace = "Pulse.Ipc";
 
 message ClientHello {
@@ -80,6 +81,36 @@ message TimelineEvent {
   bool action_required = 15;
   Importance importance = 16;
   string category = 17;
+
+  // R2 — Wevtapi system properties (unset / empty when unavailable; never invented).
+  uint32 task = 18;
+  bool has_task = 19;
+  uint32 opcode = 20;
+  bool has_opcode = 21;
+  uint64 keywords = 22;
+  bool has_keywords = 23;
+  uint32 process_id = 24;
+  bool has_process_id = 25;
+  string process_name = 26;       // best-effort image name when PID resolvable
+  uint32 thread_id = 27;
+  bool has_thread_id = 28;
+  string user_sid = 29;
+  string activity_id = 30;          // GUID string when present
+  string related_activity_id = 31;  // correlation / related activity GUID
+  string level_name = 32;           // Windows level name when known
+  string raw_xml = 33;              // Level 3; empty on list rows; set on detail fetch
+}
+
+// Client → Service: lazy Level 3 / full re-render by channel + record id.
+message GetTimelineEventDetail {
+  string channel = 1;
+  uint64 record_id = 2;
+}
+
+// Service → Client: detail response (found=false when record missing).
+message TimelineEventDetail {
+  bool found = 1;
+  TimelineEvent event = 2;
 }
 
 // Client → Service: request a one-shot historical batch.
@@ -575,6 +606,8 @@ message Envelope {
     InjectDiagnosticsTestEvent inject_diagnostics_test_event = 32;
     GetProcessDetails get_process_details = 33;
     ProcessDetails process_details = 34;
+    GetTimelineEventDetail get_timeline_event_detail = 35;
+    TimelineEventDetail timeline_event_detail = 36;
     ErrorResponse error = 99;
   }
 }
