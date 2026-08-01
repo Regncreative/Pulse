@@ -9,6 +9,7 @@ import '../../../application/timeline_library_controller.dart';
 import '../../../ipc/pulse_ipc_client.dart';
 import '../../../presentation/components/pulse_badge.dart';
 import '../timeline_display.dart';
+import '../timeline_incident_engine.dart';
 import 'detail_section.dart';
 import 'metadata_table.dart';
 
@@ -19,10 +20,16 @@ class TimelineDetailsPanel extends StatefulWidget {
     super.key,
     required this.event,
     required this.onClose,
+    this.rcaHint,
+    this.relatedEvents = const [],
+    this.onSelectRelated,
   });
 
   final TimelineEvent event;
   final VoidCallback onClose;
+  final TimelineRcaHint? rcaHint;
+  final List<TimelineEvent> relatedEvents;
+  final ValueChanged<TimelineEvent>? onSelectRelated;
 
   @override
   State<TimelineDetailsPanel> createState() => _TimelineDetailsPanelState();

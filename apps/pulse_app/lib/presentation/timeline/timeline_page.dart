@@ -15,6 +15,7 @@ import '../../application/timeline_library_controller.dart';
 import '../../application/timeline_session_controller.dart';
 import '../../features/timeline/timeline_display.dart';
 import '../../features/timeline/timeline_export.dart';
+import '../../features/timeline/timeline_incident_engine.dart';
 import '../../features/timeline/timeline_query.dart';
 import '../../features/timeline/widgets/timeline_details_panel.dart';
 import '../../features/timeline/widgets/timeline_event_tile.dart';
@@ -45,6 +46,8 @@ class _TimelinePageState extends State<TimelinePage> {
   final _providerFilterController = TextEditingController();
   final _eventIdFilterController = TextEditingController();
   final _processFilterController = TextEditingController();
+  final _incidentEngine = TimelineIncidentEngine();
+  final Set<String> _expandedIncidents = {};
 
   TimelineSessionController? _session;
   String? _lastTopEventId;
@@ -405,6 +408,10 @@ class _TimelinePageState extends State<TimelinePage> {
 
     final visible = _visible(events);
     final selectedEvent = _selectedEvent(events);
+    final listItems = _incidentEngine.buildItems(visible);
+    final selectedRca = selectedEvent == null
+        ? null
+        : _incidentEngine.hintForEvent(selectedEvent, visible);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -463,6 +470,19 @@ class _TimelinePageState extends State<TimelinePage> {
                       : _TimelineBody(
                           selectedEventId: _selectedEventId,
                           selectedEvent: selectedEvent,
+                          selectedRca: selectedRca,
+                          allVisibleEvents: visible,
+                          listItems: listItems,
+                          expandedIncidents: _expandedIncidents,
+                          onToggleIncident: (id) {
+                            setState(() {
+                              if (_expandedIncidents.contains(id)) {
+                                _expandedIncidents.remove(id);
+                              } else {
+                                _expandedIncidents.add(id);
+                              }
+                            });
+                          },
                           query: _query,
                           providerFilterController: _providerFilterController,
                           eventIdFilterController: _eventIdFilterController,
@@ -537,6 +557,11 @@ class _TimelineBody extends StatelessWidget {
   const _TimelineBody({
     required this.selectedEventId,
     required this.selectedEvent,
+    required this.selectedRca,
+    required this.allVisibleEvents,
+    required this.listItems,
+    required this.expandedIncidents,
+    required this.onToggleIncident,
     required this.query,
     required this.providerFilterController,
     required this.eventIdFilterController,
@@ -567,6 +592,11 @@ class _TimelineBody extends StatelessWidget {
 
   final String? selectedEventId;
   final TimelineEvent? selectedEvent;
+  final TimelineRcaHint? selectedRca;
+  final List<TimelineEvent> allVisibleEvents;
+  final List<TimelineListItem> listItems;
+  final Set<String> expandedIncidents;
+  final ValueChanged<String> onToggleIncident;
   final TimelineQuery query;
   final TextEditingController providerFilterController;
   final TextEditingController eventIdFilterController;
@@ -806,24 +836,38 @@ class _TimelineBody extends StatelessWidget {
                     : SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (context, i) {
-                            final event = visible[i];
-                            return TimelineEventTile(
-                              key: ValueKey(
-                                event.eventId.isNotEmpty
-                                    ? event.eventId
-                                    : 'row-$i',
-                              ),
-                              event: event,
-                              isFirst: i == 0,
-                              isLast: i == visible.length - 1,
-                              emphasize: i == 0 && !filtersActive,
-                              animationIndex: i.clamp(0, 12),
-                              selected: selectedEventId != null &&
-                                  event.eventId == selectedEventId,
-                              onTap: () => onSelect(event),
+                            final item = listItems[i];
+                            if (item is TimelineLoneEventItem) {
+                              final event = item.event;
+                              return TimelineEventTile(
+                                key: ValueKey(
+                                  event.eventId.isNotEmpty
+                                      ? event.eventId
+                                      : 'row-$i',
+                                ),
+                                event: event,
+                                isFirst: i == 0,
+                                isLast: i == listItems.length - 1,
+                                emphasize: i == 0 && !filtersActive,
+                                animationIndex: i.clamp(0, 12),
+                                selected: selectedEventId != null &&
+                                    event.eventId == selectedEventId,
+                                onTap: () => onSelect(event),
+                              );
+                            }
+                            final incident =
+                                (item as TimelineIncidentItem).incident;
+                            final expanded =
+                                expandedIncidents.contains(incident.id);
+                            return _IncidentGroupTile(
+                              incident: incident,
+                              expanded: expanded,
+                              selectedEventId: selectedEventId,
+                              onToggle: () => onToggleIncident(incident.id),
+                              onSelect: onSelect,
                             );
                           },
-                          childCount: visible.length,
+                          childCount: listItems.length,
                         ),
                       ),
               ),
@@ -837,12 +881,17 @@ class _TimelineBody extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(flex: 3, child: list),
-                TimelineDetailsHost(
-                  expanded: showSideDetail,
-                  width: 400,
-                  event: selectedEvent,
-                  onClose: onClear,
-                ),
+                if (showSideDetail)
+                  SizedBox(
+                    width: 400,
+                    child: TimelineDetailsPanel(
+                      event: selectedEvent!,
+                      onClose: onClear,
+                      rcaHint: selectedRca,
+                      relatedEvents: allVisibleEvents,
+                      onSelectRelated: onSelect,
+                    ),
+                  ),
               ],
             ),
             if (pendingNewCount > 0)
@@ -874,6 +923,9 @@ class _TimelineBody extends StatelessWidget {
                       child: TimelineDetailsPanel(
                         event: selectedEvent!,
                         onClose: onClear,
+                        rcaHint: selectedRca,
+                        relatedEvents: allVisibleEvents,
+                        onSelectRelated: onSelect,
                       ),
                     ),
                   ],
@@ -882,6 +934,68 @@ class _TimelineBody extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _IncidentGroupTile extends StatelessWidget {
+  const _IncidentGroupTile({
+    required this.incident,
+    required this.expanded,
+    required this.selectedEventId,
+    required this.onToggle,
+    required this.onSelect,
+  });
+
+  final TimelineIncident incident;
+  final bool expanded;
+  final String? selectedEventId;
+  final VoidCallback onToggle;
+  final ValueChanged<TimelineEvent> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: PulseTokens.surface.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(PulseTokens.radiusMd),
+          border: Border.all(color: PulseTokens.strokeSubtle),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ListTile(
+              leading: Icon(
+                expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
+                size: 18,
+              ),
+              title: Text(incident.title),
+              subtitle: Text(
+                '${incident.memberCount} related · ${incident.rca.confidenceLabel} confidence · rule ${incident.ruleId}',
+              ),
+              trailing: const PulseBadge(label: 'Correlated', compact: true),
+              onTap: onToggle,
+            ),
+            if (expanded)
+              for (final e in incident.events)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: TimelineEventTile(
+                    event: e,
+                    isFirst: false,
+                    isLast: false,
+                    emphasize: false,
+                    animationIndex: 0,
+                    selected: selectedEventId != null &&
+                        e.eventId == selectedEventId,
+                    onTap: () => onSelect(e),
+                  ),
+                ),
+          ],
+        ),
+      ),
     );
   }
 }

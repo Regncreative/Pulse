@@ -64,6 +64,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 34 | [Engineering roadmap (remaining)](34-engineering-roadmap.md) | **Frozen** R0–R17; theme redesign excluded; ADR to change |
 | 35 | [Product stability (R1)](35-product-stability.md) | Budgets, diagnostics, soak — **Wave A closed** |
 | 36 | [Timeline Intelligence (R2)](36-timeline-intelligence-r2.md) | Flagship Timeline plan — incidents, RCA, details, export |
+| 37 | [Timeline correlation rules](37-timeline-correlation-rules.md) | Documented Event ID correlation / RCA rules |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 
