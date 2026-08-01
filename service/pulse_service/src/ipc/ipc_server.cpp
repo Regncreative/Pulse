@@ -235,12 +235,14 @@ void IpcServer::EnqueueOutbound(const std::shared_ptr<ClientConnection>& conn,
   if (!conn || !conn->alive) return;
   {
     std::lock_guard lock(conn->queue_mu);
-    if (conn->outbound.size() >= conn->queue_capacity) {
+    // ADR-008 / doc 05: drop oldest on overflow so ingest never stalls and
+    // clients keep receiving the newest live summaries.
+    while (conn->outbound.size() >= conn->queue_capacity) {
+      conn->outbound.pop_front();
       ++conn->dropped;
       ++live_events_dropped_;
       Logger::Instance().Warn("IpcServer",
-                              "Live outbound queue full; dropping event");
-      return;
+                              "Live outbound queue full; dropped oldest event");
     }
     conn->outbound.push_back(std::move(env));
   }
