@@ -297,13 +297,13 @@ class _SystemHealthBody extends StatelessWidget {
                 lastUpdated: view.lastUpdatedLabel,
                 compact: true,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               SizedBox(
-                height: 112,
+                height: 116,
                 child: Row(
                   children: [
                     for (var i = 0; i < view.heroMetrics.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 8),
+                      if (i > 0) const SizedBox(width: 10),
                       Expanded(
                         child: HealthHeroCard(
                           metric: view.heroMetrics[i],
@@ -322,9 +322,9 @@ class _SystemHealthBody extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               _SystemInfoStrip(items: view.systemSummary),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Text(
@@ -345,7 +345,7 @@ class _SystemHealthBody extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Expanded(
                 flex: 5,
                 child: Row(
@@ -353,7 +353,7 @@ class _SystemHealthBody extends StatelessWidget {
                     for (var i = 0;
                         i < view.performanceMetrics.length;
                         i++) ...[
-                      if (i > 0) const SizedBox(width: 8),
+                      if (i > 0) const SizedBox(width: 10),
                       Expanded(
                         child: HealthSparklineTile(
                           metric: view.performanceMetrics[i],
@@ -373,7 +373,7 @@ class _SystemHealthBody extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Expanded(
                 flex: 4,
                 child: Row(
@@ -390,7 +390,7 @@ class _SystemHealthBody extends StatelessWidget {
                         onTap: () => onSelect(HealthPanelKind.hardware),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: HealthGroupedCard(
                         title: 'Storage',
@@ -402,7 +402,7 @@ class _SystemHealthBody extends StatelessWidget {
                         onTap: () => onSelect(HealthPanelKind.disk),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: HealthGroupedCard(
                         title: 'Network',

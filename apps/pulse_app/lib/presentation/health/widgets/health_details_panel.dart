@@ -7,8 +7,9 @@ import 'package:provider/provider.dart';
 import 'package:pulse_protocol/pulse_wire.dart';
 
 import '../../../app/theme/pulse_theme.dart';
-import '../../../features/timeline/widgets/detail_section.dart';
+import '../../../application/settings_controller.dart';
 import '../../../ipc/pulse_ipc_client.dart';
+import '../../design_system/design_system.dart';
 import '../health_cards.dart';
 import '../health_view_models.dart';
 import 'health_spec_rows.dart';
@@ -18,6 +19,33 @@ import 'process_inventory/process_detail_panel.dart';
 import 'process_inventory/process_inventory_list.dart';
 import 'process_inventory/process_inventory_store.dart';
 import 'process_inventory/app_group_engine.dart';
+
+const double _kProcessInventoryHeight = 280;
+const double _kHistorySectionHeight = 140;
+
+Widget _healthPulseSection({
+  required BuildContext context,
+  required String kind,
+  required String sectionId,
+  required String title,
+  required Widget child,
+  bool defaultExpanded = true,
+}) {
+  final settings = context.watch<SettingsController>();
+  return PulseSection(
+    title: title,
+    storageKey: '$kind.$sectionId',
+    expanded: settings.isHealthSectionExpanded(
+      kind,
+      sectionId,
+      defaultExpanded: defaultExpanded,
+    ),
+    onExpandedChanged: (v) => context
+        .read<SettingsController>()
+        .setHealthSectionExpanded(kind, sectionId, v),
+    child: child,
+  );
+}
 
 /// Right-side System Health details panel for a selected metric group.
 class HealthDetailsPanel extends StatelessWidget {
@@ -67,7 +95,7 @@ class HealthDetailsPanel extends StatelessWidget {
     );
   }
 
-  /// Single-viewport panel body — no scroll (mockup parity).
+  /// Scrollable panel body with collapsible [PulseSection]s.
   Widget _sectionsBody() {
     return switch (kind) {
       HealthPanelKind.cpu => _CpuPanelBody(
@@ -247,105 +275,162 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
     return Column(
       children: [
         Expanded(
-          flex: 5,
-          child: DetailSection(
-            title: 'Overview',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            expandChild: true,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _UsageGauge(
-                  percent: usagePct,
-                  label: usagePct != null
-                      ? '${usagePct.toStringAsFixed(0)}% Usage'
-                      : 'Usage',
-                  compact: true,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        HealthSpecSection(
-                          compact: true,
-                          rows: [
-                            HealthSpecRow(label: 'Speed', value: currentMhz),
-                            HealthSpecRow(
-                              label: 'Base Speed',
-                              value: baseMhz,
-                            ),
-                            HealthSpecRow(label: 'Cores', value: cores),
-                            HealthSpecRow(
-                              label: 'Logical Processors',
-                              value: threads,
-                            ),
-                            HealthSpecRow(label: 'Sockets', value: sockets),
-                            HealthSpecRow(
-                              label: 'NUMA Nodes',
-                              value: numaNodes,
-                            ),
-                            HealthSpecRow(
-                              label: 'Temperature',
-                              value: formatTempC(
-                                s?.hasCpuTempC ?? false,
-                                s?.cpuTempC ?? 0,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        HealthSpecSection(
-                          title: 'Architecture',
-                          compact: true,
-                          rows: [
-                            HealthSpecRow(
-                              label: 'Architecture',
-                              value: architecture,
-                            ),
-                            HealthSpecRow(
-                              label: 'Instruction Set',
-                              value: instructionSet,
-                            ),
-                            HealthSpecRow(label: 'SMT', value: smt),
-                            HealthSpecRow(
-                              label: 'Virtualization',
-                              value: virt,
-                            ),
-                            HealthSpecRow(
-                              label: 'Virtualization Vendor',
-                              value: virtVendor,
-                            ),
-                            HealthSpecRow(label: 'L1 Cache', value: l1),
-                            HealthSpecRow(label: 'L2 Cache', value: l2),
-                            HealthSpecRow(label: 'L3 Cache', value: l3),
-                          ],
-                        ),
-                      ],
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            children: [
+              _healthPulseSection(
+                context: context,
+                kind: 'cpu',
+                sectionId: 'overview',
+                title: 'Overview',
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _UsageGauge(
+                      percent: usagePct,
+                      label: usagePct != null
+                          ? '${usagePct.toStringAsFixed(0)}% Usage'
+                          : 'Usage',
+                      compact: true,
                     ),
-                  ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: HealthSpecSection(
+                        compact: true,
+                        rows: [
+                          HealthSpecRow(
+                            label: 'Model',
+                            value: orDash(i?.cpuModel),
+                          ),
+                          HealthSpecRow(
+                            label: 'Architecture',
+                            value: architecture,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ),
-        Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 5,
-          child: DetailSection(
-            title: store == null
-                ? 'Processes'
-                : 'Processes (${store.totalCount})',
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
-            expandChild: true,
-            child: store == null
-                ? _ProcessList(
-                    processes: s?.topCpu ?? const [],
-                    kind: HealthPanelKind.cpu,
-                    compact: true,
-                  )
-                : ProcessInventoryList(store: store, compact: true),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'cpu',
+                sectionId: 'performance',
+                title: 'Performance',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'Utilization',
+                      value: usagePct != null
+                          ? '${usagePct.toStringAsFixed(1)}%'
+                          : kUnavailableDash,
+                    ),
+                    HealthSpecRow(label: 'Speed', value: currentMhz),
+                    HealthSpecRow(label: 'Base Speed', value: baseMhz),
+                    HealthSpecRow(
+                      label: 'Temperature',
+                      value: formatTempC(
+                        s?.hasCpuTempC ?? false,
+                        s?.cpuTempC ?? 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'cpu',
+                sectionId: 'topology',
+                title: 'Topology',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(label: 'Sockets', value: sockets),
+                    HealthSpecRow(label: 'Cores', value: cores),
+                    HealthSpecRow(
+                      label: 'Logical Processors',
+                      value: threads,
+                    ),
+                    HealthSpecRow(label: 'NUMA Nodes', value: numaNodes),
+                    HealthSpecRow(label: 'SMT', value: smt),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'cpu',
+                sectionId: 'cache',
+                title: 'Cache',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(label: 'L1 Cache', value: l1),
+                    HealthSpecRow(label: 'L2 Cache', value: l2),
+                    HealthSpecRow(label: 'L3 Cache', value: l3),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'cpu',
+                sectionId: 'features',
+                title: 'Features',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'Instruction Set',
+                      value: instructionSet,
+                    ),
+                    HealthSpecRow(label: 'Virtualization', value: virt),
+                    HealthSpecRow(
+                      label: 'Virtualization Vendor',
+                      value: virtVendor,
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'cpu',
+                sectionId: 'processes',
+                title: store == null
+                    ? 'Processes'
+                    : 'Processes (${store.totalCount})',
+                child: SizedBox(
+                  height: _kProcessInventoryHeight,
+                  child: store == null
+                      ? _ProcessList(
+                          processes: s?.topCpu ?? const [],
+                          kind: HealthPanelKind.cpu,
+                          compact: true,
+                        )
+                      : ProcessInventoryList(store: store, compact: true),
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'cpu',
+                sectionId: 'history',
+                title: view.coreHistories.isNotEmpty
+                    ? 'CPU History (Per Core)'
+                    : 'CPU History',
+                defaultExpanded: false,
+                child: SizedBox(
+                  height: _kHistorySectionHeight,
+                  child: view.coreHistories.isNotEmpty
+                      ? _CoreHistoryGrid(
+                          histories: view.coreHistories,
+                          compact: true,
+                        )
+                      : _HistorySparkline(
+                          values: view.cpuHistory,
+                          fillHeight: true,
+                        ),
+                ),
+              ),
+            ],
           ),
         ),
         if (selectedEntry != null) ...[
@@ -362,26 +447,6 @@ class _CpuPanelBodyState extends State<_CpuPanelBody> {
             ),
           ),
         ],
-        Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 3,
-          child: DetailSection(
-            title: view.coreHistories.isNotEmpty
-                ? 'CPU History (Per Core)'
-                : 'CPU History',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            expandChild: true,
-            child: view.coreHistories.isNotEmpty
-                ? _CoreHistoryGrid(
-                    histories: view.coreHistories,
-                    compact: true,
-                  )
-                : _HistorySparkline(
-                    values: view.cpuHistory,
-                    fillHeight: true,
-                  ),
-          ),
-        ),
       ],
     );
   }
@@ -496,135 +561,161 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
     return Column(
       children: [
         Expanded(
-          flex: 4,
-          child: DetailSection(
-            title: 'Overview',
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
-            expandChild: true,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _UsageGauge(
-                  percent: usagePct,
-                  label: usagePct != null
-                      ? '${usagePct.toStringAsFixed(0)}% In use'
-                      : 'In use',
-                  compact: true,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        HealthSpecSection(
-                          compact: true,
-                          rows: [
-                            HealthSpecRow(
-                              label: 'Used / Total',
-                              value: usedLabel,
-                            ),
-                            HealthSpecRow(
-                              label: 'Available',
-                              value: available,
-                            ),
-                            HealthSpecRow(
-                              label: 'Committed',
-                              value: committed,
-                            ),
-                            HealthSpecRow(label: 'Cached', value: cached),
-                            HealthSpecRow(
-                              label: 'Memory Compression',
-                              value: compressed,
-                            ),
-                            HealthSpecRow(
-                              label: 'Hardware Reserved',
-                              value: hardwareReserved,
-                            ),
-                            HealthSpecRow(
-                              label: 'Paged Pool',
-                              value: pagedPool,
-                            ),
-                            HealthSpecRow(
-                              label: 'Non-paged Pool',
-                              value: nonpagedPool,
-                            ),
-                            HealthSpecRow(
-                              label: 'Page Faults/sec',
-                              value: pageFaults,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        HealthSpecSection(
-                          title: 'Modules',
-                          compact: true,
-                          rows: [
-                            HealthSpecRow(
-                              label: 'Slots Used',
-                              value: slotsUsed,
-                            ),
-                            HealthSpecRow(
-                              label: 'Module Count',
-                              value: moduleCount,
-                            ),
-                            HealthSpecRow(
-                              label: 'Channels',
-                              value: channels,
-                            ),
-                            HealthSpecRow(
-                              label: 'Generation',
-                              value: ddrGeneration,
-                            ),
-                            HealthSpecRow(label: 'Speed', value: speedMhz),
-                            HealthSpecRow(
-                              label: 'Form Factor',
-                              value: formFactor,
-                            ),
-                            HealthSpecRow(label: 'ECC', value: ecc),
-                            HealthSpecRow(
-                              label: 'DIMM Vendor',
-                              value: dimmVendor,
-                            ),
-                            HealthSpecRow(
-                              label: 'DIMM Part Number',
-                              value: dimmPart,
-                            ),
-                            HealthSpecRow(
-                              label: 'DIMM Serial',
-                              value: dimmSerial,
-                            ),
-                          ],
-                        ),
-                      ],
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            children: [
+              _healthPulseSection(
+                context: context,
+                kind: 'memory',
+                sectionId: 'overview',
+                title: 'Overview',
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _UsageGauge(
+                      percent: usagePct,
+                      label: usagePct != null
+                          ? '${usagePct.toStringAsFixed(0)}% In use'
+                          : 'In use',
+                      compact: true,
                     ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: HealthSpecSection(
+                        compact: true,
+                        rows: [
+                          HealthSpecRow(
+                            label: 'Used / Total',
+                            value: usedLabel,
+                          ),
+                          HealthSpecRow(
+                            label: 'Available',
+                            value: available,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'memory',
+                sectionId: 'commit',
+                title: 'Commit',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(label: 'Committed', value: committed),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'memory',
+                sectionId: 'pools',
+                title: 'Pools',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(label: 'Paged Pool', value: pagedPool),
+                    HealthSpecRow(
+                      label: 'Non-paged Pool',
+                      value: nonpagedPool,
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'memory',
+                sectionId: 'compression',
+                title: 'Compression',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'Memory Compression',
+                      value: compressed,
+                    ),
+                    HealthSpecRow(label: 'Cached', value: cached),
+                    HealthSpecRow(
+                      label: 'Hardware Reserved',
+                      value: hardwareReserved,
+                    ),
+                    HealthSpecRow(
+                      label: 'Page Faults/sec',
+                      value: pageFaults,
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'memory',
+                sectionId: 'modules',
+                title: 'Modules',
+                defaultExpanded: false,
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(label: 'Slots Used', value: slotsUsed),
+                    HealthSpecRow(label: 'Module Count', value: moduleCount),
+                    HealthSpecRow(label: 'Channels', value: channels),
+                    HealthSpecRow(
+                      label: 'Generation',
+                      value: ddrGeneration,
+                    ),
+                    HealthSpecRow(label: 'Speed', value: speedMhz),
+                    HealthSpecRow(label: 'Form Factor', value: formFactor),
+                    HealthSpecRow(label: 'ECC', value: ecc),
+                    HealthSpecRow(label: 'DIMM Vendor', value: dimmVendor),
+                    HealthSpecRow(
+                      label: 'DIMM Part Number',
+                      value: dimmPart,
+                    ),
+                    HealthSpecRow(label: 'DIMM Serial', value: dimmSerial),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'memory',
+                sectionId: 'processes',
+                title: store == null
+                    ? 'Processes'
+                    : 'Processes (${store.totalCount})',
+                child: SizedBox(
+                  height: _kProcessInventoryHeight,
+                  child: store == null
+                      ? _ProcessList(
+                          processes: s?.topMemory ?? const [],
+                          kind: HealthPanelKind.memory,
+                          compact: true,
+                        )
+                      : ProcessInventoryList(
+                          store: store,
+                          compact: true,
+                          groupSort: ProcessGroupSort.memoryDescending,
+                          memoryFormat: true,
+                        ),
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'memory',
+                sectionId: 'history',
+                title: 'Memory History',
+                defaultExpanded: false,
+                child: SizedBox(
+                  height: _kHistorySectionHeight,
+                  child: _HistorySparkline(
+                    values: view.memoryHistory,
+                    fillHeight: true,
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-        Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 6,
-          child: DetailSection(
-            title: store == null
-                ? 'Processes'
-                : 'Processes (${store.totalCount})',
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
-            expandChild: true,
-            child: store == null
-                ? _ProcessList(
-                    processes: s?.topMemory ?? const [],
-                    kind: HealthPanelKind.memory,
-                    compact: true,
-                  )
-                : ProcessInventoryList(
-                    store: store,
-                    compact: true,
-                    groupSort: ProcessGroupSort.memoryDescending,
-                    memoryFormat: true,
-                  ),
+              ),
+            ],
           ),
         ),
         if (selectedGroup != null) ...[
@@ -639,19 +730,6 @@ class _MemoryPanelBodyState extends State<_MemoryPanelBody> {
             ),
           ),
         ],
-        Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 2,
-          child: DetailSection(
-            title: 'Memory History',
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            expandChild: true,
-            child: _HistorySparkline(
-              values: view.memoryHistory,
-              fillHeight: true,
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -694,315 +772,342 @@ class _GpuPanelBody extends StatelessWidget {
     return Column(
       children: [
         Expanded(
-          flex: 7,
-          child: DetailSection(
-            title: 'Overview',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            expandChild: true,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      _UsageGauge(
-                        percent: usagePct,
-                        label: usagePct != null
-                            ? '${usagePct.toStringAsFixed(0)}% Usage'
-                            : 'Usage',
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            children: [
+              _healthPulseSection(
+                context: context,
+                kind: 'gpu',
+                sectionId: 'overview',
+                title: 'Overview',
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _UsageGauge(
+                      percent: usagePct,
+                      label: usagePct != null
+                          ? '${usagePct.toStringAsFixed(0)}% Usage'
+                          : 'Usage',
+                      compact: true,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: HealthSpecSection(
                         compact: true,
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: HealthSpecSection(
-                          compact: true,
-                          rows: [
-                            HealthSpecRow(
-                              label: 'GPU Name',
-                              value: orDash(i?.gpuModel),
+                        rows: [
+                          HealthSpecRow(
+                            label: 'GPU Name',
+                            value: orDash(i?.gpuModel),
+                          ),
+                          HealthSpecRow(
+                            label: 'Overall',
+                            value: formatPercentOrDash(
+                              s?.hasGpuPercent ?? false,
+                              s?.gpuPercent ?? 0,
                             ),
-                            HealthSpecRow(
-                              label: 'Vendor',
-                              value: orDash(i?.gpuVendor),
-                            ),
-                            HealthSpecRow(
-                              label: 'Driver Version',
-                              value: orDash(i?.gpuDriverVersion),
-                            ),
-                            HealthSpecRow(
-                              label: 'Driver Date',
-                              value: orDash(i?.gpuDriverDate),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  HealthSpecSection(
-                    title: 'Utilization',
-                    compact: true,
-                    rows: [
-                      HealthSpecRow(
-                        label: 'Overall',
-                        value: formatPercentOrDash(
-                          s?.hasGpuPercent ?? false,
-                          s?.gpuPercent ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: '3D',
-                        value: formatPercentOrNotSupported(
-                          s?.hasGpuUtil3d ?? false,
-                          s?.gpuUtil3d ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Compute',
-                        value: formatPercentOrNotSupported(
-                          s?.hasGpuUtilCompute ?? false,
-                          s?.gpuUtilCompute ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Copy',
-                        value: formatPercentOrNotSupported(
-                          s?.hasGpuUtilCopy ?? false,
-                          s?.gpuUtilCopy ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Video Decode',
-                        value: formatPercentOrNotSupported(
-                          s?.hasGpuUtilVideoDecode ?? false,
-                          s?.gpuUtilVideoDecode ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Video Encode',
-                        value: formatPercentOrNotSupported(
-                          s?.hasGpuUtilVideoEncode ?? false,
-                          s?.gpuUtilVideoEncode ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Video Processing',
-                        value: formatPercentOrNotSupported(
-                          s?.hasGpuUtilVideoProcessing ?? false,
-                          s?.gpuUtilVideoProcessing ?? 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  HealthSpecSection(
-                    title: 'Memory',
-                    compact: true,
-                    rows: [
-                      HealthSpecRow(
-                        label: 'Dedicated VRAM',
-                        value: dedicatedCapacity > 0
-                            ? formatBytesBinary(
-                                dedicatedCapacity,
-                                fractionDigits: 0,
-                              )
-                            : kUnavailableDash,
-                      ),
-                      HealthSpecRow(
-                        label: 'Shared Memory',
-                        value: sharedCapacity > 0
-                            ? formatBytesBinary(
-                                sharedCapacity,
-                                fractionDigits: 0,
-                              )
-                            : kUnavailableDash,
-                      ),
-                      HealthSpecRow(
-                        label: 'Total graphics memory',
-                        value: totalCapacity > 0
-                            ? formatBytesBinary(
-                                totalCapacity,
-                                fractionDigits: 0,
-                              )
-                            : kUnavailableDash,
-                      ),
-                      HealthSpecRow(
-                        label: 'Dedicated Used',
-                        value: formatBytesOrDash(
-                          hasDedicatedUsed,
-                          dedicatedUsedBytes,
-                        ),
-                        description: hasDedicatedUsed
-                            ? _vramUsagePercent(
-                                dedicatedUsedBytes,
-                                dedicatedCapacity,
-                              )
-                            : null,
-                      ),
-                      HealthSpecRow(
-                        label: 'Shared Used',
-                        value: formatBytesOrDash(
-                          hasSharedUsed,
-                          sharedUsedBytes,
-                        ),
-                        description: hasSharedUsed
-                            ? _vramUsagePercent(
-                                sharedUsedBytes,
-                                sharedCapacity,
-                              )
-                            : null,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  HealthSpecSection(
-                    title: 'Clocks & Sensors',
-                    compact: true,
-                    rows: [
-                      HealthSpecRow(
-                        label: 'Core Clock',
-                        value: formatMhzOrNotSupported(
-                          s?.hasGpuClockMhz ?? false,
-                          s?.gpuClockMhz ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Memory Clock',
-                        value: formatMhzOrNotSupported(
-                          s?.hasGpuMemoryClockMhz ?? false,
-                          s?.gpuMemoryClockMhz ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Fan Speed',
-                        value: formatRpm(
-                          s?.hasGpuFanRpm ?? false,
-                          s?.gpuFanRpm ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Power',
-                        value: formatPercentOrNotSupported(
-                          s?.hasGpuPowerPercent ?? false,
-                          s?.gpuPowerPercent ?? 0,
-                        ),
-                      ),
-                      const HealthSpecRow(
-                        label: 'Power Usage (W)',
-                        value: kNotSupported,
-                      ),
-                      HealthSpecRow(
-                        label: 'Temperature',
-                        value: formatTempC(
-                          s?.hasGpuTempC ?? false,
-                          s?.gpuTempC ?? 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  HealthSpecSection(
-                    title: 'Adapter',
-                    compact: true,
-                    rows: [
-                      HealthSpecRow(
-                        label: 'DirectX',
-                        value: orDash(i?.gpuDirectxVersion),
-                      ),
-                      HealthSpecRow(
-                        label: 'WDDM',
-                        value: orDash(i?.gpuWddmVersion),
-                      ),
-                      HealthSpecRow(
-                        label: 'Hardware Scheduling',
-                        value: i == null
-                            ? kUnavailableDash
-                            : formatBoolOrDash(
-                                i.hasGpuHardwareScheduling,
-                                i.gpuHardwareScheduling,
-                                yes: 'Enabled',
-                                no: 'Disabled',
-                              ),
-                      ),
-                      HealthSpecRow(
-                        label: 'PCIe Speed',
-                        value: orDash(i?.gpuPcieLinkSpeed),
-                      ),
-                      HealthSpecRow(
-                        label: 'PCIe Width',
-                        value: orDash(i?.gpuPcieLinkWidth),
-                      ),
-                      HealthSpecRow(
-                        label: 'PCI Location',
-                        value: orDash(i?.gpuPciLocation),
-                      ),
-                      HealthSpecRow(
-                        label: 'Adapter LUID',
-                        value: i != null && i.hasGpuLuid
-                            ? _formatGpuLuid(i.gpuLuidHigh, i.gpuLuidLow)
-                            : kUnavailableDash,
-                      ),
-                      HealthSpecRow(
-                        label: 'Resizable BAR',
-                        value: formatBoolOrNotSupported(
-                          i?.hasGpuResizableBar ?? false,
-                          i?.gpuResizableBar ?? false,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
-        ),
-        Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 6,
-          child: DetailSection(
-            title: store == null
-                ? 'Processes'
-                : 'Processes (${store.totalCount})',
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
-            expandChild: true,
-            child: store == null
-                ? _ProcessList(
-                    processes: s?.topGpu ?? const [],
-                    kind: HealthPanelKind.gpu,
-                    compact: true,
-                  )
-                : ProcessInventoryList(
-                    store: store,
-                    compact: true,
-                    groupSort: ProcessGroupSort.gpuDescending,
-                    metrics: ProcessListMetrics.gpu,
-                  ),
-          ),
-        ),
-        Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 4,
-          child: DetailSection(
-            title: engineHistories.isNotEmpty
-                ? 'GPU History (By Engine)'
-                : 'GPU History',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            expandChild: true,
-            child: engineHistories.isNotEmpty
-                ? _CoreHistoryGrid(
-                    histories: [
-                      for (final e in engineHistories) e.$2,
-                    ],
-                    labels: [
-                      for (final e in engineHistories) e.$1,
-                    ],
-                    compact: true,
-                  )
-                : _HistorySparkline(
-                    values: view.gpuHistory,
-                    fillHeight: true,
-                  ),
+              _healthPulseSection(
+                context: context,
+                kind: 'gpu',
+                sectionId: 'adapter',
+                title: 'Adapter',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'Vendor',
+                      value: orDash(i?.gpuVendor),
+                    ),
+                    HealthSpecRow(
+                      label: 'Adapter LUID',
+                      value: i != null && i.hasGpuLuid
+                          ? _formatGpuLuid(i.gpuLuidHigh, i.gpuLuidLow)
+                          : kUnavailableDash,
+                    ),
+                    HealthSpecRow(
+                      label: 'Hardware Scheduling',
+                      value: i == null
+                          ? kUnavailableDash
+                          : formatBoolOrDash(
+                              i.hasGpuHardwareScheduling,
+                              i.gpuHardwareScheduling,
+                              yes: 'Enabled',
+                              no: 'Disabled',
+                            ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Resizable BAR',
+                      value: formatBoolOrNotSupported(
+                        i?.hasGpuResizableBar ?? false,
+                        i?.gpuResizableBar ?? false,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'PCIe Speed',
+                      value: orDash(i?.gpuPcieLinkSpeed),
+                    ),
+                    HealthSpecRow(
+                      label: 'PCIe Width',
+                      value: orDash(i?.gpuPcieLinkWidth),
+                    ),
+                    HealthSpecRow(
+                      label: 'PCI Location',
+                      value: orDash(i?.gpuPciLocation),
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'gpu',
+                sectionId: 'driver',
+                title: 'Driver',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'Driver Version',
+                      value: orDash(i?.gpuDriverVersion),
+                    ),
+                    HealthSpecRow(
+                      label: 'Driver Date',
+                      value: orDash(i?.gpuDriverDate),
+                    ),
+                    HealthSpecRow(
+                      label: 'DirectX',
+                      value: orDash(i?.gpuDirectxVersion),
+                    ),
+                    HealthSpecRow(
+                      label: 'WDDM',
+                      value: orDash(i?.gpuWddmVersion),
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'gpu',
+                sectionId: 'vram',
+                title: 'VRAM',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'Dedicated VRAM',
+                      value: dedicatedCapacity > 0
+                          ? formatBytesBinary(
+                              dedicatedCapacity,
+                              fractionDigits: 0,
+                            )
+                          : kUnavailableDash,
+                    ),
+                    HealthSpecRow(
+                      label: 'Shared Memory',
+                      value: sharedCapacity > 0
+                          ? formatBytesBinary(
+                              sharedCapacity,
+                              fractionDigits: 0,
+                            )
+                          : kUnavailableDash,
+                    ),
+                    HealthSpecRow(
+                      label: 'Total graphics memory',
+                      value: totalCapacity > 0
+                          ? formatBytesBinary(
+                              totalCapacity,
+                              fractionDigits: 0,
+                            )
+                          : kUnavailableDash,
+                    ),
+                    HealthSpecRow(
+                      label: 'Dedicated Used',
+                      value: formatBytesOrDash(
+                        hasDedicatedUsed,
+                        dedicatedUsedBytes,
+                      ),
+                      description: hasDedicatedUsed
+                          ? _vramUsagePercent(
+                              dedicatedUsedBytes,
+                              dedicatedCapacity,
+                            )
+                          : null,
+                    ),
+                    HealthSpecRow(
+                      label: 'Shared Used',
+                      value: formatBytesOrDash(
+                        hasSharedUsed,
+                        sharedUsedBytes,
+                      ),
+                      description: hasSharedUsed
+                          ? _vramUsagePercent(
+                              sharedUsedBytes,
+                              sharedCapacity,
+                            )
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'gpu',
+                sectionId: 'engines',
+                title: 'Engines',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: '3D',
+                      value: formatPercentOrNotSupported(
+                        s?.hasGpuUtil3d ?? false,
+                        s?.gpuUtil3d ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Compute',
+                      value: formatPercentOrNotSupported(
+                        s?.hasGpuUtilCompute ?? false,
+                        s?.gpuUtilCompute ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Copy',
+                      value: formatPercentOrNotSupported(
+                        s?.hasGpuUtilCopy ?? false,
+                        s?.gpuUtilCopy ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Video Decode',
+                      value: formatPercentOrNotSupported(
+                        s?.hasGpuUtilVideoDecode ?? false,
+                        s?.gpuUtilVideoDecode ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Video Encode',
+                      value: formatPercentOrNotSupported(
+                        s?.hasGpuUtilVideoEncode ?? false,
+                        s?.gpuUtilVideoEncode ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Video Processing',
+                      value: formatPercentOrNotSupported(
+                        s?.hasGpuUtilVideoProcessing ?? false,
+                        s?.gpuUtilVideoProcessing ?? 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'gpu',
+                sectionId: 'sensors',
+                title: 'Clocks & Sensors',
+                defaultExpanded: false,
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'Core Clock',
+                      value: formatMhzOrNotSupported(
+                        s?.hasGpuClockMhz ?? false,
+                        s?.gpuClockMhz ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Memory Clock',
+                      value: formatMhzOrNotSupported(
+                        s?.hasGpuMemoryClockMhz ?? false,
+                        s?.gpuMemoryClockMhz ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Fan Speed',
+                      value: formatRpm(
+                        s?.hasGpuFanRpm ?? false,
+                        s?.gpuFanRpm ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Power',
+                      value: formatPercentOrNotSupported(
+                        s?.hasGpuPowerPercent ?? false,
+                        s?.gpuPowerPercent ?? 0,
+                      ),
+                    ),
+                    const HealthSpecRow(
+                      label: 'Power Usage (W)',
+                      value: kNotSupported,
+                    ),
+                    HealthSpecRow(
+                      label: 'Temperature',
+                      value: formatTempC(
+                        s?.hasGpuTempC ?? false,
+                        s?.gpuTempC ?? 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'gpu',
+                sectionId: 'processes',
+                title: store == null
+                    ? 'Processes'
+                    : 'Processes (${store.totalCount})',
+                child: SizedBox(
+                  height: _kProcessInventoryHeight,
+                  child: store == null
+                      ? _ProcessList(
+                          processes: s?.topGpu ?? const [],
+                          kind: HealthPanelKind.gpu,
+                          compact: true,
+                        )
+                      : ProcessInventoryList(
+                          store: store,
+                          compact: true,
+                          groupSort: ProcessGroupSort.gpuDescending,
+                          metrics: ProcessListMetrics.gpu,
+                        ),
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'gpu',
+                sectionId: 'history',
+                title: engineHistories.isNotEmpty
+                    ? 'GPU History (By Engine)'
+                    : 'GPU History',
+                defaultExpanded: false,
+                child: SizedBox(
+                  height: _kHistorySectionHeight,
+                  child: engineHistories.isNotEmpty
+                      ? _CoreHistoryGrid(
+                          histories: [
+                            for (final e in engineHistories) e.$2,
+                          ],
+                          labels: [
+                            for (final e in engineHistories) e.$1,
+                          ],
+                          compact: true,
+                        )
+                      : _HistorySparkline(
+                          values: view.gpuHistory,
+                          fillHeight: true,
+                        ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1071,7 +1176,7 @@ class _DiskPanelBody extends StatelessWidget {
         ),
     ];
 
-    final driveInfoRows = [
+    final driveIdentityRows = [
       HealthSpecRow(label: 'Interface', value: orDash(i?.diskInterface)),
       HealthSpecRow(label: 'Bus', value: orDash(i?.diskBus)),
       HealthSpecRow(label: 'Model', value: orDash(i?.diskModel)),
@@ -1101,6 +1206,9 @@ class _DiskPanelBody extends StatelessWidget {
             ? kUnavailableDash
             : formatSupportOrDash(i.hasDiskTrim, i.diskTrimSupported),
       ),
+    ];
+
+    final smartRows = [
       HealthSpecRow(
         label: 'Temperature',
         value: formatTempC(s?.hasSsdTempC ?? false, s?.ssdTempC ?? 0),
@@ -1136,85 +1244,106 @@ class _DiskPanelBody extends StatelessWidget {
     return Column(
       children: [
         Expanded(
-          flex: 4,
-          child: DetailSection(
-            title: 'Overview',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            expandChild: true,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _UsageGauge(
-                  percent: usagePct,
-                  label: usagePct != null
-                      ? '${usagePct.toStringAsFixed(0)}% Used'
-                      : 'Usage',
-                  compact: true,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            children: [
+              _healthPulseSection(
+                context: context,
+                kind: 'disk',
+                sectionId: 'overview',
+                title: 'Overview',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _UsageGauge(
+                          percent: usagePct,
+                          label: usagePct != null
+                              ? '${usagePct.toStringAsFixed(0)}% Used'
+                              : 'Usage',
+                          compact: true,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: _SpecList(
+                            compact: true,
+                            rows: [
+                              ('Primary', capacity),
+                              ('Free', freeLabel),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    HealthSpecSection(
+                      compact: true,
+                      rows: driveIdentityRows,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: _SpecList(
-                    compact: true,
-                    rows: [
-                      ('Primary', capacity),
-                      ('Free', freeLabel),
-                      ('Read (total)', read),
-                      ('Write (total)', write),
+              ),
+              if (volumeSpec.isNotEmpty)
+                _healthPulseSection(
+                  context: context,
+                  kind: 'disk',
+                  sectionId: 'volumes',
+                  title: 'Volumes',
+                  child: _SpecList(compact: true, rows: volumeSpec),
+                ),
+              _healthPulseSection(
+                context: context,
+                kind: 'disk',
+                sectionId: 'smart',
+                title: 'SMART',
+                child: HealthSpecSection(compact: true, rows: smartRows),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'disk',
+                sectionId: 'performance',
+                title: 'Performance',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SpecList(
+                      compact: true,
+                      rows: [
+                        ('Read (total)', read),
+                        ('Write (total)', write),
+                      ],
+                    ),
+                    if (diskSpec.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      HealthSpecSection(
+                        title: 'Physical disks',
+                        compact: true,
+                        rows: [
+                          for (final row in diskSpec)
+                            HealthSpecRow(label: row.$1, value: row.$2),
+                        ],
+                      ),
                     ],
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'disk',
+                sectionId: 'processes',
+                title: 'Top Processes',
+                child: SizedBox(
+                  height: _kProcessInventoryHeight,
+                  child: _ProcessList(
+                    processes: s?.topDisk ?? const [],
+                    kind: HealthPanelKind.disk,
+                    compact: true,
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-        Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 4,
-          child: DetailSection(
-            title: 'Drive',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            expandChild: true,
-            child: SingleChildScrollView(
-              child: HealthSpecSection(compact: true, rows: driveInfoRows),
-            ),
-          ),
-        ),
-        if (volumeSpec.isNotEmpty) ...[
-          Divider(height: 1, color: PulseTokens.strokeSubtle),
-          Expanded(
-            flex: 3,
-            child: DetailSection(
-              title: 'Volumes',
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-              expandChild: true,
-              child: _SpecList(compact: true, rows: volumeSpec),
-            ),
-          ),
-        ],
-        if (diskSpec.isNotEmpty) ...[
-          Divider(height: 1, color: PulseTokens.strokeSubtle),
-          Expanded(
-            flex: 3,
-            child: DetailSection(
-              title: 'Physical disks',
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-              expandChild: true,
-              child: _SpecList(compact: true, rows: diskSpec),
-            ),
-          ),
-        ],
-        Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 4,
-          child: DetailSection(
-            title: 'Top Processes',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            expandChild: true,
-            child: _ProcessList(
-              processes: s?.topDisk ?? const [],
-              kind: HealthPanelKind.disk,
-              compact: true,
-            ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1249,128 +1378,160 @@ class _HardwarePanelBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = view.sample;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          HealthSpecSection(
-            title: 'CPU',
-            compact: true,
-            rows: [
-              HealthSpecRow(
-                label: 'Frequency',
-                value: formatMhzOrNotSupported(
-                  s?.hasCpuCurrentMhz ?? false,
-                  s?.cpuCurrentMhz ?? 0,
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            children: [
+              _healthPulseSection(
+                context: context,
+                kind: 'hardware',
+                sectionId: 'sensors',
+                title: 'Sensors',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'CPU Package Temp',
+                      value: formatTempC(
+                        s?.hasCpuTempC ?? false,
+                        s?.cpuTempC ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'CPU Frequency',
+                      value: formatMhzOrNotSupported(
+                        s?.hasCpuCurrentMhz ?? false,
+                        s?.cpuCurrentMhz ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'GPU Temperature',
+                      value: formatTempC(
+                        s?.hasGpuTempC ?? false,
+                        s?.gpuTempC ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'SSD / NVMe Temp',
+                      value: formatTempC(
+                        s?.hasSsdTempC ?? false,
+                        s?.ssdTempC ?? 0,
+                      ),
+                    ),
+                    const HealthSpecRow(
+                      label: 'GPU Hotspot Temp',
+                      value: kNotSupported,
+                    ),
+                    const HealthSpecRow(
+                      label: 'VRAM Junction Temp',
+                      value: kNotSupported,
+                    ),
+                    HealthSpecRow(
+                      label: 'SMART Health',
+                      value: formatSmartHealth(
+                        s?.hasDiskSmartOk ?? false,
+                        s?.diskSmartOk ?? false,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Power-On Hours',
+                      value: formatPowerOnHours(
+                        s?.hasDiskPowerOnHours ?? false,
+                        s?.diskPowerOnHours ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Total Data Read',
+                      value: s?.hasDiskTotalBytesRead == true
+                          ? formatBytesBinary(s!.diskTotalBytesRead)
+                          : kNotSupported,
+                    ),
+                    HealthSpecRow(
+                      label: 'Total Data Written',
+                      value: s?.hasDiskTotalBytesWritten == true
+                          ? formatBytesBinary(s!.diskTotalBytesWritten)
+                          : kNotSupported,
+                    ),
+                  ],
                 ),
               ),
-              HealthSpecRow(
-                label: 'Package Temp',
-                value: formatTempC(s?.hasCpuTempC ?? false, s?.cpuTempC ?? 0),
+              _healthPulseSection(
+                context: context,
+                kind: 'hardware',
+                sectionId: 'motherboard',
+                title: 'Motherboard',
+                child: const HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'Motherboard Temp',
+                      value: kNotSupported,
+                    ),
+                    HealthSpecRow(
+                      label: 'VRM Temp',
+                      value: kNotSupported,
+                    ),
+                    HealthSpecRow(
+                      label: 'CPU Voltage',
+                      value: kNotSupported,
+                    ),
+                  ],
+                ),
               ),
-              const HealthSpecRow(
-                label: 'Package Power',
-                value: kNotSupported,
+              _healthPulseSection(
+                context: context,
+                kind: 'hardware',
+                sectionId: 'cooling',
+                title: 'Cooling',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    const HealthSpecRow(
+                      label: 'Chassis Fans',
+                      value: kNotSupported,
+                    ),
+                    HealthSpecRow(
+                      label: 'GPU Fan',
+                      value: formatRpm(
+                        s?.hasGpuFanRpm ?? false,
+                        s?.gpuFanRpm ?? 0,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const HealthSpecRow(
-                label: 'Voltage',
-                value: kNotSupported,
+              _healthPulseSection(
+                context: context,
+                kind: 'hardware',
+                sectionId: 'power',
+                title: 'Power',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    const HealthSpecRow(
+                      label: 'CPU Package Power',
+                      value: kNotSupported,
+                    ),
+                    HealthSpecRow(
+                      label: 'GPU Power',
+                      value: formatPercentOrNotSupported(
+                        s?.hasGpuPowerPercent ?? false,
+                        s?.gpuPowerPercent ?? 0,
+                      ),
+                    ),
+                    const HealthSpecRow(
+                      label: 'GPU Power (W)',
+                      value: kNotSupported,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          HealthSpecSection(
-            title: 'GPU',
-            compact: true,
-            rows: [
-              HealthSpecRow(
-                label: 'Temperature',
-                value: formatTempC(s?.hasGpuTempC ?? false, s?.gpuTempC ?? 0),
-              ),
-              HealthSpecRow(
-                label: 'Fan',
-                value: formatRpm(s?.hasGpuFanRpm ?? false, s?.gpuFanRpm ?? 0),
-              ),
-              HealthSpecRow(
-                label: 'Power',
-                value: formatPercentOrNotSupported(
-                  s?.hasGpuPowerPercent ?? false,
-                  s?.gpuPowerPercent ?? 0,
-                ),
-              ),
-              const HealthSpecRow(
-                label: 'Power (W)',
-                value: kNotSupported,
-              ),
-              const HealthSpecRow(
-                label: 'Hotspot Temp',
-                value: kNotSupported,
-              ),
-              const HealthSpecRow(
-                label: 'VRAM Junction Temp',
-                value: kNotSupported,
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          HealthSpecSection(
-            title: 'Storage',
-            compact: true,
-            rows: [
-              HealthSpecRow(
-                label: 'SSD / NVMe Temp',
-                value: formatTempC(s?.hasSsdTempC ?? false, s?.ssdTempC ?? 0),
-              ),
-              HealthSpecRow(
-                label: 'SMART Health',
-                value: formatSmartHealth(
-                  s?.hasDiskSmartOk ?? false,
-                  s?.diskSmartOk ?? false,
-                ),
-              ),
-              HealthSpecRow(
-                label: 'Power-On Hours',
-                value: formatPowerOnHours(
-                  s?.hasDiskPowerOnHours ?? false,
-                  s?.diskPowerOnHours ?? 0,
-                ),
-              ),
-              HealthSpecRow(
-                label: 'Total Data Read',
-                value: s?.hasDiskTotalBytesRead == true
-                    ? formatBytesBinary(s!.diskTotalBytesRead)
-                    : kNotSupported,
-              ),
-              HealthSpecRow(
-                label: 'Total Data Written',
-                value: s?.hasDiskTotalBytesWritten == true
-                    ? formatBytesBinary(s!.diskTotalBytesWritten)
-                    : kNotSupported,
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const HealthSpecSection(
-            title: 'Motherboard / Cooling',
-            compact: true,
-            rows: [
-              HealthSpecRow(
-                label: 'Motherboard Temp',
-                value: kNotSupported,
-              ),
-              HealthSpecRow(
-                label: 'Chassis Fans',
-                value: kNotSupported,
-              ),
-              HealthSpecRow(
-                label: 'VRM Temp',
-                value: kNotSupported,
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -1400,335 +1561,345 @@ class _NetworkPanelBody extends StatelessWidget {
     return Column(
       children: [
         Expanded(
-          flex: 5,
-          child: DetailSection(
-            title: 'Live',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            expandChild: true,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _NetworkHeroValues(
-                    download: downloadValue,
-                    upload: uploadValue,
-                  ),
-                  const SizedBox(height: 14),
-                  HealthSpecSection(
-                    compact: true,
-                    rows: [
-                      HealthSpecRow(
-                        label: 'Peak Download',
-                        value: s?.hasNetPeakDownloadBps == true
-                            ? formatThroughputBps(s!.netPeakDownloadBps)
-                            : kUnavailableDash,
-                      ),
-                      HealthSpecRow(
-                        label: 'Peak Upload',
-                        value: s?.hasNetPeakUploadBps == true
-                            ? formatThroughputBps(s!.netPeakUploadBps)
-                            : kUnavailableDash,
-                      ),
-                      HealthSpecRow(
-                        label: 'Average Download',
-                        value: s?.hasNetAvgDownloadBps == true
-                            ? formatThroughputBps(s!.netAvgDownloadBps)
-                            : kUnavailableDash,
-                      ),
-                      HealthSpecRow(
-                        label: 'Average Upload',
-                        value: s?.hasNetAvgUploadBps == true
-                            ? formatThroughputBps(s!.netAvgUploadBps)
-                            : kUnavailableDash,
-                      ),
-                      HealthSpecRow(
-                        label: 'Utilization',
-                        value: formatPercentOrDash(
-                          s?.hasNetUtilizationPercent ?? false,
-                          s?.netUtilizationPercent ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Connection Time',
-                        value: formatConnectionDuration(
-                          s?.hasNetConnectionMs ?? false,
-                          s?.netConnectionMs ?? 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 8,
-          child: DetailSection(
-            title: 'Overview',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            expandChild: true,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  HealthSpecSection(
-                    title: 'Adapter',
-                    compact: true,
-                    rows: [
-                      HealthSpecRow(
-                        label: 'Adapter',
-                        value: adapter.isEmpty ? kUnavailableDash : adapter,
-                      ),
-                      HealthSpecRow(
-                        label: 'Manufacturer',
-                        value: orDash(i?.netManufacturer),
-                      ),
-                      HealthSpecRow(
-                        label: 'Description',
-                        value: orDash(i?.netDescription),
-                      ),
-                      HealthSpecRow(
-                        label: 'MAC Address',
-                        value: orDash(i?.netMacAddress),
-                      ),
-                      HealthSpecRow(
-                        label: 'Driver Version',
-                        value: orDash(i?.netDriverVersion),
-                      ),
-                      HealthSpecRow(
-                        label: 'Driver Date',
-                        value: orDash(i?.netDriverDate),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  HealthSpecSection(
-                    title: 'Connection',
-                    compact: true,
-                    rows: [
-                      HealthSpecRow(
-                        label: 'Link Speed',
-                        value: i == null
-                            ? kUnavailableDash
-                            : formatLinkSpeedBps(
-                                i.hasNetLinkSpeedBps,
-                                i.netLinkSpeedBps,
-                              ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Connection Type',
-                        value: orDash(i?.netConnectionType),
-                      ),
-                      HealthSpecRow(
-                        label: 'Duplex',
-                        value: orDash(i?.netDuplex),
-                      ),
-                      HealthSpecRow(
-                        label: 'MTU',
-                        value: i == null
-                            ? kUnavailableDash
-                            : formatCount(i.hasNetMtu, i.netMtu),
-                      ),
-                      HealthSpecRow(
-                        label: 'Interface Index',
-                        value: i == null
-                            ? kUnavailableDash
-                            : formatCount(i.hasNetIfIndex, i.netIfIndex),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  HealthSpecSection(
-                    title: 'Addressing',
-                    compact: true,
-                    rows: [
-                      HealthSpecRow(
-                        label: 'IPv4',
-                        value: orDash(s?.ipv4),
-                      ),
-                      HealthSpecRow(
-                        label: 'IPv6',
-                        value: orDash(s?.ipv6),
-                      ),
-                      HealthSpecRow(
-                        label: 'Gateway',
-                        value: orDash(s?.gateway),
-                      ),
-                      HealthSpecRow(
-                        label: 'DNS',
-                        value: orDash(s?.dns),
-                      ),
-                      HealthSpecRow(
-                        label: 'DHCP',
-                        value: i == null
-                            ? kUnavailableDash
-                            : formatBoolOrDash(
-                                i.hasNetDhcp,
-                                i.netDhcpEnabled,
-                                yes: 'Enabled',
-                                no: 'Disabled',
-                              ),
-                      ),
-                      HealthSpecRow(
-                        label: 'DHCP Server',
-                        value: orDash(i?.netDhcpServer),
-                      ),
-                      HealthSpecRow(
-                        label: 'Lease Obtained',
-                        value: i == null
-                            ? kUnavailableDash
-                            : formatUnixMsDateTime(
-                                i.hasNetLeaseObtained,
-                                i.netLeaseObtainedUnixMs,
-                              ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Lease Expires',
-                        value: i == null
-                            ? kUnavailableDash
-                            : formatUnixMsDateTime(
-                                i.hasNetLeaseExpires,
-                                i.netLeaseExpiresUnixMs,
-                              ),
-                      ),
-                    ],
-                  ),
-                  if (hasWifi) ...[
-                    const SizedBox(height: 14),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            children: [
+              _healthPulseSection(
+                context: context,
+                kind: 'network',
+                sectionId: 'overview',
+                title: 'Overview',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     HealthSpecSection(
-                      title: 'Wireless',
                       compact: true,
                       rows: [
                         HealthSpecRow(
-                          label: 'SSID',
-                          value: orDash(s?.netSsid),
-                        ),
-                        HealthSpecRow(
-                          label: 'Signal',
-                          value: s?.hasNetSignalPercent == true
-                              ? '${s!.netSignalPercent.toStringAsFixed(0)}%'
-                              : kUnavailableDash,
-                        ),
-                        HealthSpecRow(
-                          label: 'Channel',
-                          value: orDash(s?.netWifiChannel),
-                        ),
-                        HealthSpecRow(
-                          label: 'Frequency',
-                          value: orDash(s?.netWifiFrequency),
-                        ),
-                        HealthSpecRow(
-                          label: 'Security',
-                          value: orDash(s?.netWifiSecurity),
+                          label: 'Adapter',
+                          value: adapter.isEmpty ? kUnavailableDash : adapter,
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    _NetworkHeroValues(
+                      download: downloadValue,
+                      upload: uploadValue,
+                    ),
                   ],
-                  const SizedBox(height: 14),
-                  HealthSpecSection(
-                    title: 'Traffic',
-                    compact: true,
-                    rows: [
-                      HealthSpecRow(
-                        label: 'Bytes Sent',
-                        value: formatBytesOrDash(
-                          s?.hasNetBytesSent ?? false,
-                          s?.netBytesSent ?? 0,
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'network',
+                sectionId: 'live_traffic',
+                title: 'Live Traffic',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'Peak Download',
+                      value: s?.hasNetPeakDownloadBps == true
+                          ? formatThroughputBps(s!.netPeakDownloadBps)
+                          : kUnavailableDash,
+                    ),
+                    HealthSpecRow(
+                      label: 'Peak Upload',
+                      value: s?.hasNetPeakUploadBps == true
+                          ? formatThroughputBps(s!.netPeakUploadBps)
+                          : kUnavailableDash,
+                    ),
+                    HealthSpecRow(
+                      label: 'Average Download',
+                      value: s?.hasNetAvgDownloadBps == true
+                          ? formatThroughputBps(s!.netAvgDownloadBps)
+                          : kUnavailableDash,
+                    ),
+                    HealthSpecRow(
+                      label: 'Average Upload',
+                      value: s?.hasNetAvgUploadBps == true
+                          ? formatThroughputBps(s!.netAvgUploadBps)
+                          : kUnavailableDash,
+                    ),
+                    HealthSpecRow(
+                      label: 'Utilization',
+                      value: formatPercentOrDash(
+                        s?.hasNetUtilizationPercent ?? false,
+                        s?.netUtilizationPercent ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Connection Time',
+                      value: formatConnectionDuration(
+                        s?.hasNetConnectionMs ?? false,
+                        s?.netConnectionMs ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Bytes Sent',
+                      value: formatBytesOrDash(
+                        s?.hasNetBytesSent ?? false,
+                        s?.netBytesSent ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Bytes Received',
+                      value: formatBytesOrDash(
+                        s?.hasNetBytesReceived ?? false,
+                        s?.netBytesReceived ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Packets Sent',
+                      value: formatCount(
+                        s?.hasNetPacketsSent ?? false,
+                        s?.netPacketsSent ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Packets Received',
+                      value: formatCount(
+                        s?.hasNetPacketsReceived ?? false,
+                        s?.netPacketsReceived ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Errors',
+                      value: formatCount(
+                        s?.hasNetErrors ?? false,
+                        s?.netErrors ?? 0,
+                      ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Drops',
+                      value: formatCount(
+                        s?.hasNetDrops ?? false,
+                        s?.netDrops ?? 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'network',
+                sectionId: 'connection',
+                title: 'Connection',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    HealthSpecSection(
+                      compact: true,
+                      rows: [
+                        HealthSpecRow(
+                          label: 'IPv4',
+                          value: orDash(s?.ipv4),
+                        ),
+                        HealthSpecRow(
+                          label: 'IPv6',
+                          value: orDash(s?.ipv6),
+                        ),
+                        HealthSpecRow(
+                          label: 'Gateway',
+                          value: orDash(s?.gateway),
+                        ),
+                        HealthSpecRow(
+                          label: 'DNS',
+                          value: orDash(s?.dns),
+                        ),
+                        HealthSpecRow(
+                          label: 'DHCP',
+                          value: i == null
+                              ? kUnavailableDash
+                              : formatBoolOrDash(
+                                  i.hasNetDhcp,
+                                  i.netDhcpEnabled,
+                                  yes: 'Enabled',
+                                  no: 'Disabled',
+                                ),
+                        ),
+                        HealthSpecRow(
+                          label: 'DHCP Server',
+                          value: orDash(i?.netDhcpServer),
+                        ),
+                        HealthSpecRow(
+                          label: 'Lease Obtained',
+                          value: i == null
+                              ? kUnavailableDash
+                              : formatUnixMsDateTime(
+                                  i.hasNetLeaseObtained,
+                                  i.netLeaseObtainedUnixMs,
+                                ),
+                        ),
+                        HealthSpecRow(
+                          label: 'Lease Expires',
+                          value: i == null
+                              ? kUnavailableDash
+                              : formatUnixMsDateTime(
+                                  i.hasNetLeaseExpires,
+                                  i.netLeaseExpiresUnixMs,
+                                ),
+                        ),
+                      ],
+                    ),
+                    if (hasWifi) ...[
+                      const SizedBox(height: 12),
+                      HealthSpecSection(
+                        title: 'Wireless',
+                        compact: true,
+                        rows: [
+                          HealthSpecRow(
+                            label: 'SSID',
+                            value: orDash(s?.netSsid),
+                          ),
+                          HealthSpecRow(
+                            label: 'Signal',
+                            value: s?.hasNetSignalPercent == true
+                                ? '${s!.netSignalPercent.toStringAsFixed(0)}%'
+                                : kUnavailableDash,
+                          ),
+                          HealthSpecRow(
+                            label: 'Channel',
+                            value: orDash(s?.netWifiChannel),
+                          ),
+                          HealthSpecRow(
+                            label: 'Frequency',
+                            value: orDash(s?.netWifiFrequency),
+                          ),
+                          HealthSpecRow(
+                            label: 'Security',
+                            value: orDash(s?.netWifiSecurity),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'network',
+                sectionId: 'adapter',
+                title: 'Adapter',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'Manufacturer',
+                      value: orDash(i?.netManufacturer),
+                    ),
+                    HealthSpecRow(
+                      label: 'Description',
+                      value: orDash(i?.netDescription),
+                    ),
+                    HealthSpecRow(
+                      label: 'MAC Address',
+                      value: orDash(i?.netMacAddress),
+                    ),
+                    HealthSpecRow(
+                      label: 'MTU',
+                      value: i == null
+                          ? kUnavailableDash
+                          : formatCount(i.hasNetMtu, i.netMtu),
+                    ),
+                    HealthSpecRow(
+                      label: 'Connection Type',
+                      value: orDash(i?.netConnectionType),
+                    ),
+                    HealthSpecRow(
+                      label: 'Link Speed',
+                      value: i == null
+                          ? kUnavailableDash
+                          : formatLinkSpeedBps(
+                              i.hasNetLinkSpeedBps,
+                              i.netLinkSpeedBps,
+                            ),
+                    ),
+                    HealthSpecRow(
+                      label: 'Duplex',
+                      value: orDash(i?.netDuplex),
+                    ),
+                    HealthSpecRow(
+                      label: 'Interface Index',
+                      value: i == null
+                          ? kUnavailableDash
+                          : formatCount(i.hasNetIfIndex, i.netIfIndex),
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'network',
+                sectionId: 'driver',
+                title: 'Driver',
+                child: HealthSpecSection(
+                  compact: true,
+                  rows: [
+                    HealthSpecRow(
+                      label: 'Driver Version',
+                      value: orDash(i?.netDriverVersion),
+                    ),
+                    HealthSpecRow(
+                      label: 'Driver Date',
+                      value: orDash(i?.netDriverDate),
+                    ),
+                  ],
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'network',
+                sectionId: 'processes',
+                title: store == null
+                    ? 'Processes'
+                    : 'Processes (${store.totalCount})',
+                child: SizedBox(
+                  height: _kProcessInventoryHeight,
+                  child: store == null
+                      ? _ProcessList(
+                          processes: s?.topNetwork ?? const [],
+                          kind: HealthPanelKind.network,
+                          compact: true,
+                        )
+                      : ProcessInventoryList(
+                          store: store,
+                          compact: true,
+                          groupSort: ProcessGroupSort.networkDescending,
+                          metrics: ProcessListMetrics.network,
+                        ),
+                ),
+              ),
+              _healthPulseSection(
+                context: context,
+                kind: 'network',
+                sectionId: 'activity',
+                title: 'Activity',
+                defaultExpanded: false,
+                child: SizedBox(
+                  height: 100,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _MiniCoreSparkline(
+                          label: 'Download',
+                          values: view.downloadHistory,
+                          compact: true,
                         ),
                       ),
-                      HealthSpecRow(
-                        label: 'Bytes Received',
-                        value: formatBytesOrDash(
-                          s?.hasNetBytesReceived ?? false,
-                          s?.netBytesReceived ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Packets Sent',
-                        value: formatCount(
-                          s?.hasNetPacketsSent ?? false,
-                          s?.netPacketsSent ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Packets Received',
-                        value: formatCount(
-                          s?.hasNetPacketsReceived ?? false,
-                          s?.netPacketsReceived ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Errors',
-                        value: formatCount(
-                          s?.hasNetErrors ?? false,
-                          s?.netErrors ?? 0,
-                        ),
-                      ),
-                      HealthSpecRow(
-                        label: 'Drops',
-                        value: formatCount(
-                          s?.hasNetDrops ?? false,
-                          s?.netDrops ?? 0,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _MiniCoreSparkline(
+                          label: 'Upload',
+                          values: view.uploadHistory,
+                          compact: true,
                         ),
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ),
-        Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 3,
-          child: DetailSection(
-            title: store == null
-                ? 'Processes'
-                : 'Processes (${store.totalCount})',
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
-            expandChild: true,
-            child: store == null
-                ? _ProcessList(
-                    processes: s?.topNetwork ?? const [],
-                    kind: HealthPanelKind.network,
-                    compact: true,
-                  )
-                : ProcessInventoryList(
-                    store: store,
-                    compact: true,
-                    groupSort: ProcessGroupSort.networkDescending,
-                    metrics: ProcessListMetrics.network,
-                  ),
-          ),
-        ),
-        Divider(height: 1, color: PulseTokens.strokeSubtle),
-        Expanded(
-          flex: 3,
-          child: DetailSection(
-            title: 'Activity',
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            expandChild: true,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _MiniCoreSparkline(
-                    label: 'Download',
-                    values: view.downloadHistory,
-                    compact: true,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _MiniCoreSparkline(
-                    label: 'Upload',
-                    values: view.uploadHistory,
-                    compact: true,
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
         ),
       ],

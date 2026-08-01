@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:pulse_protocol/pulse_wire.dart';
 
+import '../utils/pulse_formatters.dart';
+
 /// UI models for System Health — values come only from IPC samples.
 
 enum HealthStatus { good, fair, elevated, unavailable }
@@ -99,11 +101,15 @@ const String kNotSupported = 'Not supported';
 
 String formatBytesBinary(int bytes, {int fractionDigits = 1}) {
   if (bytes <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  final binary = PulseFormatters.binaryUnits;
+  final base = binary ? 1024.0 : 1000.0;
+  final units = binary
+      ? const ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB']
+      : const ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   var value = bytes.toDouble();
   var unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
+  while (value >= base && unit < units.length - 1) {
+    value /= base;
     unit++;
   }
   if (unit == 0) return '${value.round()} ${units[unit]}';
@@ -181,7 +187,11 @@ String formatUptime(int uptimeMs) {
 
 String formatTempC(bool has, double value) {
   if (!has) return kNotSupported;
-  return '${value.toStringAsFixed(0)} °C';
+  if (PulseFormatters.temperatureCelsius) {
+    return '${value.toStringAsFixed(0)} °C';
+  }
+  final fahrenheit = value * 9 / 5 + 32;
+  return '${fahrenheit.toStringAsFixed(0)} °F';
 }
 
 String formatMhz(num mhz) {

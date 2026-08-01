@@ -345,5 +345,27 @@ void main() {
     expect(find.textContaining('Waiting for process inventory'), findsOneWidget);
     expect(find.byType(ListView), findsNothing);
   });
+
+  testWidgets('Health section expand prefs roundtrip via SettingsController',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final logger = AppLogger();
+    final settings = SettingsController(logger: logger);
+    await settings.load();
+
+    expect(settings.isHealthSectionExpanded('cpu', 'overview'), isTrue);
+    expect(
+      settings.isHealthSectionExpanded('cpu', 'history', defaultExpanded: false),
+      isFalse,
+    );
+
+    await settings.setHealthSectionExpanded('cpu', 'overview', false);
+    expect(settings.isHealthSectionExpanded('cpu', 'overview'), isFalse);
+    expect(settings.toMap()['health_sections_expanded'], containsPair('cpu.overview', false));
+
+    final reloaded = SettingsController(logger: logger);
+    await reloaded.load();
+    expect(reloaded.isHealthSectionExpanded('cpu', 'overview'), isFalse);
+  });
 }
 

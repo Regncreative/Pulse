@@ -45,8 +45,8 @@ class HealthSystemStatusCard extends StatelessWidget {
 
     final hasMeta = uptime != null || healthScore != null || lastUpdated != null;
     final pad = compact
-        ? const EdgeInsets.fromLTRB(14, 10, 14, 10)
-        : const EdgeInsets.fromLTRB(20, 18, 20, 18);
+        ? const EdgeInsets.fromLTRB(16, 12, 16, 12)
+        : const EdgeInsets.fromLTRB(22, 20, 22, 20);
     final iconBox = compact ? 40.0 : 48.0;
 
     return Semantics(
@@ -214,8 +214,8 @@ class HealthHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final progress = metric.progress;
     final pad = compact
-        ? const EdgeInsets.fromLTRB(10, 8, 10, 8)
-        : const EdgeInsets.fromLTRB(16, 14, 16, 14);
+        ? const EdgeInsets.fromLTRB(12, 10, 12, 10)
+        : const EdgeInsets.fromLTRB(18, 16, 18, 16);
     final valueSize = compact ? 20.0 : 28.0;
     final sparkH = compact ? 22.0 : 36.0;
 
@@ -823,7 +823,7 @@ class HealthCardGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        const gap = 14.0;
+        const gap = 16.0;
 
         final int columns;
         if (width < 560) {
