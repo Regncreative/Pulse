@@ -1,5 +1,5 @@
 /**
- * M4 validation — timeline.list / search + pulse://timeline/live subscribe.
+ * M4 validation — timeline_list / search + pulse://timeline/live subscribe.
  *
  * Usage: npx tsx scripts/validate-m4.mts
  */
@@ -52,7 +52,7 @@ async function main(): Promise<void> {
 
   const tools = await client.listTools();
   const names = tools.tools.map((t) => t.name);
-  for (const t of ["timeline.list", "timeline.search"]) {
+  for (const t of ["timeline_list", "timeline_search"]) {
     if (names.includes(t)) pass(`listTools:${t}`);
     else fail(`listTools:${t}`, "missing");
   }
@@ -63,24 +63,24 @@ async function main(): Promise<void> {
   else fail("listResources:timeline/live", "missing");
 
   const self = parseToolJson(
-    await client.callTool({ name: "mcp.self", arguments: {} }),
+    await client.callTool({ name: "mcp_self", arguments: {} }),
   );
   const data = self.data as Record<string, unknown>;
   const caps = data.capabilities as Record<string, unknown>;
   const namespaces = data.namespaces as string[];
-  if (namespaces.includes("timeline")) pass("mcp.self.namespaces");
-  else fail("mcp.self.namespaces", "no timeline");
+  if (namespaces.includes("timeline")) pass("mcp_self.namespaces");
+  else fail("mcp_self.namespaces", "no timeline");
   const toolCaps = caps.tools as string[];
-  if (toolCaps.includes("timeline.list") && toolCaps.includes("timeline.search")) {
-    pass("mcp.self.capabilities.tools");
-  } else fail("mcp.self.capabilities.tools", toolCaps.join(","));
+  if (toolCaps.includes("timeline_list") && toolCaps.includes("timeline_search")) {
+    pass("mcp_self.capabilities.tools");
+  } else fail("mcp_self.capabilities.tools", toolCaps.join(","));
   const subs = caps.subscriptions as string[];
-  if (subs.includes(TIMELINE_LIVE)) pass("mcp.self.capabilities.subscriptions");
-  else fail("mcp.self.capabilities.subscriptions", "missing live");
+  if (subs.includes(TIMELINE_LIVE)) pass("mcp_self.capabilities.subscriptions");
+  else fail("mcp_self.capabilities.subscriptions", "missing live");
 
   const listBody = parseToolJson(
     await client.callTool({
-      name: "timeline.list",
+      name: "timeline_list",
       arguments: { limit: 20 },
     }),
   );
@@ -95,31 +95,31 @@ async function main(): Promise<void> {
       throw new Error("rawXml present without includeRaw");
     }
     pass(
-      "timeline.list",
+      "timeline_list",
       `count=${d.count} securityAvailable=${String(d.securityChannelAvailable)}`,
     );
   } catch (err) {
-    fail("timeline.list", err instanceof Error ? err.message : String(err));
+    fail("timeline_list", err instanceof Error ? err.message : String(err));
   }
 
   const searchBody = parseToolJson(
     await client.callTool({
-      name: "timeline.search",
+      name: "timeline_search",
       arguments: { severity: ["error", "critical", "warning"], limit: 15 },
     }),
   );
   try {
     if (searchBody.ok !== true) throw new Error(String(searchBody.code));
     const d = searchBody.data as Record<string, unknown>;
-    pass("timeline.search", `count=${d.count}`);
+    pass("timeline_search", `count=${d.count}`);
   } catch (err) {
-    fail("timeline.search", err instanceof Error ? err.message : String(err));
+    fail("timeline_search", err instanceof Error ? err.message : String(err));
   }
 
   // Security channel honesty — ACCESS_DENIED is acceptable when unreadable.
   const sec = parseToolJson(
     await client.callTool({
-      name: "timeline.search",
+      name: "timeline_search",
       arguments: { channel: "security", limit: 5 },
     }),
   );

@@ -17,13 +17,13 @@ const root = path.resolve(__dirname, "..");
 const entry = path.join(root, "dist", "main.js");
 
 const EXPECTED_TOOLS = [
-  "mcp.self",
-  "system.health",
-  "system.cpu",
-  "system.memory",
-  "system.gpu",
-  "system.storage",
-  "system.network",
+  "mcp_self",
+  "system_health",
+  "system_cpu",
+  "system_memory",
+  "system_gpu",
+  "system_storage",
+  "system_network",
 ];
 
 const EXPECTED_RESOURCES = [
@@ -116,25 +116,25 @@ async function main(): Promise<void> {
   if (missingRes.length) fail("listResources", `missing ${missingRes.join(",")}`);
   else pass("listResources", uris.join(", "));
 
-  // mcp.self diagnostics
-  const selfResult = await client.callTool({ name: "mcp.self", arguments: {} });
+  // mcp_self diagnostics
+  const selfResult = await client.callTool({ name: "mcp_self", arguments: {} });
   const selfBody = parseToolJson(selfResult);
   const selfText = JSON.stringify(selfBody);
   assertNoMarkdownProse(selfText);
-  if (selfBody.ok !== true) fail("mcp.self", JSON.stringify(selfBody));
+  if (selfBody.ok !== true) fail("mcp_self", JSON.stringify(selfBody));
   else {
     const data = selfBody.data as Record<string, unknown>;
     const caps = data.capabilities as Record<string, unknown>;
     const versions = data.versions as Record<string, unknown>;
-    assertIsoUtc(selfBody.observedAt, "mcp.self.observedAt");
-    assertIsoUtc(selfBody.generatedAt, "mcp.self.generatedAt");
+    assertIsoUtc(selfBody.observedAt, "mcp_self.observedAt");
+    assertIsoUtc(selfBody.generatedAt, "mcp_self.generatedAt");
     if (data.servicePipeConnected !== true) {
-      fail("mcp.self.ipc", "servicePipeConnected != true");
-    } else pass("mcp.self.ipc", String(versions.pulseService));
+      fail("mcp_self.ipc", "servicePipeConnected != true");
+    } else pass("mcp_self.ipc", String(versions.pulseService));
     const toolsCap = caps.tools as string[];
     if (!EXPECTED_TOOLS.every((t) => toolsCap.includes(t))) {
-      fail("mcp.self.capabilities.tools", toolsCap.join(","));
-    } else pass("mcp.self.capabilities");
+      fail("mcp_self.capabilities.tools", toolsCap.join(","));
+    } else pass("mcp_self.capabilities");
     if (typeof data.averageLatencyMs !== "number") {
       fail("diagnostics.latency", "averageLatencyMs missing");
     } else pass("diagnostics.counters", `avgLatency=${data.averageLatencyMs}`);
@@ -225,7 +225,7 @@ async function main(): Promise<void> {
     if (notifications.length === 0) {
       // Some clients deliver updates only on change; force a tool refresh
       await client.callTool({
-        name: "system.cpu",
+        name: "system_cpu",
         arguments: { forceRefresh: true },
       });
       await new Promise((r) => setTimeout(r, 2500));
@@ -275,9 +275,9 @@ async function main(): Promise<void> {
     });
     const client2 = new Client({ name: "pulse-m2-validator-2", version: "1.0.0" });
     await client2.connect(transport2);
-    const cpu = await client2.callTool({ name: "system.cpu", arguments: {} });
+    const cpu = await client2.callTool({ name: "system_cpu", arguments: {} });
     const body = parseToolJson(cpu);
-    if (body.ok === true) pass("reconnect", "second session system.cpu ok");
+    if (body.ok === true) pass("reconnect", "second session system_cpu ok");
     else fail("reconnect", JSON.stringify(body));
 
     if (soakMinutes > 0) {
@@ -289,7 +289,7 @@ async function main(): Promise<void> {
       const startMem = process.memoryUsage().heapUsed;
       let samples = 0;
       while (Date.now() - start < soakMinutes * 60_000) {
-        await client2.callTool({ name: "system.cpu", arguments: {} });
+        await client2.callTool({ name: "system_cpu", arguments: {} });
         samples += 1;
         await new Promise((r) => setTimeout(r, 10_000));
         const heap = process.memoryUsage().heapUsed;

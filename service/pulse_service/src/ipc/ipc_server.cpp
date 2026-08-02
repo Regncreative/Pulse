@@ -31,9 +31,11 @@ int64_t NowUnixMs() {
 
 }  // namespace
 
-IpcServer::IpcServer(std::wstring pipe_name, size_t live_queue_capacity)
+IpcServer::IpcServer(std::wstring pipe_name, size_t live_queue_capacity,
+                     uint32_t max_pipe_instances)
     : pipe_name_(std::move(pipe_name)),
-      live_queue_capacity_(live_queue_capacity) {}
+      live_queue_capacity_(live_queue_capacity),
+      max_pipe_instances_(max_pipe_instances == 0 ? 32 : max_pipe_instances) {}
 
 IpcServer::~IpcServer() { Stop(); }
 
@@ -49,7 +51,10 @@ bool IpcServer::Start() {
   accept_thread_ = std::thread([this] { AcceptLoop(); });
   health_thread_running_ = true;
   health_thread_ = std::thread([this] { HealthPushLoop(); });
-  Logger::Instance().Info("IpcServer", "Listening on named pipe");
+  Logger::Instance().Info(
+      "IpcServer",
+      "Listening on named pipe (max_instances=" +
+          std::to_string(max_pipe_instances_) + ")");
   return true;
 }
 
@@ -113,7 +118,7 @@ void* IpcServer::CreatePipeInstance() {
 
   HANDLE pipe = CreateNamedPipeW(
       pipe_name_.c_str(), PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
-      PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT, kMaxPipeInstances,
+      PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT, max_pipe_instances_,
       64 * 1024, 64 * 1024, 0, &sa);
   LocalFree(sd);
   return pipe;
@@ -123,7 +128,12 @@ void IpcServer::AcceptLoop() {
   while (running_) {
     HANDLE pipe = static_cast<HANDLE>(CreatePipeInstance());
     if (pipe == INVALID_HANDLE_VALUE) {
-      Logger::Instance().Error("IpcServer", "CreateNamedPipe failed");
+      const DWORD gle = GetLastError();
+      Logger::Instance().Error(
+          "IpcServer",
+          "CreateNamedPipe failed gle=" + std::to_string(gle) +
+              " max_instances=" + std::to_string(max_pipe_instances_) +
+              " (pipe slots exhausted if gle=231 ERROR_PIPE_BUSY)");
       Sleep(500);
       continue;
     }

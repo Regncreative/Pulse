@@ -17,7 +17,8 @@ namespace pulse {
 
 class IpcServer {
  public:
-  explicit IpcServer(std::wstring pipe_name, size_t live_queue_capacity = 1000);
+  explicit IpcServer(std::wstring pipe_name, size_t live_queue_capacity = 1000,
+                     uint32_t max_pipe_instances = 32);
   ~IpcServer();
 
   bool Start();
@@ -73,6 +74,7 @@ class IpcServer {
 
   std::wstring pipe_name_;
   size_t live_queue_capacity_;
+  uint32_t max_pipe_instances_ = 32;
   std::atomic<bool> running_{false};
   std::thread accept_thread_;
   std::mutex clients_mu_;

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../mcp_client_config_encoder.dart';
 import '../mcp_launch_resolver.dart';
 import '../mcp_paths.dart';
 import 'json_config_editor.dart';
@@ -8,12 +9,16 @@ import 'mcp_client_provider.dart';
 
 /// Cursor global MCP registration (`%USERPROFILE%\.cursor\mcp.json`).
 class CursorMcpProvider implements McpClientProvider {
-  CursorMcpProvider({JsonConfigEditor? editor})
-      : _editor = editor ?? const JsonConfigEditor();
+  CursorMcpProvider({
+    JsonConfigEditor? editor,
+    McpClientConfigEncoder? encoder,
+  })  : _editor = editor ?? const JsonConfigEditor(),
+        _encoder = encoder ?? const McpClientConfigEncoder();
 
   static const serverKey = 'pulse';
 
   final JsonConfigEditor _editor;
+  final McpClientConfigEncoder _encoder;
 
   @override
   McpClientId get id => McpClientId.cursor;
@@ -85,13 +90,7 @@ class CursorMcpProvider implements McpClientProvider {
       final root = await _editor.readOrEmpty(file);
       _editor.ensureMcpServers(root);
       final servers = root['mcpServers'] as Map<String, dynamic>;
-      servers[serverKey] = <String, dynamic>{
-        'command': launch.command,
-        'args': launch.args,
-        'env': <String, String>{
-          // Policy file is SSOT; env left empty so Settings toggle controls enablement.
-        },
-      };
+      servers[serverKey] = _encoder.forAiClient(launch);
       await _editor.writeValidated(file, root);
       await _markRegistration(registered: true, backupPath: backup?.path);
       return McpRegistrationResult(

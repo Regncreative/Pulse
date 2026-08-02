@@ -5,7 +5,7 @@ import { failure, success } from "../src/response/envelope.js";
 describe("response envelope", () => {
   it("success includes observedAt and generatedAt", () => {
     const body = success(
-      "mcp.self",
+      "mcp_self",
       { hello: true },
       {
         mcpVersion: "0.1.0",
@@ -21,7 +21,7 @@ describe("response envelope", () => {
   });
 
   it("failure is structured with code", () => {
-    const body = failure("mcp.self", "POLICY_DISABLED", "off", {
+    const body = failure("mcp_self", "POLICY_DISABLED", "off", {
       policyPath: "x",
     });
     expect(body.ok).toBe(false);

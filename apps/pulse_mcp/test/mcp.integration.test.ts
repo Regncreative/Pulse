@@ -11,7 +11,7 @@ import { createPulseMcpServer } from "../src/server/createServer.js";
 import { getSharedTimelineCache } from "../src/timeline/cache.js";
 
 describe("MCP integration (in-memory)", () => {
-  it("lists M2–M6 tools and mcp.self", async () => {
+  it("lists M2–M6 tools and mcp_self", async () => {
     const session = getSharedIpcSession();
     const health = getSharedHealthCache(session);
     const timeline = getSharedTimelineCache(session);
@@ -35,18 +35,22 @@ describe("MCP integration (in-memory)", () => {
 
     const tools = await client.listTools();
     const names = tools.tools.map((t) => t.name).sort();
-    expect(names).toContain("mcp.self");
-    expect(names).toContain("system.cpu");
-    expect(names).toContain("system.health");
-    expect(names).toContain("system.network");
-    expect(names).toContain("process.list");
-    expect(names).toContain("process.search");
-    expect(names).toContain("process.details");
-    expect(names).toContain("timeline.list");
-    expect(names).toContain("timeline.search");
-    expect(names).toContain("diagnostics.snapshot");
-    expect(names).toContain("service.status");
-    expect(names).toContain("report.export");
+    // Claude Desktop rejects dots: ^[a-zA-Z0-9_-]{1,64}$
+    for (const name of names) {
+      expect(name).toMatch(/^[a-zA-Z0-9_-]{1,64}$/);
+    }
+    expect(names).toContain("mcp_self");
+    expect(names).toContain("system_cpu");
+    expect(names).toContain("system_health");
+    expect(names).toContain("system_network");
+    expect(names).toContain("process_list");
+    expect(names).toContain("process_search");
+    expect(names).toContain("process_details");
+    expect(names).toContain("timeline_list");
+    expect(names).toContain("timeline_search");
+    expect(names).toContain("diagnostics_snapshot");
+    expect(names).toContain("service_status");
+    expect(names).toContain("report_export");
 
     const resources = await client.listResources();
     const uris = resources.resources.map((r) => r.uri);
@@ -55,20 +59,20 @@ describe("MCP integration (in-memory)", () => {
     expect(uris).toContain("pulse://diagnostics/snapshot");
     expect(uris).toContain("pulse://mcp/status");
 
-    const self = await client.callTool({ name: "mcp.self", arguments: {} });
+    const self = await client.callTool({ name: "mcp_self", arguments: {} });
     const text = (self.content as Array<{ text?: string }>)[0]?.text ?? "";
     const body = JSON.parse(text) as {
       ok: boolean;
       data: { capabilities: { tools: string[] } };
     };
     expect(body.ok).toBe(true);
-    expect(body.data.capabilities.tools).toContain("system.cpu");
+    expect(body.data.capabilities.tools).toContain("system_cpu");
 
     await client.close();
     await mcp.close();
   });
 
-  it("system.cpu returns POLICY_DISABLED when off", async () => {
+  it("system_cpu returns POLICY_DISABLED when off", async () => {
     const session = getSharedIpcSession();
     const health = getSharedHealthCache(session);
     const timeline = getSharedTimelineCache(session);
@@ -90,7 +94,7 @@ describe("MCP integration (in-memory)", () => {
       client.connect(clientTransport),
     ]);
     const result = await client.callTool({
-      name: "system.cpu",
+      name: "system_cpu",
       arguments: {},
     });
     expect(result.isError).toBe(true);

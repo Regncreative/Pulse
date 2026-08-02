@@ -31,11 +31,13 @@ Policy file: `%LOCALAPPDATA%\Pulse\mcp\policy.json`
 
 Pulse writes `%USERPROFILE%\.cursor\mcp.json` and merges only the `pulse` server entry. Other MCP servers are left unchanged. A backup `*.pulse-backup-*` is created first.
 
+On Windows, when the Pulse install path contains spaces (default: `C:\Program Files\Pulse\...`), registration uses a `cmd.exe /c` wrapper so Cursor does not split the path at the first space.
+
 Unregister removes the Pulse entry **only if Pulse created it** (tracked in `%LOCALAPPDATA%\Pulse\mcp\client-registrations.json`).
 
 ## Claude Desktop
 
-Same safety model for `%APPDATA%\Claude\claude_desktop_config.json`.
+Same safety model for `%APPDATA%\Claude\claude_desktop_config.json` (including the Windows `cmd.exe /c` wrapper when needed).
 
 ## Troubleshooting
 
@@ -43,6 +45,7 @@ Same safety model for `%APPDATA%\Claude\claude_desktop_config.json`.
 |---------|-----|
 | `POLICY_DISABLED` | Enable Pulse MCP in Settings |
 | Tools missing after upgrade | Re-Register; restart Cursor |
+| `'C:\Program' is not recognized` | Re-Register after upgrading — install path spaces need `cmd.exe /c` wrapper |
 | PulseMCP not found | Reinstall Pulse (Setup must include `PulseMCP.exe` + `runtime\`) |
 | Invalid JSON in Cursor config | Restore `mcp.json.pulse-backup-*` |
 | Service pipe offline | Start PulseService from Diagnostics |

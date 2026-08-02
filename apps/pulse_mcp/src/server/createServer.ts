@@ -224,7 +224,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   opts.health.onSample(onHealthSample);
 
   server.registerTool(
-    "mcp.self",
+    "mcp_self",
     {
       title: "PulseMCP self diagnostics",
       description:
@@ -276,7 +276,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   };
 
   systemTool(
-    "system.health",
+    "system_health",
     "System health snapshot",
     "Full or sectioned health snapshot from Pulse Health Engine (GetHealthSnapshot / cached HealthUpdate). Null when unsupported. Structured JSON only.",
     z.object({
@@ -296,7 +296,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   systemTool(
-    "system.cpu",
+    "system_cpu",
     "CPU metrics",
     "Latest CPU utilization and topology from Pulse Health Engine cache/snapshot. Structured JSON only.",
     z.object({ forceRefresh: z.boolean().optional() }),
@@ -309,7 +309,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   systemTool(
-    "system.memory",
+    "system_memory",
     "Memory metrics",
     "Latest memory metrics from Pulse Health Engine. Structured JSON only.",
     z.object({ forceRefresh: z.boolean().optional() }),
@@ -322,7 +322,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   systemTool(
-    "system.gpu",
+    "system_gpu",
     "GPU metrics",
     "Latest GPU metrics for the primary adapter from Pulse Health Engine. Structured JSON only.",
     z.object({ forceRefresh: z.boolean().optional() }),
@@ -335,7 +335,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   systemTool(
-    "system.storage",
+    "system_storage",
     "Storage metrics",
     "Volumes, physical disk throughput, and storage summary from Pulse Health Engine. Structured JSON only.",
     z.object({ forceRefresh: z.boolean().optional() }),
@@ -348,7 +348,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   systemTool(
-    "system.network",
+    "system_network",
     "Network metrics",
     "Latest network rates and addressing from Pulse Health Engine. Structured JSON only.",
     z.object({ forceRefresh: z.boolean().optional() }),
@@ -377,7 +377,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   });
 
   systemTool(
-    "process.list",
+    "process_list",
     "Process inventory",
     "Filtered process inventory from Pulse Health Engine process stream. Structured JSON only.",
     processFilterSchema,
@@ -397,9 +397,9 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   systemTool(
-    "process.search",
+    "process_search",
     "Process search",
-    "Search process inventory by name/path (required query). Same filters as process.list. Structured JSON only.",
+    "Search process inventory by name/path (required query). Same filters as process_list. Structured JSON only.",
     processFilterSchema.extend({
       query: z.string().min(1),
     }),
@@ -424,7 +424,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   systemTool(
-    "process.details",
+    "process_details",
     "Process details",
     "Detailed process metadata via GetProcessDetails (cmdline redacted). Structured JSON only.",
     z.object({
@@ -537,7 +537,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   };
 
   systemTool(
-    "timeline.list",
+    "timeline_list",
     "Timeline event list",
     "Historical Timeline snapshot from Pulse Timeline Engine (GetTimelineSnapshot). Structured JSON only. Raw XML only when includeRaw=true.",
     z.object({
@@ -570,7 +570,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   systemTool(
-    "timeline.search",
+    "timeline_search",
     "Timeline search",
     "Filter Timeline snapshot client-side (Flutter TimelineQuery semantics). Structured JSON only. Raw XML only when includeRaw=true.",
     z.object({
@@ -607,7 +607,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   systemTool(
-    "diagnostics.snapshot",
+    "diagnostics_snapshot",
     "Diagnostics snapshot",
     "PulseService DiagnosticsSnapshot via GetDiagnosticsSnapshot. Structured JSON only.",
     z.object({ forceRefresh: z.boolean().optional() }),
@@ -620,7 +620,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   systemTool(
-    "service.status",
+    "service_status",
     "PulseService status",
     "PulseService SCM/identity subset from DiagnosticsSnapshot. Not the full Windows Services catalog. Structured JSON only.",
     z.object({ forceRefresh: z.boolean().optional() }),
@@ -633,7 +633,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   server.registerTool(
-    "report.export",
+    "report_export",
     {
       title: "Export Pulse report",
       description:
@@ -666,7 +666,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
       },
     },
     async (args) =>
-      runObservationTool(runtime, "report.export", async () => {
+      runObservationTool(runtime, "report_export", async () => {
         const a = (args ?? {}) as {
           reportType?: string;
           template?: string;

@@ -5,7 +5,7 @@ import { IpcSession } from "../src/ipc/session.js";
 import { MetricsRegistry } from "../src/metrics/metrics.js";
 import { runMcpSelf } from "../src/tools/mcp/self.js";
 
-describe("mcp.self", () => {
+describe("mcp_self", () => {
   it("returns POLICY_DISABLED when policy off", async () => {
     const metrics = new MetricsRegistry();
     const result = await runMcpSelf({
@@ -53,8 +53,8 @@ describe("mcp.self", () => {
       generatedAt: string;
     };
     expect(body.ok).toBe(true);
-    expect(body.data.versions.mcpServer).toBe("0.7.1");
-    expect(body.data.versions.pulseApp).toBe("0.3.1-beta");
+    expect(body.data.versions.mcpServer).toBe("0.7.2");
+    expect(body.data.versions.pulseApp).toBe("0.3.2-beta");
     expect(body.data.versions.ipcProtocol).toBe(1);
     expect(body.data.namespaces).toContain("system");
     expect(body.data.namespaces).toContain("process");
@@ -62,17 +62,17 @@ describe("mcp.self", () => {
     expect(body.data.namespaces).toContain("diagnostics");
     expect(body.data.namespaces).toContain("service");
     expect(body.data.namespaces).toContain("report");
-    expect(body.data.capabilities.tools).toContain("mcp.self");
-    expect(body.data.capabilities.tools).toContain("system.cpu");
-    expect(body.data.capabilities.tools).toContain("process.list");
-    expect(body.data.capabilities.tools).toContain("process.search");
-    expect(body.data.capabilities.tools).toContain("process.details");
-    expect(body.data.capabilities.tools).toContain("timeline.list");
-    expect(body.data.capabilities.tools).toContain("timeline.search");
-    expect(body.data.capabilities.tools).toContain("diagnostics.snapshot");
-    expect(body.data.capabilities.tools).toContain("service.status");
-    expect(body.data.capabilities.tools).toContain("report.export");
-    expect(body.data.capabilities.tools).not.toContain("inventory.services");
+    expect(body.data.capabilities.tools).toContain("mcp_self");
+    expect(body.data.capabilities.tools).toContain("system_cpu");
+    expect(body.data.capabilities.tools).toContain("process_list");
+    expect(body.data.capabilities.tools).toContain("process_search");
+    expect(body.data.capabilities.tools).toContain("process_details");
+    expect(body.data.capabilities.tools).toContain("timeline_list");
+    expect(body.data.capabilities.tools).toContain("timeline_search");
+    expect(body.data.capabilities.tools).toContain("diagnostics_snapshot");
+    expect(body.data.capabilities.tools).toContain("service_status");
+    expect(body.data.capabilities.tools).toContain("report_export");
+    expect(body.data.capabilities.tools).not.toContain("inventory_services");
     expect(body.data.capabilities.reportFormats).toEqual([
       "json",
       "html",

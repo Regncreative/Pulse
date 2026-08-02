@@ -11,7 +11,7 @@ import { ReportExportError } from "../src/report/errors.js";
 import { TempReportStore } from "../src/report/temp.js";
 import { getSharedTimelineCache } from "../src/timeline/cache.js";
 
-describe("report.export unit", () => {
+describe("report_export unit", () => {
   it("rejects invalid report type / format", async () => {
     const session = getSharedIpcSession();
     const deps = {
@@ -29,7 +29,7 @@ describe("report.export unit", () => {
   });
 });
 
-describe("report.export live (soft)", () => {
+describe("report_export live (soft)", () => {
   const tempRoot = path.join(os.tmpdir(), "Pulse", "mcp-reports-test");
   const store = new TempReportStore({ root: tempRoot, ttlMs: 100 });
 
@@ -42,7 +42,7 @@ describe("report.export live (soft)", () => {
     try {
       await session.ensureConnected();
     } catch {
-      console.warn("SKIP report.export live — PulseService not reachable");
+      console.warn("SKIP report_export live — PulseService not reachable");
       return;
     }
 

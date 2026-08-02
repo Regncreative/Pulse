@@ -9,15 +9,17 @@ constexpr const char* kProductName = "Pulse";
 constexpr const char* kServiceName = "PulseService";
 constexpr const char* kServiceDisplayName = "Pulse";
 constexpr const char* kPipeName = "\\\\.\\pipe\\PulseService";
-constexpr const char* kServiceVersion = "0.3.1-beta";
-constexpr const char* kAppVersion = "0.3.1-beta";
+constexpr const char* kServiceVersion = "0.3.2-beta";
+constexpr const char* kAppVersion = "0.3.2-beta";
 
 // Framing: magic "PULS" + uint32 LE length + protobuf payload
 constexpr uint32_t kFrameMagic = 0x50554C53u; // 'P' 'U' 'L' 'S' little-endian as bytes PULS
 constexpr uint32_t kMaxFramePayloadBytes = 2u * 1024u * 1024u; // 2 MB
 
 constexpr uint32_t kProtocolVersion = 1;
-constexpr uint32_t kMaxPipeInstances = 8;
+// UI + status-daemon + Cursor + Claude + headroom. Exhaustion yields
+// CreateFile ERROR_PIPE_BUSY (231) and PulseMCP "IPC timeout connecting".
+constexpr uint32_t kMaxPipeInstances = 32;
 constexpr size_t kDefaultLiveQueueCapacity = 1000;
 
 // Pipe SDDL from architecture doc 05

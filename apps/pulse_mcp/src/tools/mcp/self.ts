@@ -28,7 +28,7 @@ export interface McpSelfContext {
   activeSubscriptions: string[];
 }
 
-/** Shared status payload for mcp.self and pulse://mcp/status. */
+/** Shared status payload for mcp_self and pulse://mcp/status. */
 export async function buildMcpStatus(
   ctx: McpSelfContext,
 ): Promise<{ observedAt: string; data: Record<string, unknown>; ipcLatencyMs: number }> {
@@ -93,7 +93,7 @@ export async function buildMcpStatus(
 }
 
 export async function runMcpSelf(ctx: McpSelfContext) {
-  const tool = "mcp.self";
+  const tool = "mcp_self";
   const started = Date.now();
 
   if (!ctx.policy.enabled) {

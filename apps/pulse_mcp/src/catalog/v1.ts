@@ -1,40 +1,48 @@
+/**
+ * MCP wire tool names.
+ *
+ * Claude Desktop / Anthropic FrontendRemoteMcpToolDefinition require
+ * `^[a-zA-Z0-9_-]{1,64}$` — dots are rejected. Logical namespaces stay
+ * system/process/timeline/…; wire form uses underscores (`system_cpu`).
+ */
+
 /** Registered Inventory MCP tools — schemas exist, handlers disabled until MCP Inventory milestone. */
 export const INVENTORY_TOOLS_REGISTERED = [
-  "inventory.services",
-  "inventory.drivers",
-  "inventory.software",
-  "inventory.usb",
-  "inventory.pci",
-  "inventory.displays",
-  "inventory.audio",
-  "inventory.bluetooth",
-  "inventory.printers",
-  "inventory.battery",
-  "inventory.motherboard",
-  "inventory.bios",
-  "inventory.cpu",
-  "inventory.memory",
-  "inventory.storage",
-  "inventory.network",
+  "inventory_services",
+  "inventory_drivers",
+  "inventory_software",
+  "inventory_usb",
+  "inventory_pci",
+  "inventory_displays",
+  "inventory_audio",
+  "inventory_bluetooth",
+  "inventory_printers",
+  "inventory_battery",
+  "inventory_motherboard",
+  "inventory_bios",
+  "inventory_cpu",
+  "inventory_memory",
+  "inventory_storage",
+  "inventory_network",
 ] as const;
 
 /** Active v1 tools (handlers registered). */
 export const V1_TOOLS = [
-  "mcp.self",
-  "system.health",
-  "system.cpu",
-  "system.memory",
-  "system.gpu",
-  "system.storage",
-  "system.network",
-  "process.list",
-  "process.search",
-  "process.details",
-  "timeline.list",
-  "timeline.search",
-  "diagnostics.snapshot",
-  "service.status",
-  "report.export",
+  "mcp_self",
+  "system_health",
+  "system_cpu",
+  "system_memory",
+  "system_gpu",
+  "system_storage",
+  "system_network",
+  "process_list",
+  "process_search",
+  "process_details",
+  "timeline_list",
+  "timeline_search",
+  "diagnostics_snapshot",
+  "service_status",
+  "report_export",
 ] as const;
 
 export const V1_TOOL_NAMESPACES = [
@@ -82,3 +90,8 @@ export const V1_PROTOCOL_FEATURES = [
 
 export type ToolName = (typeof V1_TOOLS)[number];
 export type InventoryToolName = (typeof INVENTORY_TOOLS_REGISTERED)[number];
+
+/** Normalize legacy dotted names (`system.cpu`) to wire form (`system_cpu`). */
+export function normalizeToolName(name: string): string {
+  return name.replace(/\./g, "_");
+}

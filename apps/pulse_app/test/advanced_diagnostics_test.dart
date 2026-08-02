@@ -51,7 +51,7 @@ Future<(Widget, SettingsController, DiagnosticsController, PulseIpcClient)>
   );
   diagnostics.debugSetSnapshotForTest(
     DiagnosticsSnapshot(
-      serviceVersion: '0.3.1-beta',
+      serviceVersion: '0.3.2-beta',
       protocolVersion: 1,
       serviceStartUnixMs: DateTime.now().millisecondsSinceEpoch,
       serviceUptimeMs: 60000,

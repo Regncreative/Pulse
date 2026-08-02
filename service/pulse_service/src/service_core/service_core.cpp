@@ -119,7 +119,8 @@ void WINAPI ServiceMain(DWORD, LPWSTR*) {
 bool ServiceCore::Initialize(const ServiceConfig& config) {
   config_ = config;
   collector_ = std::make_unique<Collector>();
-  ipc_ = std::make_unique<IpcServer>(config_.pipe_name, config_.live_queue_capacity);
+  ipc_ = std::make_unique<IpcServer>(config_.pipe_name, config_.live_queue_capacity,
+                                     config_.max_pipe_instances);
   EventEnginePlaceholder engine;
   Logger::Instance().Info("ServiceCore",
                           std::string("Initialized placeholder ") + engine.Name());

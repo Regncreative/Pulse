@@ -13,7 +13,7 @@
   PulseService (--install-start), and launches Pulse — no PowerShell.
 #>
 $ErrorActionPreference = "Stop"
-$Version = "0.3.1-beta"
+$Version = "0.3.2-beta"
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $dist = Join-Path $root "dist\Pulse"
 $flutterBin = @(
@@ -213,6 +213,10 @@ if ($LASTEXITCODE -ne 0) { throw "verify_runtime_deps.ps1 failed" }
 Write-Host "==> Verifying PulseMCP without system Node.js"
 & powershell -ExecutionPolicy Bypass -File (Join-Path $root "tools\scripts\verify_pulsemcp_no_system_node.ps1") -PackageDir $dist
 if ($LASTEXITCODE -ne 0) { throw "verify_pulsemcp_no_system_node.ps1 failed" }
+
+Write-Host "==> Verifying PulseMCP under path with spaces (Program Files shape)"
+& powershell -ExecutionPolicy Bypass -File (Join-Path $root "tools\scripts\verify_pulsemcp_spaced_path.ps1") -PackageDir $dist
+if ($LASTEXITCODE -ne 0) { throw "verify_pulsemcp_spaced_path.ps1 failed" }
 
 Write-Host "==> Building Inno Setup installer (no PowerShell for end users)"
 $iscc = @(

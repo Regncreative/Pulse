@@ -1,5 +1,5 @@
 /**
- * M3 validation harness — process.list / search / details over stdio MCP.
+ * M3 validation harness — process_list / search / details over stdio MCP.
  *
  * Usage: npx tsx scripts/validate-m3.mts
  */
@@ -13,9 +13,9 @@ const root = path.resolve(__dirname, "..");
 const entry = path.join(root, "dist", "main.js");
 
 const EXPECTED_PROCESS_TOOLS = [
-  "process.list",
-  "process.search",
-  "process.details",
+  "process_list",
+  "process_search",
+  "process_details",
 ];
 
 type Check = { name: string; ok: boolean; detail?: string };
@@ -69,28 +69,28 @@ async function main(): Promise<void> {
   }
 
   const self = parseToolJson(
-    await client.callTool({ name: "mcp.self", arguments: {} }),
+    await client.callTool({ name: "mcp_self", arguments: {} }),
   );
-  if (self.ok !== true) fail("mcp.self", JSON.stringify(self));
+  if (self.ok !== true) fail("mcp_self", JSON.stringify(self));
   else {
     const data = self.data as Record<string, unknown>;
     const caps = data.capabilities as Record<string, unknown>;
     const toolCaps = caps.tools as string[];
     const namespaces = data.namespaces as string[];
-    if (!namespaces.includes("process")) fail("mcp.self.namespaces", "no process");
-    else pass("mcp.self.namespaces", "process");
+    if (!namespaces.includes("process")) fail("mcp_self.namespaces", "no process");
+    else pass("mcp_self.namespaces", "process");
     for (const t of EXPECTED_PROCESS_TOOLS) {
-      if (!toolCaps.includes(t)) fail(`mcp.self.capabilities:${t}`, "missing");
-      else pass(`mcp.self.capabilities:${t}`);
+      if (!toolCaps.includes(t)) fail(`mcp_self.capabilities:${t}`, "missing");
+      else pass(`mcp_self.capabilities:${t}`);
     }
-    if (data.servicePipeConnected !== true) fail("mcp.self.ipc", "disconnected");
-    else pass("mcp.self.ipc");
+    if (data.servicePipeConnected !== true) fail("mcp_self.ipc", "disconnected");
+    else pass("mcp_self.ipc");
   }
 
-  // process.list
+  // process_list
   const listBody = parseToolJson(
     await client.callTool({
-      name: "process.list",
+      name: "process_list",
       arguments: { limit: 25, sortBy: "cpu", sortDir: "desc" },
     }),
   );
@@ -110,15 +110,15 @@ async function main(): Promise<void> {
     if (typeof row.pid !== "number" || typeof row.id !== "string") {
       throw new Error("row missing pid/id");
     }
-    pass("process.list", `count=${data.count}`);
+    pass("process_list", `count=${data.count}`);
   } catch (err) {
-    fail("process.list", err instanceof Error ? err.message : String(err));
+    fail("process_list", err instanceof Error ? err.message : String(err));
   }
 
-  // process.search
+  // process_search
   const searchBody = parseToolJson(
     await client.callTool({
-      name: "process.search",
+      name: "process_search",
       arguments: { query: "node", limit: 20 },
     }),
   );
@@ -128,15 +128,15 @@ async function main(): Promise<void> {
     assertIsoUtc(data.observedAt, "search.observedAt");
     if (data.query !== "node") throw new Error("query echo mismatch");
     if (typeof data.count !== "number") throw new Error("count missing");
-    pass("process.search", `count=${data.count}`);
+    pass("process_search", `count=${data.count}`);
   } catch (err) {
-    fail("process.search", err instanceof Error ? err.message : String(err));
+    fail("process_search", err instanceof Error ? err.message : String(err));
   }
 
-  // process.details — current node pid
+  // process_details — current node pid
   const detailsBody = parseToolJson(
     await client.callTool({
-      name: "process.details",
+      name: "process_details",
       arguments: { pid: process.pid },
     }),
   );
@@ -148,23 +148,23 @@ async function main(): Promise<void> {
     if (data.commandLine && String(data.commandLine).includes("password=")) {
       throw new Error("unredacted secret pattern in cmdline");
     }
-    pass("process.details", `pid=${data.pid} name=${String(data.name)}`);
+    pass("process_details", `pid=${data.pid} name=${String(data.name)}`);
   } catch (err) {
-    fail("process.details", err instanceof Error ? err.message : String(err));
+    fail("process_details", err instanceof Error ? err.message : String(err));
   }
 
   // PROCESS_NOT_FOUND
   const missing = parseToolJson(
     await client.callTool({
-      name: "process.details",
+      name: "process_details",
       arguments: { pid: 2147483646 },
     }),
   );
   if (missing.ok === false && missing.code === "PROCESS_NOT_FOUND") {
-    pass("process.details.not_found", "PROCESS_NOT_FOUND");
+    pass("process_details.not_found", "PROCESS_NOT_FOUND");
   } else {
     fail(
-      "process.details.not_found",
+      "process_details.not_found",
       `expected PROCESS_NOT_FOUND got ${JSON.stringify(missing)}`,
     );
   }

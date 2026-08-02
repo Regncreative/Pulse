@@ -4,6 +4,7 @@
 
 | Version | Supported |
 | --- | --- |
+| `0.3.2-beta.x` (pre-release) | Yes — best effort |
 | `0.3.1-beta.x` (pre-release) | Yes — best effort |
 | `0.3.0-beta.x` (pre-release) | Yes — best effort |
 | `0.2.1-beta.x` (pre-release) | Yes — best effort |

@@ -1,5 +1,5 @@
 /**
- * M6 validation — report.export all formats, concurrency, temp cleanup.
+ * M6 validation — report_export all formats, concurrency, temp cleanup.
  *
  * Usage: npx tsx scripts/validate-m6.mts
  */
@@ -53,12 +53,12 @@ async function main(): Promise<void> {
   pass("connect");
 
   const tools = await client.listTools();
-  if (tools.tools.some((t) => t.name === "report.export")) {
-    pass("listTools:report.export");
-  } else fail("listTools:report.export", "missing");
+  if (tools.tools.some((t) => t.name === "report_export")) {
+    pass("listTools:report_export");
+  } else fail("listTools:report_export", "missing");
 
   const self = parseToolJson(
-    await client.callTool({ name: "mcp.self", arguments: {} }),
+    await client.callTool({ name: "mcp_self", arguments: {} }),
   );
   try {
     if (self.ok !== true) throw new Error(String(self.code));
@@ -69,15 +69,15 @@ async function main(): Promise<void> {
     }
     const caps = data.capabilities as Record<string, unknown>;
     const toolCaps = caps.tools as string[];
-    if (!toolCaps.includes("report.export")) throw new Error("no report.export");
+    if (!toolCaps.includes("report_export")) throw new Error("no report_export");
     const formats = caps.reportFormats as string[];
     for (const f of ["json", "csv", "html", "pdf", "markdown"]) {
       if (!formats.includes(f)) throw new Error(`missing format ${f}`);
     }
-    pass("mcp.self.capabilities", "0.6.0 + report.export");
+    pass("mcp_self.capabilities", "0.6.0 + report_export");
   } catch (err) {
     fail(
-      "mcp.self.capabilities",
+      "mcp_self.capabilities",
       err instanceof Error ? err.message : String(err),
     );
   }
@@ -87,7 +87,7 @@ async function main(): Promise<void> {
   for (const format of formats) {
     const body = parseToolJson(
       await client.callTool({
-        name: "report.export",
+        name: "report_export",
         arguments: {
           reportType: "health",
           format,
@@ -126,7 +126,7 @@ async function main(): Promise<void> {
   // Large timeline
   const large = parseToolJson(
     await client.callTool({
-      name: "report.export",
+      name: "report_export",
       arguments: {
         reportType: "timeline",
         format: "json",
@@ -152,7 +152,7 @@ async function main(): Promise<void> {
     const settled = await Promise.all(
       [0, 1, 2].map((i) =>
         client.callTool({
-          name: "report.export",
+          name: "report_export",
           arguments: {
             reportType: "diagnostics",
             format: "markdown",
@@ -179,7 +179,7 @@ async function main(): Promise<void> {
   // Temp path + cleanup via tool (server-side TTL). We only verify temp metadata.
   const tempBody = parseToolJson(
     await client.callTool({
-      name: "report.export",
+      name: "report_export",
       arguments: { reportType: "health", format: "json" },
     }),
   );
@@ -200,7 +200,7 @@ async function main(): Promise<void> {
   // Error codes
   const badType = parseToolJson(
     await client.callTool({
-      name: "report.export",
+      name: "report_export",
       arguments: { reportType: "nope", format: "json" },
     }),
   );
@@ -209,7 +209,7 @@ async function main(): Promise<void> {
 
   const badFmt = parseToolJson(
     await client.callTool({
-      name: "report.export",
+      name: "report_export",
       arguments: { reportType: "health", format: "xlsx" },
     }),
   );
@@ -227,7 +227,7 @@ async function main(): Promise<void> {
 
   const diagCsv = parseToolJson(
     await client.callTool({
-      name: "report.export",
+      name: "report_export",
       arguments: { reportType: "diagnostics", format: "csv" },
     }),
   );

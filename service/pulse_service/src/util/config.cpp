@@ -106,7 +106,7 @@ bool WriteDefaultConfigIfMissing(const std::wstring& path, std::string* error) {
   },
   "ipc": {
     "pipe_name": "\\\\.\\pipe\\PulseService",
-    "max_connections": 4,
+    "max_pipe_instances": 32,
     "live_queue_capacity": 1000
   },
   "logging": {
@@ -157,6 +157,29 @@ bool LoadConfig(const std::wstring& path, ServiceConfig* out, std::string* error
     }
     out->pipe_name = Widen(normalized);
   }
+
+  // Prefer max_pipe_instances; accept legacy max_connections key.
+  auto parse_u32 = [&](const char* key, uint32_t* dest) {
+    const std::string pattern = std::string("\"") + key + "\"";
+    const auto pos = json.find(pattern);
+    if (pos == std::string::npos) return;
+    const auto colon = json.find(':', pos);
+    if (colon == std::string::npos) return;
+    size_t i = colon + 1;
+    while (i < json.size() && (json[i] == ' ' || json[i] == '\t')) ++i;
+    if (i >= json.size() || json[i] < '0' || json[i] > '9') return;
+    uint32_t v = 0;
+    while (i < json.size() && json[i] >= '0' && json[i] <= '9') {
+      v = v * 10u + static_cast<uint32_t>(json[i] - '0');
+      ++i;
+    }
+    if (v > 0) *dest = v;
+  };
+  parse_u32("max_pipe_instances", &out->max_pipe_instances);
+  parse_u32("max_connections", &out->max_pipe_instances);
+  if (out->max_pipe_instances < 2) out->max_pipe_instances = 2;
+  if (out->max_pipe_instances > 64) out->max_pipe_instances = 64;
+
   return true;
 }
 

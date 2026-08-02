@@ -506,6 +506,7 @@ Distinct from **Plugin SDK (R13)** (in-process/out-of-process *extensions inside
 | Release | Content |
 |---------|---------|
 | **0.2.1-beta** | R0 + R1 (+ R2/R3 shipped in practice) |
+| **0.3.2-beta** | MCP IPC / Claude Desktop / Store config / tool name wire fix |
 | **0.3.1-beta** | PulseMCP private Node runtime (no system Node.js) |
 | **0.3.0-beta** | MCP M2–M7 productization (AI Integration) |
 | **0.3.5-beta** | R3 Inventory (phased) |

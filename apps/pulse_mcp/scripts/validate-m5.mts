@@ -1,5 +1,5 @@
 /**
- * M5 validation — diagnostics.snapshot / service.status + resources + reconnect.
+ * M5 validation — diagnostics_snapshot / service_status + resources + reconnect.
  *
  * Usage: npx tsx scripts/validate-m5.mts
  */
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
 
   const tools = await client.listTools();
   const names = tools.tools.map((t) => t.name);
-  for (const t of ["diagnostics.snapshot", "service.status"]) {
+  for (const t of ["diagnostics_snapshot", "service_status"]) {
     if (names.includes(t)) pass(`listTools:${t}`);
     else fail(`listTools:${t}`, "missing");
   }
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
   }
 
   const self = parseToolJson(
-    await client.callTool({ name: "mcp.self", arguments: {} }),
+    await client.callTool({ name: "mcp_self", arguments: {} }),
   );
   try {
     if (self.ok !== true) throw new Error(String(self.code));
@@ -82,8 +82,8 @@ async function main(): Promise<void> {
     const caps = data.capabilities as Record<string, unknown>;
     const toolCaps = caps.tools as string[];
     if (
-      !toolCaps.includes("diagnostics.snapshot") ||
-      !toolCaps.includes("service.status")
+      !toolCaps.includes("diagnostics_snapshot") ||
+      !toolCaps.includes("service_status")
     ) {
       throw new Error(toolCaps.join(","));
     }
@@ -95,17 +95,17 @@ async function main(): Promise<void> {
     if (!subCaps.includes(DIAG_URI) || !subCaps.includes(MCP_STATUS_URI)) {
       throw new Error("subscriptions missing");
     }
-    pass("mcp.self.capabilities", "0.5.0 + diagnostics/service");
+    pass("mcp_self.capabilities", "0.5.0 + diagnostics/service");
   } catch (err) {
     fail(
-      "mcp.self.capabilities",
+      "mcp_self.capabilities",
       err instanceof Error ? err.message : String(err),
     );
   }
 
   const diagBody = parseToolJson(
     await client.callTool({
-      name: "diagnostics.snapshot",
+      name: "diagnostics_snapshot",
       arguments: { forceRefresh: true },
     }),
   );
@@ -119,19 +119,19 @@ async function main(): Promise<void> {
       throw new Error("missing service/pipeline/ipc");
     }
     pass(
-      "diagnostics.snapshot",
+      "diagnostics_snapshot",
       `service=${JSON.stringify((d.service as { version?: string }).version)}`,
     );
   } catch (err) {
     fail(
-      "diagnostics.snapshot",
+      "diagnostics_snapshot",
       err instanceof Error ? err.message : String(err),
     );
   }
 
   const svcBody = parseToolJson(
     await client.callTool({
-      name: "service.status",
+      name: "service_status",
       arguments: { forceRefresh: true },
     }),
   );
@@ -143,9 +143,9 @@ async function main(): Promise<void> {
       throw new Error("catalog must be unavailable");
     }
     if (!d.pulseService) throw new Error("missing pulseService");
-    pass("service.status", "PulseService-only + catalog stub");
+    pass("service_status", "PulseService-only + catalog stub");
   } catch (err) {
-    fail("service.status", err instanceof Error ? err.message : String(err));
+    fail("service_status", err instanceof Error ? err.message : String(err));
   }
 
   const diagRead = await client.readResource({ uri: DIAG_URI });
@@ -237,7 +237,7 @@ async function main(): Promise<void> {
     await client2.connect(transport2);
     const again = parseToolJson(
       await client2.callTool({
-        name: "diagnostics.snapshot",
+        name: "diagnostics_snapshot",
         arguments: {},
       }),
     );
