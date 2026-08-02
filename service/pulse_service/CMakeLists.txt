@@ -69,6 +69,7 @@ add_executable(PulseService WIN32
   src/inventory/bios_collector.cpp
   src/inventory/memory_modules_collector.cpp
   src/inventory/cpu_collector.cpp
+  src/inventory/storage_collector.cpp
   src/windows/wevt_helpers.cpp
   src/logging/logger.cpp
   src/util/config.cpp
@@ -324,6 +325,19 @@ target_include_directories(cpu_collector_tests PRIVATE
 )
 target_link_libraries(cpu_collector_tests PRIVATE pulse_wire Advapi32)
 add_test(NAME cpu_collector_tests COMMAND cpu_collector_tests)
+
+add_executable(storage_collector_tests
+  test/storage_collector_test.cpp
+  src/inventory/storage_collector.cpp
+  src/windows/wevt_helpers.cpp
+)
+target_include_directories(storage_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(storage_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32)
+add_test(NAME storage_collector_tests COMMAND storage_collector_tests)
 
 add_executable(inventory_engine_smoke_tests
   test/inventory_engine_smoke_test.cpp
