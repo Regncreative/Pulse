@@ -1,12 +1,11 @@
 # R3 — Inventory Engine Architecture Plan
 
-**Status:** Architecture review complete — **awaiting ADR-011 acceptance**  
-**ADR:** [ADR-011-inventory-engine.md](decisions/ADR-011-inventory-engine.md) (**Proposed**)  
+**Status:** **Approved** — [ADR-011](decisions/ADR-011-inventory-engine.md) **Accepted** (2026-08-02)  
 **Roadmap:** [34-engineering-roadmap.md](34-engineering-roadmap.md) (R3)  
-**Depends on:** R1 complete, R2 frozen (2026-08-02), ADR-010  
+**Depends on:** R1 complete, R2 frozen, ADR-010  
 **Constitution:** Observation only — official Windows APIs; no injection, hooks, registry writes, or invented rows.
 
-**No Inventory implementation code until ADR-011 is Accepted and this plan is Approved.**
+Implementation may proceed under ADR-011. R3 is **complete** only when P0 + P1 + P2 meet ADR-011 § D11.
 
 ---
 

@@ -1,6 +1,6 @@
 # ADR-011: Inventory Engine (R3)
 
-**Status:** Proposed — awaiting maintainer acceptance (no Inventory collector code until Accepted)
+**Status:** **Accepted** (2026-08-02)
 
 **Date:** 2026-08-02
 
@@ -12,418 +12,218 @@
 
 ## Context
 
-Roadmap R3 requires a read-only **Inventory Engine**: Services, Drivers, Installed software, USB, PCI (required), with optional displays/battery and a broader hardware catalog for product completeness.
+Roadmap R3 requires a read-only **Inventory Engine** covering system description domains (services, drivers, software, USB, PCI, and phased hardware catalogs).
 
-Today Pulse already collects overlapping **static / live** hardware facts under **System Health**:
+Today Pulse already collects overlapping **static / live** hardware facts under **System Health** (`HealthStaticInfo`, `HealthSample`, process inventory). Without a clear boundary, R3 risks duplicate collectors and Health cadence bleed into Inventory.
 
-| Area | Where today | Nature |
-|------|-------------|--------|
-| CPU model / topology / caches | `HealthStaticInfo` | Static summary |
-| GPU identity + PCIe link | `HealthStaticInfo` + GPU helpers | Static / semi-static |
-| Memory module **summary** (SMBIOS Type 17 aggregates) | `HealthStaticInfo` | Static summary |
-| Primary disk identity | `HealthStaticInfo` | Static summary |
-| Volumes / physical disks (live sizes) | `HealthSample` | Live metrics |
-| Active network adapter | `HealthStaticInfo` + live net | Live + identity |
-| Process inventory | `HealthProcessInventoryUpdate` | High-frequency |
-
-Without a clear boundary, R3 risks **duplicate collectors**, Health cadence bleed into Inventory, and MCP/UI confusion.
-
-ADR-010 already reserves full Windows service catalog for Inventory and keeps `service.status` as PulseService identity until then.
+ADR-010 reserves the full Windows service catalog for Inventory; `service.status` remains PulseService identity until `inventory.services` ships.
 
 ### Codebase anchors (as of R2 freeze)
 
 | Path | Relevance |
 |------|-----------|
-| `collectors/health_metrics_collector.*` | Health orchestrator (static + 1 Hz sample + process inventory) — **not** Inventory |
-| `collectors/system_overview_info.*` | CPU topology/CPUID, SMBIOS RAM summary, Storage IOCTL disk identity, IP Helper net — **share helpers later**, do not dual-walk on Health tick for Inventory lists |
-| `collectors/gpu_adapter_info.*` | Only SetupAPI usage today (PCIe link); reuse for PCI/display-adapter rows |
-| `collectors/hardware_sensors_collector.*` | SMART/temp into Health sample — stay Health |
-| `diagnostics/service_identity.cpp` | SCM for **PulseService only**; no `EnumServicesStatusEx` machine catalog yet |
-| Reports `hardwareInventory` | Subset of `HealthStaticInfo` only (`report_exporter.dart`) — R4 inventory templates consume Inventory IPC once P0/P2 ship |
+| `collectors/health_metrics_collector.*` | Health orchestrator — **not** Inventory |
+| `collectors/system_overview_info.*` | CPU/SMBIOS/disk/net helpers — share later; no dual Health-tick walks for Inventory lists |
+| `collectors/gpu_adapter_info.*` | SetupAPI PCIe enrichment — reuse for PCI display adapters |
+| `diagnostics/service_identity.cpp` | SCM for **PulseService only** |
+| Reports `hardwareInventory` | Subset of `HealthStaticInfo` — **must migrate** to Inventory SSOT |
 
-No WMI collectors in service today. Doc 33 has **no** `inventory.*` tools registered yet.
+No WMI collectors today. Doc 33 has no `inventory.*` tools yet.
 
 ---
 
 ## Decision
 
-### D1 — Inventory is a separate engine
+### D0 — Descriptive Inventory vs live Health
+
+| Engine | Role |
+|--------|------|
+| **Health** | Live telemetry (rates, samples, process metrics) |
+| **Inventory** | System **description** / configuration catalog |
+
+Inventory is **not** another monitoring engine. No Health timers, no 1 Hz Inventory resources, no live telemetry fields on Inventory objects.
+
+### D1 — Separate engine
 
 ```
 PulseService
-├── Health path (unchanged cadence)     → HealthMetricsCollector, process inventory, ETW net, …
-└── Inventory path (on-demand)          → InventoryEngine + inventory/* collectors
-        └── may call shared read-only helpers (SetupAPI, SMBIOS, SCM enum)
+├── Health path → HealthMetricsCollector, process inventory, ETW net, …
+└── Inventory path → InventoryEngine + one collector per domain
+        └── shared read-only helpers only (SetupAPI, SMBIOS, SCM utilities)
 ```
 
-- Inventory **must not** live inside `HealthMetricsCollector` or Health monitoring loops.
-- Inventory **must not** start on service boot; first work happens on explicit IPC request.
-- Flutter Inventory UI and Reports/MCP consume Inventory IPC only — never call Health collectors directly for catalog rows.
-- Health UI continues to use Health IPC for live metrics; it may **display** inventory-backed detail later by calling Inventory RPCs (optional), but R3 does not merge engines.
+- Not inside Health collectors or monitoring loops.
+- Not on service/app startup — **lazy**, **requested domains only**.
+- UI / Reports / MCP use Inventory IPC only for catalogs.
 
-### D2 — Shared helpers, not shared collectors
+### D2 — Single source of truth per domain
 
-Low-level read-only helpers (e.g. SetupAPI enum wrapper, SMBIOS `GetSystemFirmwareTable('RSMB')` parser, SCM open) may live under `service/pulse_service/src/windows/` or `collectors/common/` and be used by **both** Health and Inventory over time.
+- Exactly **one collector** per domain.
+- Never collect the same membership from multiple APIs unless a **documented primary + fallback** is listed in the domain catalog.
+- Domains own their data models; no cross-domain collector dependencies.
+- Shared **utility libraries** only (not shared collectors).
 
-**Forbidden:** two independent full implementations of the same catalog enumeration that diverge (e.g. two SetupAPI USB walkers). Prefer one helper, two call sites with different projection/filter.
+### D3 — Uniform cache contract (all domains)
 
-**GPU PCI link properties** already in `gpu_adapter_info.cpp` → extract or reuse for PCI inventory rows that match display adapters; do not fork a second PCIe reader.
+| Contract field | Behavior |
+|----------------|----------|
+| `cache_ttl_ms` | Soft TTL (domain-specific value) |
+| `generation` | Monotonic `uint64`; increments on each successful collect that replaces cache |
+| `generated_at_unix_ms` | Collect wall time |
+| Refresh trigger | Cache miss, TTL expiry, or `force_refresh=true` |
+| `force_refresh` | Bypass TTL; re-collect; bump `generation` on success |
+| `since_generation` | Incremental diff when supported and base matches; else full resync |
 
-### D3 — Snapshot-first; no high-frequency Inventory polling
+Semantics identical across domains; only TTL and incremental eligibility differ.
 
-| Mode | R3 |
-|------|-----|
-| Default | Per-domain `Get*Inventory` / `GetInventorySnapshot` request → response |
-| Cache | In-memory per-domain snapshot + `generated_at` + monotonic `generation` |
-| Client refresh | Explicit `force_refresh=true` or TTL expiry (default TTL **60 s** for device catalogs; **30 s** for services state; **300 s** for software) |
-| Live push | **Not required for R3 exit.** No `StartInventoryMonitoring` in v1 success metrics |
-| Health 1 Hz | Inventory never joins Health sample timer |
+### D4 — Additive IPC; structured data only
 
-Idle CPU remains near zero when Inventory UI is closed.
+- Envelope fields **37+**; hand-maintained codecs.
+- **No UI-specific fields. No pre-formatted strings.** Structured data for MCP/UI/Reports.
 
-### D4 — Cache + refresh + incremental when useful
+### D5 — Stable identifiers
 
-Each domain response includes:
+Never use display names as identities.
 
-- `available` / `status` (see D8)
-- `generated_at_unix_ms`, `generation` (uint64)
-- `truncated` + `limit` when capped
-- Optional `delta` when client sends `since_generation` and the domain supports incremental
+| Domain | Stable id |
+|--------|-----------|
+| Services | Service name (SCM key) |
+| Drivers | Driver service key |
+| Software | ProductCode or uninstall registry key |
+| USB / PCI / device classes | Device instance ID / path |
+| Printers | Spooler printer name (documented key) |
+| Motherboard / BIOS / CPU | Singleton ids `motherboard` / `bios` / `cpu` |
+| Memory module | SMBIOS locator/bank |
+| Storage | Disk device id |
+| Network adapter | Interface GUID |
 
-**Incremental policy (per domain):**
-
-| Domain | Incremental? | Mechanism |
-|--------|--------------|-----------|
-| Services | Yes (preferred) | Diff by service name: upserts + removed_names |
-| Drivers / USB / PCI / Displays / Audio / Bluetooth / Printers | Yes when cheap | Diff by device instance id |
-| Software | Full replace default | Registry enum cost; optional later hash of key set |
-| Battery | Full replace | Small N |
-| Motherboard / BIOS / CPU static | Full replace | Tiny |
-| Memory modules / Storage / Network adapters (lists) | Full replace or id-diff | Prefer id-diff when N grows |
-
-If `since_generation` is unknown/stale → **full snapshot** (`full_resync=true`). Never invent removed rows.
-
-### D5 — Additive IPC only
-
-- Extend `pulse.proto` Envelope `oneof` from field **37+** (35/36 = Timeline detail).
-- Hand-maintain C++/Dart wire codecs (repo practice).
-- Old clients ignore unknown fields; missing Inventory RPCs → structured error, not crash.
-- Prefer **per-domain RPCs** for bounded payloads; optional aggregate `GetInventorySnapshot` that fans out to cached domains without re-collecting fresh unless `force_refresh`.
-
-Illustrative (final field numbers in proto comments when implemented):
-
-```text
-GetServicesInventory / ServicesInventory
-GetDriversInventory / DriversInventory
-GetSoftwareInventory / SoftwareInventory
-GetUsbInventory / UsbInventory
-GetPciInventory / PciInventory
-GetInventoryDomain   { domain_id, force_refresh, since_generation, limit, offset }
-GetInventorySnapshot { domains[], force_refresh }  // optional aggregate
-```
-
-### D6 — MCP planned from day one (schemas before tools)
-
-Align with ADR-010:
-
-| Phase | Action |
-|-------|--------|
-| ADR accepted | Document `inventory.*` tool + resource names + JSON schemas in doc 33 (additive) |
-| Collector ships | Wire IPC → PulseMCP tool returns live JSON |
-| Before collector | Tool **unregistered** or returns `available: false` with reason — never fake rows |
-
-Planned tools (observation): `inventory.services`, `inventory.drivers`, `inventory.software`, `inventory.usb`, `inventory.pci`, plus phased domains. Pagination/`limit`/`offset` required (ADR-010).
-
-`service.status` remains PulseService identity until `inventory.services` ships; then catalog stub flips to available and may deep-link.
-
-Resources: Inventory is **not** 1 Hz; optional resource that republishes only when `generation` changes after manual/TTL refresh.
-
-### D7 — UI independent of collectors
-
-```
-InventoryPage → InventorySessionController → PulseIpcClient → Envelope
-```
-
-- No FFI to Win32 from Flutter for catalogs.
-- Client-side search/filter only over received rows.
-- Virtualized lists; lazy details if a future `GetInventoryItemDetail` is added.
-
-### D8 — Graceful “not supported” / unavailable
-
-Every domain response uses an explicit status (wire enum or string code):
+### D6 — Failure model (never silent)
 
 | Status | Meaning |
 |--------|---------|
-| `available` | Rows are best-effort complete for this scope |
-| `unsupported` | Platform/SKU cannot provide this domain (e.g. no battery class) |
-| `access_denied` | API failed for privileges; rows may be empty |
-| `truncated` | Cap hit; `truncated=true` |
-| `error` | Unexpected failure; `error_code` + explainable message |
+| `available` | Success for this scope |
+| `unsupported` | Platform cannot provide domain |
+| `access_denied` | Insufficient privileges |
+| `partial` | Incomplete rows/fields or cap hit (`truncated` flag + `status_detail`) |
+| `error` | Unexpected failure |
 
-UI/MCP show human explanation; **never** invent placeholder devices. Empty + `available` is valid (zero printers).
+### D7 — MCP from day one
 
-### D9 — No startup delay
+Objects designed for `inventory.*` tools. Schemas in doc 33 as domains ship; tools unregistered or `available: false` until collectors exist.
 
-`PulseService` start path does **not** enumerate Inventory domains. Collectors run only on IPC request (or cache fill). Timeouts per domain (suggest **5–15 s** hard cap) with partial results preferred over hanging the pipe.
+### D8 — Reports SSOT
 
-### D10 — Phased domain scope
+Inventory is the **single source** for Hardware / Software / Driver / Service / System inventory reports. Reports **must not** bypass Inventory collectors. Migrate `hardwareInventory` off `HealthStaticInfo` during R3.
 
-#### P0 — Required for R3 roadmap exit (doc 34)
+### D9 — Performance
 
-Services, Drivers (ADR subset), Installed software, USB, PCI.
+Never block startup. Everything lazy. Only requested domains collected. Prefer `partial` over hanging.
 
-#### P1 — Optional same milestone if time-boxed
+### D10 — Testability
 
-Displays, Battery, Audio devices, Bluetooth, Printers.
+Each collector independently testable: unit + mock Win32 seams + golden datasets + integration + wire tests.
 
-#### P2 — Static hardware catalogs (Inventory-owned lists; avoid Health duplication)
+### D11 — R3 complete only when
 
-Motherboard, BIOS, CPU information (static identity/topology list fields), Memory **modules** (per-DIMM list), Storage **devices** (all disks), Network **adapters** (all interfaces).
-
-Implementation rule for P2:
-
-- Prefer **expanding shared SMBIOS / SetupAPI / Storage / IP Helper readers** used to populate Inventory lists.
-- Health keeps **dashboard summaries** (`HealthStaticInfo` / live sample). Do not run Inventory collectors on the Health timer.
-- Over time, HealthStaticInfo may call the same helpers for summaries (refactor), but R3 must not create a second SMBIOS walk on every Health tick.
-
-#### Explicitly out of Inventory Engine
-
-- **Process inventory** — remains Health-only (ADR-009 / existing process path).
-- Live CPU%/GPU%/net bps — Health only.
-- Service start/stop, driver install, software uninstall — never.
+- Every planned domain (P0 + P1 + P2) implemented  
+- Every domain has tests, documentation, MCP-ready schemas  
+- Reports consume Inventory  
+- No duplicate collectors  
+- Release build passes  
+- Performance validation passes  
 
 ---
 
-## Domain catalog (normative for design)
-
-For each domain: intended APIs (Microsoft-documented), permissions, cost, refresh, cache, failure, MCP, reports.
+## Domain catalog
 
 ### Services (P0)
 
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | `OpenSCManagerW` (CONNECT), `EnumServicesStatusExW` (`SERVICE_WIN32`, `SERVICE_STATE_ALL`), `OpenServiceW`, `QueryServiceConfigW`, `QueryServiceConfig2W` (DESCRIPTION) — [EnumServicesStatusExW](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-enumservicesstatusexw) |
-| **Permissions** | Standard user: enumerate + config for most services; some binary paths / accounts may be empty without elevation — omit, do not invent |
-| **Performance** | Medium (hundreds of services); avoid per-service `QueryServiceConfig` storms — batch carefully; cap detail |
-| **Refresh** | On demand; TTL 30 s; incremental by service name |
-| **Cache** | Full list + generation |
-| **Failure** | SCM open fail → `access_denied` / `error` |
-| **MCP** | `inventory.services` |
-| **Reports** | R4 services template |
+| | |
+|--|--|
+| **Primary** | `OpenSCManagerW`, `EnumServicesStatusExW` (`SERVICE_WIN32`, `SERVICE_STATE_ALL`), `QueryServiceConfigW` / `QueryServiceConfig2W` |
+| **Fallback** | None for membership; omit restricted fields → may yield `partial` |
+| **Stable id** | Service name |
+| **TTL** | 30 s |
+| **Incremental** | Yes (by name) |
+| **MCP / Reports** | `inventory.services` / Service Inventory |
 
-### Drivers (P0 — subset)
+### Drivers (P0 — SCM driver subset)
 
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | Primary: `EnumServicesStatusExW` with `SERVICE_DRIVER` **or** SetupAPI present devices with driver metadata via `SetupDiGetDevicePropertyW` / registry properties. Prefer **one** documented subset in user docs: e.g. “kernel + filesystem drivers from SCM” **or** “present devices with driver provider/version”. Do not claim full Driver Store parity. |
-| **Permissions** | Standard user typically OK for SCM driver enum; some image paths restricted |
-| **Performance** | Medium–high; no file version scrape for every row on first paint — lazy detail optional |
-| **Refresh** | On demand; TTL 60 s; incremental by name/instance id |
-| **Cache** | Yes |
-| **Failure** | Partial list + status |
-| **MCP** | `inventory.drivers` |
-| **Reports** | R4 drivers template |
+| | |
+|--|--|
+| **Primary** | `EnumServicesStatusExW` (`SERVICE_DRIVER`) |
+| **Fallback** | SetupAPI driver properties to **enrich** version/provider only (not membership) |
+| **Stable id** | Driver service key |
+| **TTL** | 60 s |
+| **Incremental** | Yes |
+| **Honesty** | Not full Driver Store |
+| **MCP / Reports** | `inventory.drivers` / Driver Inventory |
 
 ### Installed software (P0)
 
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | Read-only registry: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`, `HKLM\SOFTWARE\WOW6432Node\…\Uninstall`, `HKCU\…\Uninstall` via `RegOpenKeyExW` / `RegEnumKeyExW` / `RegQueryValueExW` |
-| **Permissions** | HKLM readable for most; HKCU = current user context of service may **not** mirror interactive user — document: service session vs user hive limits; prefer listing machine-wide + document user-hive gap OR use documented impersonation only if ADR addendum accepts (default R3: **machine-wide + explicit limitation**) |
-| **Performance** | High on busy machines; hard cap (e.g. 2000) + `truncated`; no icon extraction in service |
-| **Refresh** | On demand; TTL 300 s; full replace |
-| **Cache** | Yes |
-| **Failure** | Missing keys → empty section; Store/UWP incomplete → documented limitation, not fake apps |
-| **MCP** | `inventory.software` |
-| **Reports** | R4 software template |
+| | |
+|--|--|
+| **Primary** | HKLM (+ WOW6432Node) Uninstall registry (read-only) |
+| **Fallback** | None; Store/UWP gap documented |
+| **Stable id** | ProductCode or uninstall key |
+| **TTL** | 300 s |
+| **Incremental** | Full replace |
+| **MCP / Reports** | `inventory.software` / Software Inventory |
 
-### PCI devices (P0)
+### PCI (P0)
 
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | SetupAPI: `SetupDiGetClassDevsW` (PCI enumerator / present devices), `SetupDiEnumDeviceInfo`, `SetupDiGetDeviceRegistryPropertyW`, `SetupDiGetDevicePropertyW` (incl. PCI location / IDs where available). Reuse GPU PCIe helpers for matching display adapters. |
-| **Permissions** | Standard user for present devices |
-| **Performance** | Medium; present-only filter |
-| **Refresh** | On demand; TTL 60 s; incremental by instance id |
-| **Cache** | Yes |
-| **Failure** | `unsupported` rare; else `error` / partial |
-| **MCP** | `inventory.pci` |
-| **Reports** | Hardware inventory section |
+| | |
+|--|--|
+| **Primary** | SetupAPI present PCI devices |
+| **Fallback** | Existing GPU PCIe helper for enrichment of matching adapters only |
+| **Stable id** | Device instance ID |
+| **TTL** | 60 s |
+| **Incremental** | Yes |
+| **MCP / Reports** | `inventory.pci` / Hardware Inventory |
 
-### USB devices (P0)
+### USB (P0)
 
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | SetupAPI with USB class/enumerator + CfgMgr32 device IDs as needed (`CM_Get_Device_IDW` family) — Microsoft SetupAPI/CfgMgr docs |
-| **Permissions** | Standard user |
-| **Performance** | Medium; hot-plug → rely on refresh, not continuous watch in R3 |
-| **Refresh** | On demand; TTL 30–60 s; incremental by instance id |
-| **Cache** | Yes |
-| **Failure** | Empty + `available` if none |
-| **MCP** | `inventory.usb` |
-| **Reports** | Hardware section |
+| | |
+|--|--|
+| **Primary** | SetupAPI USB class/enumerator |
+| **Fallback** | CfgMgr32 device ID if instance string empty |
+| **Stable id** | Device instance ID |
+| **TTL** | 60 s |
+| **Incremental** | Yes |
+| **MCP / Reports** | `inventory.usb` / Hardware Inventory |
 
 ### Displays (P1)
 
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | SetupAPI `GUID_DEVCLASS_MONITOR` / display adapters; optional `EnumDisplayDevicesW` for GDI topology — document chosen primary |
-| **Permissions** | Standard user |
-| **Performance** | Low–medium |
-| **Refresh** | On demand; TTL 60 s |
-| **Cache** | Yes |
-| **Failure** | `unsupported` if APIs fail |
-| **MCP** | `inventory.displays` |
-| **Reports** | Optional hardware |
+Primary: SetupAPI monitor/display. Fallback: `EnumDisplayDevicesW` for empty description. Id: instance ID. TTL 60 s. MCP `inventory.displays`.
 
-### Audio devices (P1)
+### Audio (P1)
 
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | SetupAPI audio endpoint / media classes (present devices) |
-| **Permissions** | Standard user |
-| **Performance** | Low |
-| **Refresh** | On demand; TTL 60 s |
-| **Cache** | Yes |
-| **Failure** | Graceful empty / unsupported |
-| **MCP** | `inventory.audio` |
-| **Reports** | Optional |
+Primary: SetupAPI audio/media. No fallback. Id: instance ID. TTL 60 s. MCP `inventory.audio`.
 
 ### Bluetooth (P1)
 
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | SetupAPI Bluetooth class / radio devices (present); no pairing actions |
-| **Permissions** | Standard user; some radios restricted |
-| **Performance** | Low–medium |
-| **Refresh** | On demand; TTL 60 s |
-| **Cache** | Yes |
-| **Failure** | `unsupported` if no BT stack |
-| **MCP** | `inventory.bluetooth` |
-| **Reports** | Optional |
+Primary: SetupAPI Bluetooth. Empty → `unsupported`. Id: instance ID. TTL 60 s. MCP `inventory.bluetooth`.
 
 ### Printers (P1)
 
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | Prefer `EnumPrintersW` (winspool) read-only **or** SetupAPI printers class — pick one in implementation notes |
-| **Permissions** | Standard user |
-| **Performance** | Low |
-| **Refresh** | On demand; TTL 120 s |
-| **Cache** | Yes |
-| **Failure** | Empty list OK |
-| **MCP** | `inventory.printers` |
-| **Reports** | Optional |
+Primary: `EnumPrintersW` (read-only). No fallback. Id: spooler printer name. TTL 120 s. MCP `inventory.printers`.
 
 ### Battery (P1)
 
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | SetupAPI `GUID_DEVCLASS_BATTERY` + `DeviceIoControl` `IOCTL_BATTERY_QUERY_*` ([Enumerating Battery Devices](https://learn.microsoft.com/en-us/windows/win32/power/enumerating-battery-devices)); overview via `GetSystemPowerStatus` for aggregate |
-| **Permissions** | Standard user |
-| **Performance** | Low |
-| **Refresh** | On demand; TTL 30 s (charge changes) — still **not** Health 1 Hz |
-| **Cache** | Short TTL |
-| **Failure** | Desktop without battery → `unsupported` or empty + reason |
-| **MCP** | `inventory.battery` |
-| **Reports** | Optional |
+Primary: SetupAPI battery class + `IOCTL_BATTERY_QUERY_*`. Fallback: `GetSystemPowerStatus` aggregate only (`partial` / id `system_power`). TTL 30 s. MCP `inventory.battery`.
 
-### Motherboard (P2)
+### Motherboard / BIOS / CPU / Memory / Storage / Network (P2)
 
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | SMBIOS via `GetSystemFirmwareTable` provider `RSMB` (Type 2 Baseboard) |
-| **Permissions** | Standard user typically |
-| **Performance** | Low (one firmware table parse) |
-| **Refresh** | Rare; TTL 300 s+ |
-| **Cache** | Long-lived |
-| **Failure** | Parse fail → `unsupported` |
-| **MCP** | `inventory.motherboard` |
-| **Reports** | Hardware cover / identity |
-| **Health overlap** | Do not re-parse SMBIOS on Health tick; share parser helper |
+| Domain | Primary | Fallback | Id | TTL |
+|--------|---------|----------|----|-----|
+| Motherboard | SMBIOS Type 2 via one RSMB read helper | None | `motherboard` | 300 s |
+| BIOS | SMBIOS Type 0 (same helper) | None | `bios` | 300 s |
+| CPU | Shared GLPIEx/CPUID helper (also feeds Health static) | None | `cpu` | 300 s |
+| Memory modules | SMBIOS Type 17 list (same RSMB helper) | None | Locator | 300 s |
+| Storage | Storage/SetupAPI disk identity list | None | Disk device id | 120 s |
+| Network adapters | `GetAdaptersAddresses` | SetupAPI net class enrichment only | Interface GUID | 60 s |
 
-### BIOS (P2)
-
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | SMBIOS Type 0 (BIOS) via same `RSMB` table |
-| **Permissions** | Standard user |
-| **Performance** | Low |
-| **Refresh** | Rare; TTL 300 s+ |
-| **Cache** | Long-lived |
-| **Failure** | `unsupported` |
-| **MCP** | `inventory.bios` |
-| **Reports** | Hardware identity |
-| **Health overlap** | Shared SMBIOS helper |
-
-### CPU information (P2)
-
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | Existing Health paths: `GetLogicalProcessorInformationEx`, CPUID — **project** into Inventory static CPU record; Inventory does not add a second live CPU sampler |
-| **Permissions** | Standard user |
-| **Performance** | Low for static; **zero** Inventory live sampling |
-| **Refresh** | Rare (topology static for session) |
-| **Cache** | Long-lived |
-| **Failure** | Partial fields with has_* |
-| **MCP** | `inventory.cpu` |
-| **Reports** | Cover identity (also Health today) |
-| **Health overlap** | Single helper feeding HealthStaticInfo + Inventory |
-
-### Memory modules (P2)
-
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | SMBIOS Type 17 — **per-module list** (Health today exposes aggregates on `HealthStaticInfo`) |
-| **Permissions** | Standard user |
-| **Performance** | Low |
-| **Refresh** | Rare; TTL 300 s |
-| **Cache** | Long-lived |
-| **Failure** | Empty modules + unsupported |
-| **MCP** | `inventory.memory_modules` |
-| **Reports** | Hardware |
-| **Health overlap** | Shared SMBIOS; Health keeps summary fields |
-
-### Storage devices (P2)
-
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | Storage IOCTL / SetupAPI disk class for **all** disks; volumes remain primarily Health live metrics — Inventory lists disk identity (model, serial, bus) without 1 Hz size polling |
-| **Permissions** | Some serials need elevation — omit when denied |
-| **Performance** | Medium |
-| **Refresh** | On demand; TTL 120 s |
-| **Cache** | Yes |
-| **Failure** | Partial |
-| **MCP** | `inventory.storage` |
-| **Reports** | Hardware |
-| **Health overlap** | Health keeps volume free-space samples; Inventory does not duplicate free-space polling |
-
-### Network adapters (P2)
-
-| Aspect | Decision |
-|--------|----------|
-| **APIs** | IP Helper (`GetAdaptersAddresses`) + SetupAPI for driver metadata — **all adapters** list |
-| **Permissions** | Standard user |
-| **Performance** | Low–medium |
-| **Refresh** | On demand; TTL 60 s |
-| **Cache** | Yes |
-| **Failure** | Partial |
-| **MCP** | `inventory.network_adapters` |
-| **Reports** | Hardware |
-| **Health overlap** | Health keeps active adapter + live throughput; Inventory lists adapters without net bps |
-
----
-
-## PII & privacy
-
-| Sensitive | Policy |
-|-----------|--------|
-| Service account names, binary paths | Include when available; never log to unstructured text logs |
-| Software install paths, publishers | Allowed in IPC; redacted from service logs |
-| Disk / DIMM serials | Allowed in Inventory; treat as sensitive in logs |
-| MAC addresses | Allowed; document for MCP disclosure (ADR-010 privacy) |
-
-No Inventory telemetry. MCP disclosure in Settings when inventory tools enabled (with MCP).
+One SMBIOS firmware table read may project motherboard + BIOS + memory domains (single utility parse; not three independent firmware fetches).
 
 ---
 
@@ -431,33 +231,19 @@ No Inventory telemetry. MCP disclosure in Settings when inventory tools enabled 
 
 | Alternative | Why rejected |
 |-------------|--------------|
-| Fold Inventory into Health monitoring | Couples catalogs to 1 Hz path; startup and idle cost |
-| Duplicate SMBIOS/SetupAPI per feature | Drift and double work |
-| WMI as primary Inventory source | Heavier; deferred unless ADR addendum; prefer Win32 |
-| Continuous device notification threads in R3 | Complexity; refresh-on-demand sufficient for exit |
-| Flutter Win32 inventory | Breaks architecture; privilege and maintenance cost |
+| Inventory as monitoring | Violates descriptive vs telemetry split |
+| Multi-API membership without primary | Duplicate truth |
+| Formatted strings on wire | Breaks MCP / Reports |
+| Reports via HealthStaticInfo forever | Bypasses Inventory SSOT |
+| Collect all domains at startup | Blocks startup |
 
 ---
 
 ## Consequences
 
-### Positive
-
-- Clear engine boundary; roadmap P0 exit without boiling the ocean
-- MCP/report schemas ready before tools light up
-- Honest unsupported/denied states
-- No service-start Inventory tax
-
-### Costs / follow-ups
-
-- P1/P2 domains may ship after P0 inside the same ADR if time-boxed, else backlog tickets referencing this ADR
-- Doc 19 must list only APIs actually linked
-- Doc 33 additive `inventory.*` section when ADR accepted
-- Pipe max instances 4→8 remains ADR-010 follow-up (MCP + UI + Inventory client)
-
-### Implementation gate
-
-**No Inventory collector or Envelope Inventory messages land until this ADR is Accepted** and [39](../39-inventory-engine-r3.md) status is Approved.
+- R3 **complete** bar = P0 + P1 + P2 with tests, docs, MCP schemas, report SSOT, release + perf validation.
+- Implementation may proceed; each domain ships only with D2–D11 compliance.
+- Update doc 19 / 33 as domains land; migrate hardware report to Inventory.
 
 ---
 

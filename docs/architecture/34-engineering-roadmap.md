@@ -222,24 +222,27 @@ flowchart TD
 
 | **Deps** | R1, ADR-011 |
 | **Risk** | High |
-| **Docs** | **[ADR-011](decisions/ADR-011-inventory-engine.md)** (Proposed), 19, 33, **[39-inventory-engine-r3.md](39-inventory-engine-r3.md)** |
+| **Docs** | **[ADR-011](decisions/ADR-011-inventory-engine.md)** (**Accepted**), 19, 33, **[39-inventory-engine-r3.md](39-inventory-engine-r3.md)** |
 
-**Gate:** ADR-011 must be **Accepted** before any Inventory collector or Envelope inventory messages. Architecture review checklist lives in doc 39.
+**Gate:** ADR-011 Accepted. Implement per ADR + doc 39. R3 complete only when ADR-011 § D11 is satisfied (P0–P2, tests, docs, MCP schemas, report SSOT, release + perf).
 
 **Success metrics (all required for “R3 complete”; phases may ship incrementally):**
 
-- [ ] ADR-011 accepted (APIs, PII, refresh, IPC)
-- [ ] **Services** inventory implemented (running and/or installed per ADR scope) and shown in UI
-- [ ] **Drivers** inventory implemented (ADR-defined subset) and shown in UI
+- [x] ADR-011 accepted (APIs, PII, refresh, IPC, SSOT, failure model, MCP, reports, perf, testability)
+- [ ] **Services** inventory implemented and shown in UI
+- [ ] **Drivers** inventory implemented (ADR subset) and shown in UI
 - [ ] **Installed software** inventory implemented (documented limits) and shown in UI
-- [ ] **USB** inventory implemented (official APIs) and shown in UI
-- [ ] **PCI** inventory implemented (official APIs) and shown in UI
-- [ ] IPC messages + Flutter surfaces + MCP-ready schemas for the above
+- [ ] **USB** inventory implemented and shown in UI
+- [ ] **PCI** inventory implemented and shown in UI
+- [ ] **P1 domains** (displays, battery, audio, Bluetooth, printers) implemented per ADR-011
+- [ ] **P2 domains** (motherboard, BIOS, CPU, memory modules, storage, network adapters) implemented per ADR-011
+- [ ] IPC messages + Flutter surfaces + MCP-ready schemas for shipped domains
+- [ ] Reports consume Inventory (Hardware/Software/Driver/Service/System) — no Health bypass
 - [ ] Spot-check validation vs `services.msc` / Device Manager / Apps & Features recorded
-- [ ] Unit + IPC integration tests passing; no invented rows
-- [ ] Documentation updated (ADR-011, user-facing inventory limits, 19 API list)
-
-Optional under same ADR if time-boxed: displays, battery — else explicit backlog items linked to ADR-011.
+- [ ] Unit + IPC integration tests per domain; no invented rows; no duplicate collectors
+- [ ] Performance: lazy start; requested-domain-only; cache contract validated
+- [ ] Release build passes
+- [ ] Documentation updated (ADR-011, user-facing inventory limits, 19 API list, doc 33 schemas)
 
 #### R4 — Reports first-class (L)
 
