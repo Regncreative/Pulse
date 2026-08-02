@@ -11,6 +11,7 @@ import { PulseMcpLogger } from "./logging/logger.js";
 import { MetricsRegistry } from "./metrics/metrics.js";
 import { loadPolicy } from "./policy/policy.js";
 import { createPulseMcpServer } from "./server/createServer.js";
+import { getSharedTimelineCache } from "./timeline/cache.js";
 import { MCP_SERVER_VERSION } from "./version.js";
 
 async function main(): Promise<void> {
@@ -19,13 +20,14 @@ async function main(): Promise<void> {
   const policy = loadPolicy();
   const session = getSharedIpcSession();
   const health = getSharedHealthCache(session);
+  const timeline = getSharedTimelineCache(session);
 
   logger.info("PulseMCP starting", {
     version: MCP_SERVER_VERSION,
     policyEnabled: policy.enabled,
     policyPath: policy.path,
     logPath: logger.logPath,
-    milestone: "M3",
+    milestone: "M4",
   });
 
   if (!policy.enabled) {
@@ -41,6 +43,7 @@ async function main(): Promise<void> {
     logger,
     session,
     health,
+    timeline,
   });
   const transport = new StdioServerTransport();
   metrics.connectedClients = 1;

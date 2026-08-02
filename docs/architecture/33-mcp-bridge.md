@@ -808,7 +808,7 @@ Dev:
 | **M1** | PulseMCP skeleton: version, logging, metrics, stdio, `mcp.self`, policy gate, pipe hello | **Done** (`apps/pulse_mcp`) |
 | **M2** | `system.*` tools + health resources + subscriptions | **Frozen** (2026-08-02) — [archives/mcp-m2-validation.md](archives/mcp-m2-validation.md) |
 | **M3** | `process.list` / `search` / `details` | **Frozen** (2026-08-02) — [archives/mcp-m3-validation.md](archives/mcp-m3-validation.md) |
-| **M4** | `timeline.list` / `timeline.search` + `pulse://timeline/live` | Search filters validated |
+| **M4** | `timeline.list` / `timeline.search` + `pulse://timeline/live` | **Frozen** (2026-08-02) — [archives/mcp-m4-validation.md](archives/mcp-m4-validation.md) |
 | **M5** | `diagnostics.snapshot`, `service.status` | Matches UI diagnostics fields |
 | **M6** | `report.export` (json/html/pdf/md/csv) | Files on disk; tool returns path |
 | **M7** | Flutter MCP Diagnostics UI + installer + pipe max 8 | Three versions visible in UI |

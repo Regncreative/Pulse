@@ -1,5 +1,5 @@
 /**
- * Pulse IPC protobuf codec (hello/ping + Health + process details).
+ * Pulse IPC protobuf codec (hello/ping + Health + process + Timeline).
  * Field numbers match shared/pulse_protocol/proto/pulse.proto.
  */
 
@@ -14,6 +14,16 @@ import type {
   HealthSnapshot,
   ProcessDetails,
 } from "../health/types.js";
+import {
+  decodeTimelineEvent,
+  decodeTimelineEventDetail,
+  decodeTimelineSnapshot,
+} from "../timeline/decode.js";
+import type {
+  TimelineEvent,
+  TimelineEventDetail,
+  TimelineSnapshot,
+} from "../timeline/types.js";
 import {
   Reader,
   writeBytesField,
@@ -81,6 +91,42 @@ export interface ProcessDetailsMsg {
   details: ProcessDetails;
 }
 
+export interface GetTimelineSnapshotMsg {
+  type: "GetTimelineSnapshot";
+  limit: number;
+  channel: string;
+}
+
+export interface TimelineSnapshotMsg {
+  type: "TimelineSnapshot";
+  snapshot: TimelineSnapshot;
+}
+
+export interface LiveTimelineEventMsg {
+  type: "LiveTimelineEvent";
+  event: TimelineEvent;
+}
+
+export interface StartLiveMonitoringMsg {
+  type: "StartLiveMonitoring";
+  channel: string;
+}
+
+export interface StopLiveMonitoringMsg {
+  type: "StopLiveMonitoring";
+}
+
+export interface GetTimelineEventDetailMsg {
+  type: "GetTimelineEventDetail";
+  channel: string;
+  recordId: number;
+}
+
+export interface TimelineEventDetailMsg {
+  type: "TimelineEventDetail";
+  detail: TimelineEventDetail;
+}
+
 export interface ErrorResponseMsg {
   type: "ErrorResponse";
   code: number;
@@ -101,6 +147,13 @@ export type Body =
   | StopHealthMonitoringMsg
   | GetProcessDetailsMsg
   | ProcessDetailsMsg
+  | GetTimelineSnapshotMsg
+  | TimelineSnapshotMsg
+  | LiveTimelineEventMsg
+  | StartLiveMonitoringMsg
+  | StopLiveMonitoringMsg
+  | GetTimelineEventDetailMsg
+  | TimelineEventDetailMsg
   | ErrorResponseMsg;
 
 export interface Envelope {
@@ -129,6 +182,28 @@ function encodeGetProcessDetails(m: GetProcessDetailsMsg): Uint8Array {
   return Uint8Array.from(out);
 }
 
+function encodeGetTimelineSnapshot(m: GetTimelineSnapshotMsg): Uint8Array {
+  const out: number[] = [];
+  writeU64(1, m.limit, out);
+  writeString(2, m.channel, out);
+  return Uint8Array.from(out);
+}
+
+function encodeStartLiveMonitoring(m: StartLiveMonitoringMsg): Uint8Array {
+  const out: number[] = [];
+  writeString(1, m.channel, out);
+  return Uint8Array.from(out);
+}
+
+function encodeGetTimelineEventDetail(
+  m: GetTimelineEventDetailMsg,
+): Uint8Array {
+  const out: number[] = [];
+  writeString(1, m.channel, out);
+  writeU64(2, m.recordId, out);
+  return Uint8Array.from(out);
+}
+
 export function encodeEnvelope(env: Envelope): Uint8Array {
   const out: number[] = [];
   writeU64(1, env.requestId, out);
@@ -138,6 +213,15 @@ export function encodeEnvelope(env: Envelope): Uint8Array {
       break;
     case "Ping":
       writeBytesField(12, encodePing(env.body), out);
+      break;
+    case "GetTimelineSnapshot":
+      writeBytesField(20, encodeGetTimelineSnapshot(env.body), out);
+      break;
+    case "StartLiveMonitoring":
+      writeBytesField(23, encodeStartLiveMonitoring(env.body), out);
+      break;
+    case "StopLiveMonitoring":
+      writeEmptyMessage(24, out);
       break;
     case "GetHealthSnapshot":
       writeEmptyMessage(25, out);
@@ -150,6 +234,9 @@ export function encodeEnvelope(env: Envelope): Uint8Array {
       break;
     case "GetProcessDetails":
       writeBytesField(33, encodeGetProcessDetails(env.body), out);
+      break;
+    case "GetTimelineEventDetail":
+      writeBytesField(35, encodeGetTimelineEventDetail(env.body), out);
       break;
     default:
       throw new Error(`encode not supported for ${env.body.type}`);
@@ -231,6 +318,18 @@ export function decodeEnvelope(data: Uint8Array): Envelope {
         case 13:
           body = decodePong(sub);
           break;
+        case 21:
+          body = {
+            type: "TimelineSnapshot",
+            snapshot: decodeTimelineSnapshot(sub),
+          };
+          break;
+        case 22:
+          body = {
+            type: "LiveTimelineEvent",
+            event: decodeTimelineEvent(sub),
+          };
+          break;
         case 26:
           body = {
             type: "HealthSnapshot",
@@ -250,6 +349,12 @@ export function decodeEnvelope(data: Uint8Array): Envelope {
           body = {
             type: "ProcessDetails",
             details: decodeProcessDetails(sub),
+          };
+          break;
+        case 36:
+          body = {
+            type: "TimelineEventDetail",
+            detail: decodeTimelineEventDetail(sub),
           };
           break;
         case 99:

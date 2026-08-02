@@ -11,7 +11,8 @@ Architecture: [docs/architecture/33-mcp-bridge.md](../../docs/architecture/33-mc
 | **M1** | Shipped — `mcp.self`, policy, hello/ping |
 | **M2** | **Frozen** — `system.*` tools + `pulse://system/*` ([validation](../../docs/architecture/archives/mcp-m2-validation.md)) |
 | **M3** | **Frozen** — `process.list` / `process.search` / `process.details` ([validation](../../docs/architecture/archives/mcp-m3-validation.md)) |
-| M4–M7 | Not started (gated on M3 freeze) |
+| **M4** | **Frozen** — `timeline.list` / `timeline.search` + `pulse://timeline/live` ([validation](../../docs/architecture/archives/mcp-m4-validation.md)) |
+| M5–M7 | Not started (gated on M4 freeze) |
 
 ## M2 tools
 
@@ -34,6 +35,19 @@ Architecture: [docs/architecture/33-mcp-bridge.md](../../docs/architecture/33-mc
 | `process.details` | `GetProcessDetails` (cmdline redacted) |
 
 Stable id = `pid` + `createTime` when known. Inventory fields absent on the wire (`signed`, `hasWindow`, …) return `null` + `unavailable`.
+
+## M4 tools
+
+| Tool | Source |
+|------|--------|
+| `timeline.list` | `GetTimelineSnapshot` (diagnostics channel set) |
+| `timeline.search` | Snapshot + Flutter-aligned client filters |
+
+`includeRaw` defaults **false**. Explicit Security channel requests return `ACCESS_DENIED` when the service account cannot open the Security log (`securityChannelAvailable` reports probe result).
+
+## M4 resources (subscribable)
+
+- `pulse://timeline/live` — `StartLiveMonitoring` while subscribed
 
 ## M2 resources (subscribable)
 

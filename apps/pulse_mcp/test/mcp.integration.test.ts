@@ -7,17 +7,20 @@ import { getSharedIpcSession } from "../src/ipc/session.js";
 import { PulseMcpLogger } from "../src/logging/logger.js";
 import { MetricsRegistry } from "../src/metrics/metrics.js";
 import { createPulseMcpServer } from "../src/server/createServer.js";
+import { getSharedTimelineCache } from "../src/timeline/cache.js";
 
 describe("MCP integration (in-memory)", () => {
-  it("lists M2/M3 tools and mcp.self", async () => {
+  it("lists M2–M4 tools and mcp.self", async () => {
     const session = getSharedIpcSession();
     const health = getSharedHealthCache(session);
+    const timeline = getSharedTimelineCache(session);
     const mcp = createPulseMcpServer({
       metrics: new MetricsRegistry(),
       policy: { enabled: true, path: "test-policy.json" },
       logger: new PulseMcpLogger(),
       session,
       health,
+      timeline,
     });
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
@@ -36,10 +39,13 @@ describe("MCP integration (in-memory)", () => {
     expect(names).toContain("process.list");
     expect(names).toContain("process.search");
     expect(names).toContain("process.details");
+    expect(names).toContain("timeline.list");
+    expect(names).toContain("timeline.search");
 
     const resources = await client.listResources();
     const uris = resources.resources.map((r) => r.uri);
     expect(uris).toContain("pulse://system/cpu");
+    expect(uris).toContain("pulse://timeline/live");
 
     const self = await client.callTool({ name: "mcp.self", arguments: {} });
     const text = (self.content as Array<{ text?: string }>)[0]?.text ?? "";
@@ -57,12 +63,14 @@ describe("MCP integration (in-memory)", () => {
   it("system.cpu returns POLICY_DISABLED when off", async () => {
     const session = getSharedIpcSession();
     const health = getSharedHealthCache(session);
+    const timeline = getSharedTimelineCache(session);
     const mcp = createPulseMcpServer({
       metrics: new MetricsRegistry(),
       policy: { enabled: false, path: "test-policy.json" },
       logger: new PulseMcpLogger(),
       session,
       health,
+      timeline,
     });
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();

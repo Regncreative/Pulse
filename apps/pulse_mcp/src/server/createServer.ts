@@ -28,6 +28,16 @@ import {
   filterSortProcesses,
   mapProcessDetails,
 } from "../process/mappers.js";
+import type { TimelineCache } from "../timeline/cache.js";
+import {
+  mapTimelineEvent,
+  parseAccessibleChannels,
+  securityChannelAvailable,
+} from "../timeline/mappers.js";
+import {
+  filterTimelineEvents,
+  type TimelineSearchFilters,
+} from "../timeline/query.js";
 import { runMcpSelf } from "../tools/mcp/self.js";
 import { runObservationTool, type ToolRuntime } from "../tools/runTool.js";
 import { MCP_SERVER_VERSION } from "../version.js";
@@ -39,7 +49,17 @@ export interface CreateServerOptions {
   logger: PulseMcpLogger;
   session: IpcSession;
   health: HealthCache;
+  timeline: TimelineCache;
 }
+
+const SYSTEM_URIS = new Set([
+  "pulse://system/cpu",
+  "pulse://system/memory",
+  "pulse://system/gpu",
+  "pulse://system/network",
+  "pulse://system/health",
+]);
+const TIMELINE_LIVE_URI = "pulse://timeline/live";
 
 const SYSTEM_RESOURCE_META: Record<
   string,
@@ -65,6 +85,11 @@ const SYSTEM_RESOURCE_META: Record<
     name: "Health",
     description: "Full health snapshot (static + sample) from Pulse Health Engine.",
   },
+  "pulse://timeline/live": {
+    name: "Timeline live",
+    description:
+      "Live TimelineEvent pushes from Pulse Timeline Engine (StartLiveMonitoring).",
+  },
 };
 
 export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
@@ -74,6 +99,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
     logger: opts.logger,
     session: opts.session,
     health: opts.health,
+    timeline: opts.timeline,
   };
 
   const server = new McpServer(
@@ -374,6 +400,167 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
     },
   );
 
+  const enrichRaw = async (
+    events: import("../timeline/types.js").TimelineEvent[],
+    includeRaw: boolean,
+  ) => {
+    if (!includeRaw) {
+      return events.map((e) => mapTimelineEvent(e, { includeRaw: false }));
+    }
+    const out: Record<string, unknown>[] = [];
+    for (const e of events) {
+      let full = e;
+      if (e.channel && e.recordId > 0 && !e.rawXml) {
+        try {
+          const detail = await opts.timeline.getEventDetail(
+            e.channel,
+            e.recordId,
+          );
+          if (detail) full = detail;
+        } catch {
+          // Keep list row without rawXml.
+        }
+      }
+      out.push(mapTimelineEvent(full, { includeRaw: true }));
+    }
+    return out;
+  };
+
+  const runTimelineQuery = async (
+    filters: TimelineSearchFilters & { channelIpc?: string },
+  ) => {
+    const ipcChannel = filters.channelIpc ?? "System";
+    if (
+      ipcChannel.toLowerCase() === "security" ||
+      filters.channel === "security"
+    ) {
+      // Explicit Security intent: try Security-only snapshot first.
+      try {
+        const secSnap = await opts.timeline.getSnapshot({
+          limit: Math.min(filters.limit ?? 100, 500),
+          channel: "Security",
+        });
+        const filtered = filterTimelineEvents(secSnap.events, filters);
+        const limit = Math.min(Math.max(1, filters.limit ?? 50), 500);
+        const offset = Math.max(0, filters.offset ?? 0);
+        const page = filtered.slice(offset, offset + limit);
+        const events = await enrichRaw(page, filters.includeRaw === true);
+        return {
+          observedAt: new Date().toISOString(),
+          count: events.length,
+          truncated: offset + events.length < filtered.length,
+          channels: parseAccessibleChannels(secSnap.channel),
+          securityChannelAvailable: true,
+          includeRaw: filters.includeRaw === true,
+          events,
+        };
+      } catch (err) {
+        if (err instanceof PulseIpcError && err.code === "ACCESS_DENIED") {
+          throw err;
+        }
+        throw new PulseIpcError(
+          "Security Event Log is not accessible under the PulseService account",
+          "ACCESS_DENIED",
+        );
+      }
+    }
+
+    const snap = await opts.timeline.getSnapshot({
+      limit: 500,
+      channel: ipcChannel,
+    });
+    const securityAvailable = securityChannelAvailable(snap.channel);
+    const filtered = filterTimelineEvents(snap.events, filters);
+    const limit = Math.min(Math.max(1, filters.limit ?? 50), 500);
+    const offset = Math.max(0, filters.offset ?? 0);
+    const page = filtered.slice(offset, offset + limit);
+    const events = await enrichRaw(page, filters.includeRaw === true);
+    return {
+      observedAt: new Date().toISOString(),
+      count: events.length,
+      truncated: offset + events.length < filtered.length,
+      channels: parseAccessibleChannels(snap.channel),
+      securityChannelAvailable: securityAvailable,
+      includeRaw: filters.includeRaw === true,
+      events,
+    };
+  };
+
+  systemTool(
+    "timeline.list",
+    "Timeline event list",
+    "Historical Timeline snapshot from Pulse Timeline Engine (GetTimelineSnapshot). Structured JSON only. Raw XML only when includeRaw=true.",
+    z.object({
+      limit: z.number().int().min(1).max(500).optional(),
+      cursor: z.string().optional(),
+      offset: z.number().int().min(0).optional(),
+      includeRaw: z.boolean().optional(),
+      channel: z
+        .enum(["system", "application", "security", "other"])
+        .optional(),
+    }),
+    async (args) => {
+      const a = args as {
+        limit?: number;
+        cursor?: string;
+        offset?: number;
+        includeRaw?: boolean;
+        channel?: TimelineSearchFilters["channel"];
+      };
+      const offset =
+        a.offset ??
+        (a.cursor && /^\d+$/.test(a.cursor) ? Number(a.cursor) : 0);
+      return runTimelineQuery({
+        limit: a.limit ?? 50,
+        offset,
+        includeRaw: a.includeRaw === true,
+        channel: a.channel,
+      });
+    },
+  );
+
+  systemTool(
+    "timeline.search",
+    "Timeline search",
+    "Filter Timeline snapshot client-side (Flutter TimelineQuery semantics). Structured JSON only. Raw XML only when includeRaw=true.",
+    z.object({
+      severity: z
+        .array(
+          z.enum([
+            "info",
+            "warning",
+            "error",
+            "critical",
+            "verbose",
+            "unknown",
+          ]),
+        )
+        .optional(),
+      category: z.string().optional(),
+      process: z.string().optional(),
+      provider: z.string().optional(),
+      eventId: z.number().int().optional(),
+      keyword: z.string().optional(),
+      from: z.string().optional(),
+      to: z.string().optional(),
+      channel: z
+        .enum(["system", "application", "security", "other"])
+        .optional(),
+      computer: z.string().optional(),
+      limit: z.number().int().min(1).max(500).optional(),
+      offset: z.number().int().min(0).optional(),
+      includeRaw: z.boolean().optional(),
+    }),
+    async (args) => {
+      return runTimelineQuery(args as TimelineSearchFilters);
+    },
+  );
+
+  opts.timeline.onLiveEvent((event) => {
+    if (!subscribed.has(TIMELINE_LIVE_URI)) return;
+    void publishIfChanged(TIMELINE_LIVE_URI, mapTimelineEvent(event));
+  });
+
   for (const uri of V1_RESOURCES) {
     const meta = SYSTEM_RESOURCE_META[uri]!;
     server.registerResource(
@@ -395,6 +582,25 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
                   code: "POLICY_DISABLED",
                   message: "Pulse MCP bridge is disabled",
                 }),
+              },
+            ],
+          };
+        }
+        if (uri === TIMELINE_LIVE_URI) {
+          const recent = opts.timeline.recentLiveEvents(1);
+          const payload =
+            recent.length > 0
+              ? mapTimelineEvent(recent[recent.length - 1]!)
+              : {
+                  observedAt: new Date().toISOString(),
+                  note: "No live timeline events received yet. Subscribe to receive pushes.",
+                };
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: "application/json",
+                text: JSON.stringify(payload),
               },
             ],
           };
@@ -438,24 +644,40 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
     if (!opts.policy.enabled) {
       throw new Error("POLICY_DISABLED");
     }
-    const firstSubscriber = subscribed.size === 0;
+    const already = subscribed.has(uri);
     subscribed.add(uri);
-    if (firstSubscriber) {
-      // Start HealthUpdate stream only while ≥1 MCP resource is subscribed.
-      await opts.health.addSubscriber();
+    if (SYSTEM_URIS.has(uri) && !already) {
+      const systemCount = [...subscribed].filter((u) => SYSTEM_URIS.has(u))
+        .length;
+      if (systemCount === 1) {
+        await opts.health.addSubscriber();
+      }
+    }
+    if (uri === TIMELINE_LIVE_URI && !already) {
+      await opts.timeline.addLiveSubscriber();
     }
     opts.logger.info("resource.subscribe", { uri, count: subscribed.size });
     lastPublishedJson.delete(uri);
-    onHealthSample();
+    if (SYSTEM_URIS.has(uri)) onHealthSample();
     return {};
   });
 
   server.server.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
     const uri = request.params.uri;
-    if (subscribed.delete(uri) && subscribed.size === 0) {
-      lastPublishedJson.clear();
-      await opts.health.removeSubscriber();
+    if (!subscribed.delete(uri)) {
+      return {};
     }
+    if (SYSTEM_URIS.has(uri)) {
+      const systemCount = [...subscribed].filter((u) => SYSTEM_URIS.has(u))
+        .length;
+      if (systemCount === 0) {
+        await opts.health.removeSubscriber();
+      }
+    }
+    if (uri === TIMELINE_LIVE_URI) {
+      await opts.timeline.removeLiveSubscriber();
+    }
+    if (subscribed.size === 0) lastPublishedJson.clear();
     opts.logger.info("resource.unsubscribe", { uri, count: subscribed.size });
     return {};
   });

@@ -19,7 +19,9 @@ export type IpcErrorCode =
   | "TIMEOUT"
   | "INTERNAL_ERROR"
   | "PROCESS_NOT_FOUND"
-  | "INVALID_ARGUMENT";
+  | "INVALID_ARGUMENT"
+  | "ACCESS_DENIED"
+  | "NOT_SUPPORTED";
 
 export class PulseIpcError extends Error {
   constructor(

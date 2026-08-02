@@ -52,20 +52,27 @@ describe("mcp.self", () => {
       generatedAt: string;
     };
     expect(body.ok).toBe(true);
-    expect(body.data.versions.mcpServer).toBe("0.3.0");
+    expect(body.data.versions.mcpServer).toBe("0.4.0");
     expect(body.data.versions.pulseApp).toBe("0.2.1-beta");
     expect(body.data.versions.ipcProtocol).toBe(1);
     expect(body.data.namespaces).toContain("system");
     expect(body.data.namespaces).toContain("process");
+    expect(body.data.namespaces).toContain("timeline");
     expect(body.data.capabilities.tools).toContain("mcp.self");
     expect(body.data.capabilities.tools).toContain("system.cpu");
     expect(body.data.capabilities.tools).toContain("process.list");
     expect(body.data.capabilities.tools).toContain("process.search");
     expect(body.data.capabilities.tools).toContain("process.details");
+    expect(body.data.capabilities.tools).toContain("timeline.list");
+    expect(body.data.capabilities.tools).toContain("timeline.search");
     expect(body.data.capabilities.tools).not.toContain("inventory.services");
     expect(body.data.capabilities.resources).toContain("pulse://system/cpu");
+    expect(body.data.capabilities.resources).toContain("pulse://timeline/live");
     expect(body.data.capabilities.subscriptions).toContain(
       "pulse://system/cpu",
+    );
+    expect(body.data.capabilities.subscriptions).toContain(
+      "pulse://timeline/live",
     );
     expect(body.data.capabilities.protocolFeatures).toContain(
       "resource_subscriptions",

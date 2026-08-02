@@ -30,12 +30,15 @@ export const V1_TOOLS = [
   "process.list",
   "process.search",
   "process.details",
+  "timeline.list",
+  "timeline.search",
 ] as const;
 
 export const V1_TOOL_NAMESPACES = [
   "mcp",
   "system",
   "process",
+  "timeline",
 ] as const;
 
 export const V1_RESOURCES = [
@@ -44,9 +47,10 @@ export const V1_RESOURCES = [
   "pulse://system/gpu",
   "pulse://system/network",
   "pulse://system/health",
+  "pulse://timeline/live",
 ] as const;
 
-/** Subscribable resource URIs (same set for M2 health). */
+/** Subscribable resource URIs (health + timeline live). */
 export const V1_SUBSCRIPTIONS = [...V1_RESOURCES] as const;
 
 export const V1_REPORT_FORMATS = [

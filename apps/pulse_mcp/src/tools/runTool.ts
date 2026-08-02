@@ -9,6 +9,7 @@ import {
   type ToolErrorCode,
 } from "../response/envelope.js";
 import { PulseIpcError, type IpcSession } from "../ipc/session.js";
+import type { TimelineCache } from "../timeline/cache.js";
 import {
   IPC_PROTOCOL_VERSION,
   MCP_SERVER_VERSION,
@@ -20,6 +21,7 @@ export interface ToolRuntime {
   logger: PulseMcpLogger;
   session: IpcSession;
   health: HealthCache;
+  timeline: TimelineCache;
 }
 
 export async function runObservationTool(
@@ -93,16 +95,17 @@ function mapError(err: unknown): {
   details: Record<string, unknown>;
 } {
   if (err instanceof PulseIpcError) {
-    const code: ToolErrorCode =
-      err.code === "SERVICE_UNAVAILABLE"
-        ? "SERVICE_UNAVAILABLE"
-        : err.code === "TIMEOUT"
-          ? "TIMEOUT"
-          : err.code === "PROCESS_NOT_FOUND"
-            ? "PROCESS_NOT_FOUND"
-            : err.code === "INVALID_ARGUMENT"
-              ? "INVALID_ARGUMENT"
-              : "INTERNAL_ERROR";
+    const allowed: ToolErrorCode[] = [
+      "SERVICE_UNAVAILABLE",
+      "TIMEOUT",
+      "PROCESS_NOT_FOUND",
+      "INVALID_ARGUMENT",
+      "ACCESS_DENIED",
+      "NOT_SUPPORTED",
+    ];
+    const code: ToolErrorCode = allowed.includes(err.code as ToolErrorCode)
+      ? (err.code as ToolErrorCode)
+      : "INTERNAL_ERROR";
     return { code, message: err.message, details: {} };
   }
   return {
