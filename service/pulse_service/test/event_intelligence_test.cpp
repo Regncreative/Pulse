@@ -142,6 +142,48 @@ int main() {
     assert(insight.summary.find("Second line") == std::string::npos);
   }
 
+  // R2 expansions — spot-check Microsoft-documented IDs.
+  {
+    ipc::TimelineEvent e;
+    e.provider_name = "Display";
+    e.win_event_id = 4101;
+    const auto insight = engine.Analyze(e);
+    assert(insight.title == "Display Driver Reset");
+    assert(insight.action_required == true);
+    assert(insight.category == InsightCategory::Driver);
+  }
+  {
+    ipc::TimelineEvent e;
+    e.provider_name = "Service Control Manager";
+    e.win_event_id = 7000;
+    const auto insight = engine.Analyze(e);
+    assert(insight.title == "Windows Service Failed to Start");
+    assert(insight.action_required == true);
+  }
+  {
+    ipc::TimelineEvent e;
+    e.provider_name = "Microsoft-Windows-DNS-Client";
+    e.win_event_id = 1014;
+    const auto insight = engine.Analyze(e);
+    assert(insight.title == "DNS Name Resolution Timed Out");
+  }
+  {
+    ipc::TimelineEvent e;
+    e.provider_name = "Microsoft-Windows-Windows Defender";
+    e.win_event_id = 1116;
+    const auto insight = engine.Analyze(e);
+    assert(insight.title == "Windows Defender Detected Malware");
+    assert(insight.importance == Importance::Critical);
+  }
+  {
+    ipc::TimelineEvent e;
+    e.provider_name = "Microsoft-Windows-NTFS";
+    e.win_event_id = 55;
+    const auto insight = engine.Analyze(e);
+    assert(insight.title == "NTFS Structure Corruption Detected");
+    assert(insight.importance == Importance::Critical);
+  }
+
   std::cout << "event_intelligence_tests OK\n";
   return 0;
 }

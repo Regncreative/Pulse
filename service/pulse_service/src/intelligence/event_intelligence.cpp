@@ -219,6 +219,154 @@ constexpr IntelligenceRule kRules[] = {
     {4634, "Security-Auditing", "User Signed Out",
      "A user account signed out (logon session ended).", "", false,
      Importance::Low, InsightCategory::Security},
+
+    // --- R2 expansions (Microsoft-documented Event IDs) ---
+    {4101, "Display", "Display Driver Reset",
+     "The display driver stopped responding and Windows recovered it (TDR).",
+     "Note the driver name in the message. Update GPU drivers and check "
+     "thermals if this repeats.",
+     true, Importance::High, InsightCategory::Driver},
+
+    {7000, "Service Control Manager", "Windows Service Failed to Start",
+     "A Windows service failed to start.",
+     "Open the service name from the event and check its dependencies and "
+     "recent software changes.",
+     true, Importance::High, InsightCategory::Service},
+
+    {7009, "Service Control Manager", "Windows Service Start Timed Out",
+     "A Windows service did not respond within the expected start timeout.",
+     "Look for disk or dependency delays around the same time.", true,
+     Importance::Medium, InsightCategory::Service},
+
+    {7011, "Service Control Manager", "Windows Service Timed Out",
+     "A Windows service did not respond to a control request in time.",
+     "Repeated timeouts for the same service warrant further investigation.",
+     true, Importance::Medium, InsightCategory::Service},
+
+    {7022, "Service Control Manager", "Windows Service Hung on Start",
+     "A Windows service hung while starting.",
+     "Check the service executable and recent updates.", true,
+     Importance::High, InsightCategory::Service},
+
+    {7024, "Service Control Manager", "Windows Service Reported a Specific Error",
+     "A Windows service exited with a service-specific error code.",
+     "Read the error code in the event details.", true, Importance::High,
+     InsightCategory::Service},
+
+    {7026, "Service Control Manager", "Windows Service Boot Driver Issue",
+     "At least one boot-start or system-start driver failed to load.",
+     "Review Device Manager and recent driver installs.", true,
+     Importance::High, InsightCategory::Driver},
+
+    {55, "Ntfs", "NTFS Structure Corruption Detected",
+     "NTFS detected corruption on a volume and may have repaired metadata.",
+     "Back up important data and run chkdsk when safe if this repeats.", true,
+     Importance::Critical, InsightCategory::Storage},
+
+    {50, "Ntfs", "Delayed Write Failed",
+     "Windows could not write file data to storage (delayed write failed).",
+     "Check disk health, cable/power, and free space.", true,
+     Importance::High, InsightCategory::Storage},
+
+    {7, "Ntfs", "NTFS Reported a Bad Cluster",
+     "NTFS reported a bad cluster on a volume.",
+     "Back up data and check the drive health tools for that volume.", true,
+     Importance::High, InsightCategory::Storage},
+
+    {1014, "DNS-Client", "DNS Name Resolution Timed Out",
+     "Windows timed out resolving a DNS name.",
+     "Check network connectivity and DNS server settings.", false,
+     Importance::Medium, InsightCategory::Network},
+
+    {1001, "Dhcp-Client", "DHCP Lease Acquisition Issue",
+     "The DHCP client reported a problem obtaining or renewing a lease.",
+     "Check the network adapter link and DHCP server availability.", true,
+     Importance::Medium, InsightCategory::Network},
+
+    {8001, "WLAN-AutoConfig", "Wireless Network Disconnected",
+     "The wireless connection was disconnected.", "", false, Importance::Low,
+     InsightCategory::Network},
+
+    {8002, "WLAN-AutoConfig", "Wireless Connection Attempt Failed",
+     "A wireless connection attempt failed.",
+     "Verify SSID credentials and radio interference.", false,
+     Importance::Medium, InsightCategory::Network},
+
+    {8003, "WLAN-AutoConfig", "Wireless Network Connected",
+     "The wireless adapter connected to a network.", "", false,
+     Importance::Low, InsightCategory::Network},
+
+    {36887, "Schannel", "Schannel Received a Fatal Alert",
+     "A TLS/SSL fatal alert was received while negotiating a secure channel.",
+     "Inspect the alert code and the remote endpoint if a service is failing.",
+     true, Importance::Medium, InsightCategory::Network},
+
+    {36874, "Schannel", "Schannel Could Not Create Credentials",
+     "Schannel could not create credentials required for a secure connection.",
+     "Check certificate stores and clock skew.", true, Importance::Medium,
+     InsightCategory::Network},
+
+    {2004, "Resource-Exhaustion-Detector", "Windows Is Low on Virtual Memory",
+     "Windows detected that the system is low on committed virtual memory.",
+     "Close memory-heavy apps and check for leaks if this repeats.", true,
+     Importance::High, InsightCategory::General},
+
+    {100, "Diagnostics-Performance", "Boot Performance Degraded",
+     "Windows recorded that boot performance was degraded.",
+     "Review the boot details and recently installed startup programs.", false,
+     Importance::Medium, InsightCategory::Boot},
+
+    {1129, "GroupPolicy", "Group Policy Processing Failed",
+     "Group Policy processing failed for a user or computer.",
+     "Check network connectivity to domain controllers if this is a domain "
+     "joined PC.",
+     true, Importance::Medium, InsightCategory::Security},
+
+    {4625, "Security-Auditing", "Sign-In Failed",
+     "An account failed to sign in.",
+     "Repeated failures may indicate a mistyped password or attack attempt.",
+     true, Importance::Medium, InsightCategory::Security},
+
+    {4648, "Security-Auditing", "Explicit Credentials Sign-In",
+     "A logon was attempted using explicit credentials.", "", false,
+     Importance::Low, InsightCategory::Security},
+
+    {4720, "Security-Auditing", "User Account Created",
+     "A user account was created.", "", false, Importance::Medium,
+     InsightCategory::Security},
+
+    {4732, "Security-Auditing", "Member Added to Security Group",
+     "A member was added to a security-enabled local group.", "", false,
+     Importance::Medium, InsightCategory::Security},
+
+    {1102, "Security-Auditing", "Audit Log Cleared",
+     "The audit log was cleared.",
+     "Confirm this was an expected administrative action.", true,
+     Importance::High, InsightCategory::Security},
+
+    {1116, "Windows Defender", "Windows Defender Detected Malware",
+     "Microsoft Defender Antivirus detected malware or other potentially "
+     "unwanted software.",
+     "Open Windows Security to review the detection and recommended actions.",
+     true, Importance::Critical, InsightCategory::Security},
+
+    {1117, "Windows Defender", "Windows Defender Took Action on Malware",
+     "Microsoft Defender Antivirus took action to protect this machine.",
+     "Review the action result in Windows Security.", true, Importance::High,
+     InsightCategory::Security},
+
+    {104, "EventLog", "Event Log Cleared",
+     "An Event Log was cleared.",
+     "Confirm this was an expected administrative action.", true,
+     Importance::Medium, InsightCategory::General},
+
+    {6009, "EventLog", "Windows Version at Boot",
+     "Windows recorded operating system version information at boot.", "",
+     false, Importance::Low, InsightCategory::Boot},
+
+    {6013, "EventLog", "System Uptime Reported",
+     "Windows reported how long the system has been running.", "", false,
+     Importance::Low, InsightCategory::Boot},
 };
 
 bool ContainsIgnoreCase(std::string_view haystack, std::string_view needle) {
