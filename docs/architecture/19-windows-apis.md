@@ -58,6 +58,12 @@ Observation-only. Linked as domains ship. Primary APIs:
 | Bluetooth | SetupAPI class `Bluetooth`; empty → `unsupported` |
 | Printers | `EnumPrintersW` (`PRINTER_ENUM_LOCAL \| PRINTER_ENUM_CONNECTIONS`), level 2, read-only |
 | Battery | SetupAPI class `Battery` + `IOCTL_BATTERY_QUERY_*` via `GUID_DEVINTERFACE_BATTERY`; fallback `GetSystemPowerStatus` (`partial`, id `system_power`) |
+| Motherboard | `GetSystemFirmwareTable('RSMB')` shared helper; SMBIOS Type 2 (Baseboard Information); singleton id `motherboard` |
+| Bios | `GetSystemFirmwareTable('RSMB')` shared helper; SMBIOS Type 0 (BIOS Information); singleton id `bios` |
+| Cpu | Registry `ProcessorNameString` + `GetLogicalProcessorInformationEx` (topology/cache) + `__cpuid` (vendor/instruction set); singleton id `cpu`; same identity patterns as `collectors/system_overview_info.cpp` `EnrichCpuOverview` (no merge with Health) |
+| MemoryModules | `GetSystemFirmwareTable('RSMB')` shared helper; SMBIOS Type 17 (Memory Device) per slot; id = Device Locator string |
+| Storage | `SetupDiGetClassDevsW`/`SetupDiEnumDeviceInterfaces` via `GUID_DEVINTERFACE_DISK` + `\\.\PhysicalDriveN` + `IOCTL_STORAGE_QUERY_PROPERTY` / `IOCTL_STORAGE_GET_DEVICE_NUMBER` / `IOCTL_DISK_GET_LENGTH_INFO` / `IOCTL_DISK_GET_DRIVE_GEOMETRY_EX` / `IOCTL_DISK_GET_DRIVE_LAYOUT_EX`; identity only, not live SMART telemetry |
+| NetworkAdapters | `GetAdaptersAddresses` primary; Network Adapters class registry (`NetCfgInstanceId` match) for driver provider/version/date enrichment only; id = AdapterName GUID string |
 
 See [ADR-011](decisions/ADR-011-inventory-engine.md) for full domain catalog, fallbacks, and permissions.
 

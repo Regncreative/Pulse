@@ -17,6 +17,12 @@ int main() {
       pulse::ipc::InventoryDomainId::Bluetooth,
       pulse::ipc::InventoryDomainId::Printers,
       pulse::ipc::InventoryDomainId::Battery,
+      pulse::ipc::InventoryDomainId::Motherboard,
+      pulse::ipc::InventoryDomainId::Bios,
+      pulse::ipc::InventoryDomainId::Cpu,
+      pulse::ipc::InventoryDomainId::MemoryModules,
+      pulse::ipc::InventoryDomainId::Storage,
+      pulse::ipc::InventoryDomainId::NetworkAdapters,
   };
 
   for (const auto domain : domains) {
@@ -38,11 +44,15 @@ int main() {
                 << " SKIP access_denied\n";
       continue;
     }
-    // Bluetooth/Battery may be unsupported on some machines — still valid.
+    // Bluetooth/Battery/SMBIOS-backed P2 domains may be unsupported on some
+    // machines (e.g. VMs without SMBIOS) — still valid.
     if (snap.status == pulse::ipc::InventoryStatus::Unsupported &&
         domain != pulse::ipc::InventoryDomainId::Bluetooth &&
         domain != pulse::ipc::InventoryDomainId::Battery &&
-        domain != pulse::ipc::InventoryDomainId::Displays) {
+        domain != pulse::ipc::InventoryDomainId::Displays &&
+        domain != pulse::ipc::InventoryDomainId::Motherboard &&
+        domain != pulse::ipc::InventoryDomainId::Bios &&
+        domain != pulse::ipc::InventoryDomainId::MemoryModules) {
       std::cerr << "domain " << static_cast<unsigned>(domain)
                 << " unexpectedly unsupported\n";
       return 2;
@@ -60,7 +70,10 @@ int main() {
                          snap.software.size() + snap.usb.size() +
                          snap.pci.size() + snap.displays.size() +
                          snap.audio.size() + snap.bluetooth.size() +
-                         snap.printers.size() + snap.batteries.size();
+                         snap.printers.size() + snap.batteries.size() +
+                         snap.motherboard.size() + snap.bios.size() +
+                         snap.cpu.size() + snap.memory_modules.size() +
+                         snap.storage.size() + snap.network_adapters.size();
     std::cout << "domain=" << static_cast<unsigned>(domain)
               << " status=" << static_cast<unsigned>(snap.status)
               << " count=" << count << " gen=" << snap.generation

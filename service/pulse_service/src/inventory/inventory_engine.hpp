@@ -46,6 +46,12 @@ class InventoryEngine {
   ipc::InventoryDomainSnapshot CollectBluetooth(std::uint32_t limit);
   ipc::InventoryDomainSnapshot CollectPrinters(std::uint32_t limit);
   ipc::InventoryDomainSnapshot CollectBattery(std::uint32_t limit);
+  ipc::InventoryDomainSnapshot CollectMotherboard();
+  ipc::InventoryDomainSnapshot CollectBios();
+  ipc::InventoryDomainSnapshot CollectCpu();
+  ipc::InventoryDomainSnapshot CollectMemoryModules(std::uint32_t limit);
+  ipc::InventoryDomainSnapshot CollectStorage(std::uint32_t limit);
+  ipc::InventoryDomainSnapshot CollectNetworkAdapters(std::uint32_t limit);
   ipc::InventoryDomainSnapshot MakeUnsupported(
       ipc::InventoryDomainId domain, std::uint32_t ttl_ms) const;
   ipc::InventoryDomainSnapshot ServeCachedOrCollect(
@@ -63,6 +69,12 @@ class InventoryEngine {
   CachedDomain bluetooth_;
   CachedDomain printers_;
   CachedDomain battery_;
+  CachedDomain motherboard_;
+  CachedDomain bios_;
+  CachedDomain cpu_;
+  CachedDomain memory_modules_;
+  CachedDomain storage_;
+  CachedDomain network_adapters_;
   std::uint64_t next_generation_ = 1;
 };
 

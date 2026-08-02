@@ -2,13 +2,19 @@
 
 #include "inventory/audio_collector.hpp"
 #include "inventory/battery_collector.hpp"
+#include "inventory/bios_collector.hpp"
 #include "inventory/bluetooth_collector.hpp"
+#include "inventory/cpu_collector.hpp"
 #include "inventory/displays_collector.hpp"
 #include "inventory/drivers_collector.hpp"
+#include "inventory/memory_modules_collector.hpp"
+#include "inventory/motherboard_collector.hpp"
+#include "inventory/network_adapters_collector.hpp"
 #include "inventory/pci_collector.hpp"
 #include "inventory/printers_collector.hpp"
 #include "inventory/services_collector.hpp"
 #include "inventory/software_collector.hpp"
+#include "inventory/storage_collector.hpp"
 #include "inventory/usb_collector.hpp"
 
 #include <chrono>
@@ -191,6 +197,93 @@ ipc::InventoryDomainSnapshot InventoryEngine::CollectBattery(
   return snap;
 }
 
+ipc::InventoryDomainSnapshot InventoryEngine::CollectMotherboard() {
+  const auto collected = MotherboardCollector::Collect();
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Motherboard;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.motherboard = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = MotherboardCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
+ipc::InventoryDomainSnapshot InventoryEngine::CollectBios() {
+  const auto collected = BiosCollector::Collect();
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Bios;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.bios = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = BiosCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
+ipc::InventoryDomainSnapshot InventoryEngine::CollectCpu() {
+  const auto collected = CpuCollector::Collect();
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Cpu;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.cpu = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = CpuCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
+ipc::InventoryDomainSnapshot InventoryEngine::CollectMemoryModules(
+    std::uint32_t limit) {
+  const auto collected = MemoryModulesCollector::Collect(limit);
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::MemoryModules;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.memory_modules = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = MemoryModulesCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
+ipc::InventoryDomainSnapshot InventoryEngine::CollectStorage(
+    std::uint32_t limit) {
+  const auto collected = StorageCollector::Collect(limit);
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Storage;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.storage = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = StorageCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
+ipc::InventoryDomainSnapshot InventoryEngine::CollectNetworkAdapters(
+    std::uint32_t limit) {
+  const auto collected = NetworkAdaptersCollector::Collect(limit);
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::NetworkAdapters;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.network_adapters = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = NetworkAdaptersCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
 ipc::InventoryDomainSnapshot InventoryEngine::CollectFresh(
     const CollectRequest& request) {
   switch (request.domain) {
@@ -215,12 +308,17 @@ ipc::InventoryDomainSnapshot InventoryEngine::CollectFresh(
     case ipc::InventoryDomainId::Battery:
       return CollectBattery(request.limit);
     case ipc::InventoryDomainId::Motherboard:
+      return CollectMotherboard();
     case ipc::InventoryDomainId::Bios:
+      return CollectBios();
     case ipc::InventoryDomainId::Cpu:
+      return CollectCpu();
     case ipc::InventoryDomainId::MemoryModules:
+      return CollectMemoryModules(request.limit);
     case ipc::InventoryDomainId::Storage:
+      return CollectStorage(request.limit);
     case ipc::InventoryDomainId::NetworkAdapters:
-      return MakeUnsupported(request.domain, 60'000);
+      return CollectNetworkAdapters(request.limit);
     case ipc::InventoryDomainId::Unspecified:
     default: {
       ipc::InventoryDomainSnapshot snap;
@@ -257,6 +355,18 @@ InventoryEngine::CachedDomain* InventoryEngine::CacheFor(
       return &printers_;
     case ipc::InventoryDomainId::Battery:
       return &battery_;
+    case ipc::InventoryDomainId::Motherboard:
+      return &motherboard_;
+    case ipc::InventoryDomainId::Bios:
+      return &bios_;
+    case ipc::InventoryDomainId::Cpu:
+      return &cpu_;
+    case ipc::InventoryDomainId::MemoryModules:
+      return &memory_modules_;
+    case ipc::InventoryDomainId::Storage:
+      return &storage_;
+    case ipc::InventoryDomainId::NetworkAdapters:
+      return &network_adapters_;
     default:
       return nullptr;
   }

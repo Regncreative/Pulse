@@ -70,6 +70,7 @@ add_executable(PulseService WIN32
   src/inventory/memory_modules_collector.cpp
   src/inventory/cpu_collector.cpp
   src/inventory/storage_collector.cpp
+  src/inventory/network_adapters_collector.cpp
   src/windows/wevt_helpers.cpp
   src/logging/logger.cpp
   src/util/config.cpp
@@ -339,6 +340,18 @@ target_include_directories(storage_collector_tests PRIVATE
 target_link_libraries(storage_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32)
 add_test(NAME storage_collector_tests COMMAND storage_collector_tests)
 
+add_executable(network_adapters_collector_tests
+  test/network_adapters_collector_test.cpp
+  src/inventory/network_adapters_collector.cpp
+)
+target_include_directories(network_adapters_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(network_adapters_collector_tests PRIVATE pulse_wire Advapi32 iphlpapi ws2_32)
+add_test(NAME network_adapters_collector_tests COMMAND network_adapters_collector_tests)
+
 add_executable(inventory_engine_smoke_tests
   test/inventory_engine_smoke_test.cpp
   src/inventory/inventory_engine.cpp
@@ -353,6 +366,13 @@ add_executable(inventory_engine_smoke_tests
   src/inventory/printers_collector.cpp
   src/inventory/battery_collector.cpp
   src/inventory/setupapi_device_enumerator.cpp
+  src/inventory/smbios_table.cpp
+  src/inventory/motherboard_collector.cpp
+  src/inventory/bios_collector.cpp
+  src/inventory/memory_modules_collector.cpp
+  src/inventory/cpu_collector.cpp
+  src/inventory/storage_collector.cpp
+  src/inventory/network_adapters_collector.cpp
   src/windows/wevt_helpers.cpp
 )
 target_include_directories(inventory_engine_smoke_tests PRIVATE
@@ -360,7 +380,7 @@ target_include_directories(inventory_engine_smoke_tests PRIVATE
   "${PULSE_ROOT}/shared/pulse_protocol/cpp"
   "${PULSE_ROOT}/shared/pulse_common/include"
 )
-target_link_libraries(inventory_engine_smoke_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32 winspool)
+target_link_libraries(inventory_engine_smoke_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32 winspool iphlpapi ws2_32)
 add_test(NAME inventory_engine_smoke_tests COMMAND inventory_engine_smoke_tests)
 
 add_executable(ipc_client_thread_lifetime_test
