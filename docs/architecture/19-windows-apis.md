@@ -42,6 +42,18 @@ Same as before for SCM, `CreateNamedPipe`, IOCP, token SID checks — see prior 
 
 ---
 
+## R3 — Inventory Engine (ADR-011)
+
+Observation-only. Linked as domains ship. Primary APIs:
+
+| Domain | Primary APIs |
+|--------|----------------|
+| Services | `OpenSCManagerW`, `EnumServicesStatusExW`, `OpenServiceW`, `QueryServiceConfigW`, `QueryServiceConfig2W` |
+
+See [ADR-011](decisions/ADR-011-inventory-engine.md) for full domain catalog, fallbacks, and permissions.
+
+---
+
 ## Explicitly Never Used
 
 Hooks, injection, remote thread, registry writes, undocumented Nt* for collection, legacy `ReadEventLog` as primary path.

@@ -52,6 +52,8 @@ add_executable(PulseService WIN32
   src/collectors/system_overview_info.cpp
   src/collectors/process_metrics.cpp
   src/diagnostics/service_identity.cpp
+  src/inventory/inventory_engine.cpp
+  src/inventory/services_collector.cpp
   src/windows/wevt_helpers.cpp
   src/logging/logger.cpp
   src/util/config.cpp
@@ -119,6 +121,19 @@ target_include_directories(event_intelligence_tests PRIVATE
 )
 target_link_libraries(event_intelligence_tests PRIVATE pulse_wire)
 add_test(NAME event_intelligence_tests COMMAND event_intelligence_tests)
+
+add_executable(services_collector_tests
+  test/services_collector_test.cpp
+  src/inventory/services_collector.cpp
+  src/windows/wevt_helpers.cpp
+)
+target_include_directories(services_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(services_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi)
+add_test(NAME services_collector_tests COMMAND services_collector_tests)
 
 add_executable(ipc_client_thread_lifetime_test
   test/ipc_client_thread_lifetime_test.cpp

@@ -2,6 +2,7 @@
 
 #include "collectors/event_log_subscriber.hpp"
 #include "collectors/health_metrics_collector.hpp"
+#include "inventory/inventory_engine.hpp"
 #include "pulse_wire.hpp"
 
 #include <atomic>
@@ -114,6 +115,8 @@ class IpcServer {
   uint64_t prev_ipc_msgs_total_ = 0;
   uint64_t prev_ipc_bytes_total_ = 0;
   uint64_t prev_ipc_rate_tick_ms_ = 0;
+
+  inventory::InventoryEngine inventory_engine_;
 };
 
 }  // namespace pulse

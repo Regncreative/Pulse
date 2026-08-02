@@ -573,6 +573,20 @@ void IpcServer::HandleEnvelope(const std::shared_ptr<ClientConnection>& conn,
     return;
   }
 
+  if (std::holds_alternative<ipc::GetInventoryDomain>(env.body)) {
+    const auto& req = std::get<ipc::GetInventoryDomain>(env.body);
+    inventory::CollectRequest creq;
+    creq.domain = req.domain;
+    creq.force_refresh = req.force_refresh;
+    creq.since_generation = req.since_generation;
+    creq.limit = req.limit;
+    ipc::Envelope reply;
+    reply.request_id = env.request_id;
+    reply.body = inventory_engine_.GetDomain(creq);
+    WriteEnvelopeLocked(conn, reply);
+    return;
+  }
+
   if (std::holds_alternative<ipc::GetTimelineEventDetail>(env.body)) {
     const auto& req = std::get<ipc::GetTimelineEventDetail>(env.body);
     if (req.channel.empty() || req.record_id == 0) {

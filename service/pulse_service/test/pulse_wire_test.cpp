@@ -446,6 +446,66 @@ int main() {
     return 11;
   }
 
+  GetInventoryDomain get_inv;
+  get_inv.domain = InventoryDomainId::Services;
+  get_inv.force_refresh = true;
+  get_inv.limit = 50;
+  Envelope get_inv_env;
+  get_inv_env.request_id = 37;
+  get_inv_env.body = get_inv;
+  std::vector<uint8_t> get_inv_payload;
+  if (!EncodeEnvelope(get_inv_env, &get_inv_payload)) {
+    std::cerr << "GetInventoryDomain encode failed\n";
+    return 37;
+  }
+  Envelope get_inv_decoded;
+  if (!DecodeEnvelope(get_inv_payload.data(), get_inv_payload.size(),
+                      &get_inv_decoded) ||
+      !std::holds_alternative<GetInventoryDomain>(get_inv_decoded.body) ||
+      std::get<GetInventoryDomain>(get_inv_decoded.body).domain !=
+          InventoryDomainId::Services ||
+      !std::get<GetInventoryDomain>(get_inv_decoded.body).force_refresh) {
+    std::cerr << "GetInventoryDomain decode failed\n";
+    return 37;
+  }
+
+  InventoryDomainSnapshot catalog_snap;
+  catalog_snap.domain = InventoryDomainId::Services;
+  catalog_snap.status = InventoryStatus::Available;
+  catalog_snap.generation = 9;
+  catalog_snap.cache_ttl_ms = 30000;
+  catalog_snap.full_resync = true;
+  InventoryServiceEntry svc;
+  svc.id = "EventLog";
+  svc.display_name = "Windows Event Log";
+  svc.state = "running";
+  svc.start_type = "automatic";
+  catalog_snap.services.push_back(svc);
+  Envelope catalog_env;
+  catalog_env.request_id = 38;
+  catalog_env.body = catalog_snap;
+  std::vector<uint8_t> catalog_payload;
+  if (!EncodeEnvelope(catalog_env, &catalog_payload)) {
+    std::cerr << "InventoryDomainSnapshot encode failed\n";
+    return 38;
+  }
+  Envelope catalog_decoded;
+  if (!DecodeEnvelope(catalog_payload.data(), catalog_payload.size(),
+                      &catalog_decoded) ||
+      !std::holds_alternative<InventoryDomainSnapshot>(catalog_decoded.body)) {
+    std::cerr << "InventoryDomainSnapshot decode failed\n";
+    return 38;
+  }
+  const auto& catalog_out =
+      std::get<InventoryDomainSnapshot>(catalog_decoded.body);
+  if (catalog_out.services.size() != 1 ||
+      catalog_out.services[0].id != "EventLog" ||
+      catalog_out.generation != 9 ||
+      catalog_out.status != InventoryStatus::Available) {
+    std::cerr << "InventoryDomainSnapshot payload mismatch\n";
+    return 38;
+  }
+
   std::cout << "pulse_wire_tests OK\n";
   return 0;
 }

@@ -543,6 +543,65 @@ struct DiagnosticsSnapshot {
 
 struct InjectDiagnosticsTestEvent {};
 
+// R3 Inventory Engine (ADR-011)
+enum class InventoryDomainId : uint32_t {
+  Unspecified = 0,
+  Services = 1,
+  Drivers = 2,
+  Software = 3,
+  Usb = 4,
+  Pci = 5,
+  Displays = 6,
+  Audio = 7,
+  Bluetooth = 8,
+  Printers = 9,
+  Battery = 10,
+  Motherboard = 11,
+  Bios = 12,
+  Cpu = 13,
+  MemoryModules = 14,
+  Storage = 15,
+  NetworkAdapters = 16,
+};
+
+enum class InventoryStatus : uint32_t {
+  Unspecified = 0,
+  Available = 1,
+  Unsupported = 2,
+  AccessDenied = 3,
+  Partial = 4,
+  Error = 5,
+};
+
+struct InventoryServiceEntry {
+  std::string id;
+  std::string display_name;
+  std::string state;
+  std::string start_type;
+  std::string account;
+  std::string binary_path;
+  std::string description;
+};
+
+struct GetInventoryDomain {
+  InventoryDomainId domain = InventoryDomainId::Unspecified;
+  bool force_refresh = false;
+  uint64_t since_generation = 0;
+  uint32_t limit = 0;
+};
+
+struct InventoryDomainSnapshot {
+  InventoryDomainId domain = InventoryDomainId::Unspecified;
+  InventoryStatus status = InventoryStatus::Unspecified;
+  std::string status_detail;
+  bool truncated = false;
+  uint64_t generation = 0;
+  int64_t generated_at_unix_ms = 0;
+  bool full_resync = true;
+  uint32_t cache_ttl_ms = 0;
+  std::vector<InventoryServiceEntry> services;
+};
+
 struct Envelope {
   uint64_t request_id = 0;
   std::variant<std::monostate, ClientHello, ServerHello, Ping, Pong, Heartbeat,
@@ -552,7 +611,8 @@ struct Envelope {
                StopHealthMonitoring, GetDiagnosticsSnapshot,
                DiagnosticsSnapshot, InjectDiagnosticsTestEvent,
                GetProcessDetails, ProcessDetails, GetTimelineEventDetail,
-               TimelineEventDetail, ErrorResponse>
+               TimelineEventDetail, GetInventoryDomain, InventoryDomainSnapshot,
+               ErrorResponse>
       body;
 };
 

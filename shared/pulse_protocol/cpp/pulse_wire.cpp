@@ -186,6 +186,44 @@ std::vector<uint8_t> EncodeTimelineEventDetail(const TimelineEventDetail& m) {
   return out;
 }
 
+std::vector<uint8_t> EncodeInventoryServiceEntry(const InventoryServiceEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.display_name, &out);
+  WriteString(3, m.state, &out);
+  WriteString(4, m.start_type, &out);
+  WriteString(5, m.account, &out);
+  WriteString(6, m.binary_path, &out);
+  WriteString(7, m.description, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeGetInventoryDomain(const GetInventoryDomain& m) {
+  std::vector<uint8_t> out;
+  WriteU32(1, static_cast<uint32_t>(m.domain), &out);
+  WriteBool(2, m.force_refresh, &out);
+  WriteU64(3, m.since_generation, &out);
+  WriteU32(4, m.limit, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeInventoryDomainSnapshot(
+    const InventoryDomainSnapshot& m) {
+  std::vector<uint8_t> out;
+  WriteU32(1, static_cast<uint32_t>(m.domain), &out);
+  WriteU32(2, static_cast<uint32_t>(m.status), &out);
+  WriteString(3, m.status_detail, &out);
+  WriteBool(4, m.truncated, &out);
+  WriteU64(5, m.generation, &out);
+  WriteI64(6, m.generated_at_unix_ms, &out);
+  WriteBool(7, m.full_resync, &out);
+  WriteU32(8, m.cache_ttl_ms, &out);
+  for (const auto& e : m.services) {
+    WriteBytesField(10, EncodeInventoryServiceEntry(e), &out);
+  }
+  return out;
+}
+
 std::vector<uint8_t> EncodeGetTimelineSnapshot(const GetTimelineSnapshot& m) {
   std::vector<uint8_t> out;
   WriteU32(1, m.limit, &out);
@@ -989,6 +1027,124 @@ bool DecodeTimelineEventDetail(const uint8_t* data, size_t len,
       if (!ReadVarint(p, end, &blen)) return false;
       if (p + blen > end) return false;
       if (!DecodeTimelineEvent(p, static_cast<size_t>(blen), &m->event)) return false;
+      p += static_cast<size_t>(blen);
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeInventoryServiceEntry(const uint8_t* data, size_t len,
+                                 InventoryServiceEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->display_name)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->state)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->start_type)) return false;
+    } else if (field == 5 && wire == 2) {
+      if (!DecodeString(p, end, &m->account)) return false;
+    } else if (field == 6 && wire == 2) {
+      if (!DecodeString(p, end, &m->binary_path)) return false;
+    } else if (field == 7 && wire == 2) {
+      if (!DecodeString(p, end, &m->description)) return false;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeGetInventoryDomain(const uint8_t* data, size_t len,
+                              GetInventoryDomain* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->domain = static_cast<InventoryDomainId>(static_cast<uint32_t>(v));
+    } else if (field == 2 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->force_refresh = v != 0;
+    } else if (field == 3 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->since_generation = v;
+    } else if (field == 4 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->limit = static_cast<uint32_t>(v);
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeInventoryDomainSnapshot(const uint8_t* data, size_t len,
+                                   InventoryDomainSnapshot* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->domain = static_cast<InventoryDomainId>(static_cast<uint32_t>(v));
+    } else if (field == 2 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->status = static_cast<InventoryStatus>(static_cast<uint32_t>(v));
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->status_detail)) return false;
+    } else if (field == 4 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->truncated = v != 0;
+    } else if (field == 5 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->generation = v;
+    } else if (field == 6 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->generated_at_unix_ms = static_cast<int64_t>(v);
+    } else if (field == 7 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->full_resync = v != 0;
+    } else if (field == 8 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->cache_ttl_ms = static_cast<uint32_t>(v);
+    } else if (field == 10 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryServiceEntry entry;
+      if (!DecodeInventoryServiceEntry(p, static_cast<size_t>(blen), &entry)) {
+        return false;
+      }
+      m->services.push_back(std::move(entry));
       p += static_cast<size_t>(blen);
     } else if (!SkipField(wire, p, end)) {
       return false;
@@ -2587,6 +2743,14 @@ bool EncodeEnvelope(const Envelope& env, std::vector<uint8_t>* out) {
   } else if (std::holds_alternative<TimelineEventDetail>(env.body)) {
     WriteBytesField(
         36, EncodeTimelineEventDetail(std::get<TimelineEventDetail>(env.body)), out);
+  } else if (std::holds_alternative<GetInventoryDomain>(env.body)) {
+    WriteBytesField(
+        37, EncodeGetInventoryDomain(std::get<GetInventoryDomain>(env.body)), out);
+  } else if (std::holds_alternative<InventoryDomainSnapshot>(env.body)) {
+    WriteBytesField(
+        38,
+        EncodeInventoryDomainSnapshot(std::get<InventoryDomainSnapshot>(env.body)),
+        out);
   } else if (std::holds_alternative<ErrorResponse>(env.body)) {
     WriteBytesField(99, EncodeError(std::get<ErrorResponse>(env.body)), out);
   }
@@ -2613,7 +2777,8 @@ bool DecodeEnvelope(const uint8_t* data, size_t len, Envelope* out) {
                 field == 23 || field == 24 || field == 25 || field == 26 ||
                 field == 27 || field == 28 || field == 29 || field == 30 ||
                 field == 31 || field == 32 || field == 33 || field == 34 ||
-                field == 35 || field == 36 || field == 99)) {
+                field == 35 || field == 36 || field == 37 || field == 38 ||
+                field == 99)) {
       uint64_t blen = 0;
       if (!ReadVarint(p, end, &blen)) return false;
       if (p + blen > end) return false;
@@ -2710,6 +2875,18 @@ bool DecodeEnvelope(const uint8_t* data, size_t len, Envelope* out) {
       } else if (field == 36) {
         TimelineEventDetail m;
         if (!DecodeTimelineEventDetail(sub, static_cast<size_t>(blen), &m)) {
+          return false;
+        }
+        out->body = std::move(m);
+      } else if (field == 37) {
+        GetInventoryDomain m;
+        if (!DecodeGetInventoryDomain(sub, static_cast<size_t>(blen), &m)) {
+          return false;
+        }
+        out->body = std::move(m);
+      } else if (field == 38) {
+        InventoryDomainSnapshot m;
+        if (!DecodeInventoryDomainSnapshot(sub, static_cast<size_t>(blen), &m)) {
           return false;
         }
         out->body = std::move(m);

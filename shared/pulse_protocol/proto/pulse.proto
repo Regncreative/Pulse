@@ -9,6 +9,7 @@ package pulse.ipc;
 // TASK-005: Event Intelligence (importance, action_required, category).
 // TASK-006: Live Monitoring (EvtSubscribe push).
 // R2: additive TimelineEvent Wevtapi system fields + lazy GetTimelineEventDetail.
+// R3: additive Inventory Engine GetInventoryDomain / InventoryDomainSnapshot (ADR-011).
 option csharp_namespace = "Pulse.Ipc";
 
 message ClientHello {
@@ -583,6 +584,69 @@ message DiagnosticsSnapshot {
 // Client → Service: push one synthetic Pulse.Diagnostics TimelineEvent (no Event Log write).
 message InjectDiagnosticsTestEvent {}
 
+// ---------------------------------------------------------------------------
+// R3 Inventory Engine (ADR-011) — system description catalogs (not live Health).
+// Structured fields only; no UI-formatted strings. Envelope fields 37 / 38.
+// ---------------------------------------------------------------------------
+
+enum InventoryDomainId {
+  INVENTORY_DOMAIN_UNSPECIFIED = 0;
+  INVENTORY_DOMAIN_SERVICES = 1;
+  INVENTORY_DOMAIN_DRIVERS = 2;
+  INVENTORY_DOMAIN_SOFTWARE = 3;
+  INVENTORY_DOMAIN_USB = 4;
+  INVENTORY_DOMAIN_PCI = 5;
+  INVENTORY_DOMAIN_DISPLAYS = 6;
+  INVENTORY_DOMAIN_AUDIO = 7;
+  INVENTORY_DOMAIN_BLUETOOTH = 8;
+  INVENTORY_DOMAIN_PRINTERS = 9;
+  INVENTORY_DOMAIN_BATTERY = 10;
+  INVENTORY_DOMAIN_MOTHERBOARD = 11;
+  INVENTORY_DOMAIN_BIOS = 12;
+  INVENTORY_DOMAIN_CPU = 13;
+  INVENTORY_DOMAIN_MEMORY_MODULES = 14;
+  INVENTORY_DOMAIN_STORAGE = 15;
+  INVENTORY_DOMAIN_NETWORK_ADAPTERS = 16;
+}
+
+enum InventoryStatus {
+  INVENTORY_STATUS_UNSPECIFIED = 0;
+  INVENTORY_STATUS_AVAILABLE = 1;
+  INVENTORY_STATUS_UNSUPPORTED = 2;
+  INVENTORY_STATUS_ACCESS_DENIED = 3;
+  INVENTORY_STATUS_PARTIAL = 4;
+  INVENTORY_STATUS_ERROR = 5;
+}
+
+message InventoryServiceEntry {
+  string id = 1;              // stable: SCM service name
+  string display_name = 2;
+  string state = 3;
+  string start_type = 4;
+  string account = 5;
+  string binary_path = 6;
+  string description = 7;
+}
+
+message GetInventoryDomain {
+  InventoryDomainId domain = 1;
+  bool force_refresh = 2;
+  uint64 since_generation = 3;
+  uint32 limit = 4;           // 0 = collector default
+}
+
+message InventoryDomainSnapshot {
+  InventoryDomainId domain = 1;
+  InventoryStatus status = 2;
+  string status_detail = 3;
+  bool truncated = 4;
+  uint64 generation = 5;
+  int64 generated_at_unix_ms = 6;
+  bool full_resync = 7;
+  uint32 cache_ttl_ms = 8;
+  repeated InventoryServiceEntry services = 10;
+}
+
 message Envelope {
   uint64 request_id = 1; // 0 = server push
   oneof body {
@@ -608,6 +672,8 @@ message Envelope {
     ProcessDetails process_details = 34;
     GetTimelineEventDetail get_timeline_event_detail = 35;
     TimelineEventDetail timeline_event_detail = 36;
+    GetInventoryDomain get_inventory_domain = 37;
+    InventoryDomainSnapshot inventory_domain_snapshot = 38;
     ErrorResponse error = 99;
   }
 }
