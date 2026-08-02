@@ -12,5 +12,6 @@
 | [ADR-008](ADR-008-hot-cold-live-queues.md) | Hot/Cold Path + Per-Connection Live Queues | Accepted |
 | [ADR-009](ADR-009-health-network-etw.md) | Health per-process network via scoped ETW | Accepted |
 | [ADR-010](ADR-010-mcp-first-class-product.md) | PulseMCP first-class MCP product | Accepted |
+| [ADR-011](ADR-011-inventory-engine.md) | Inventory Engine (R3) | **Proposed** |
 
 To change a locked decision, add a new ADR that references the original.

@@ -66,7 +66,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 36 | [Timeline Intelligence (R2)](36-timeline-intelligence-r2.md) | Flagship Timeline plan — incidents, RCA, details, export |
 | 37 | [Timeline correlation rules](37-timeline-correlation-rules.md) | Documented Event ID correlation / RCA rules |
 | 38 | [Intelligence rule inventory](38-timeline-intelligence-rules-inventory.md) | Pre-R2 38 → R2 **68** catalog |
-| 39 | [Inventory Engine (R3) plan](39-inventory-engine-r3.md) | Draft — awaiting ADR-011 + approval; no code yet |
+| 39 | [Inventory Engine (R3) plan](39-inventory-engine-r3.md) | Architecture review done; awaits ADR-011 acceptance |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 

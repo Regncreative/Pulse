@@ -222,7 +222,9 @@ flowchart TD
 
 | **Deps** | R1, ADR-011 |
 | **Risk** | High |
-| **Docs** | ADR-011, 19, 33, **[39-inventory-engine-r3.md](39-inventory-engine-r3.md)** (draft plan) |
+| **Docs** | **[ADR-011](decisions/ADR-011-inventory-engine.md)** (Proposed), 19, 33, **[39-inventory-engine-r3.md](39-inventory-engine-r3.md)** |
+
+**Gate:** ADR-011 must be **Accepted** before any Inventory collector or Envelope inventory messages. Architecture review checklist lives in doc 39.
 
 **Success metrics (all required for “R3 complete”; phases may ship incrementally):**
 
