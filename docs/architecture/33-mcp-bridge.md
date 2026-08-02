@@ -830,6 +830,22 @@ Each phase: unit tests for schemas, integration test against PulseService `--con
 
 ---
 
+## 16.1 Future MCP — Inventory Engine (ADR-011)
+
+Shipped Inventory domains expose structured IPC snapshots today (`GetInventoryDomain`). Future PulseMCP tools (not registered until R5/R6 productization) should mirror:
+
+| Tool (planned) | Domain | Stable id |
+|----------------|--------|-----------|
+| `inventory.services` | Services | SCM service name |
+| `inventory.drivers` | Drivers | SCM driver service key |
+| `inventory.software` | Software | ProductCode / uninstall key |
+| `inventory.usb` | USB | Device Instance ID |
+| `inventory.pci` | PCI | Device Instance Path |
+
+Payloads must remain structured (no UI-formatted strings). Status enum: `available` / `unsupported` / `access_denied` / `partial` / `error`.
+
+---
+
 ## 17. Related documents
 
 - [ADR-010](decisions/ADR-010-mcp-first-class-product.md)

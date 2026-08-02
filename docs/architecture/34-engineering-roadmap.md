@@ -229,11 +229,11 @@ flowchart TD
 **Success metrics (all required for “R3 complete”; phases may ship incrementally):**
 
 - [x] ADR-011 accepted (APIs, PII, refresh, IPC, SSOT, failure model, MCP, reports, perf, testability)
-- [ ] **Services** inventory implemented and shown in UI
-- [ ] **Drivers** inventory implemented (ADR subset) and shown in UI
-- [ ] **Installed software** inventory implemented (documented limits) and shown in UI
-- [ ] **USB** inventory implemented and shown in UI
-- [ ] **PCI** inventory implemented and shown in UI
+- [x] **Services** inventory implemented and shown in UI
+- [x] **Drivers** inventory implemented (ADR subset) and shown in UI
+- [x] **Installed software** inventory implemented (documented limits) and shown in UI
+- [x] **USB** inventory implemented and shown in UI
+- [x] **PCI** inventory implemented and shown in UI
 - [ ] **P1 domains** (displays, battery, audio, Bluetooth, printers) implemented per ADR-011
 - [ ] **P2 domains** (motherboard, BIOS, CPU, memory modules, storage, network adapters) implemented per ADR-011
 - [ ] IPC messages + Flutter surfaces + MCP-ready schemas for shipped domains

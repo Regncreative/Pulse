@@ -53,6 +53,7 @@ class _ReportsPageState extends State<ReportsPage> {
 
       final health = await _fetchHealthIfNeeded(ipc);
       final inventory = await _fetchInventoryIfNeeded(ipc);
+      final hardwarePair = await _fetchHardwareInventoryIfNeeded(ipc);
       if (_template == ReportTemplate.diagnostics && diag.snapshot == null) {
         try {
           await diag.refresh();
@@ -64,6 +65,8 @@ class _ReportsPageState extends State<ReportsPage> {
         format: _format,
         health: health,
         inventory: inventory,
+        inventoryUsb: hardwarePair.$1,
+        inventoryPci: hardwarePair.$2,
         events: List.of(timeline.events),
         diagnostics: diag.snapshot,
         ipcStatus: ipc.status,
@@ -87,7 +90,6 @@ class _ReportsPageState extends State<ReportsPage> {
 
   Future<HealthSnapshot?> _fetchHealthIfNeeded(PulseIpcClient ipc) async {
     final needsHealth = _template == ReportTemplate.healthSnapshot ||
-        _template == ReportTemplate.hardwareInventory ||
         _template == ReportTemplate.diagnostics;
     if (!needsHealth) return null;
     if (ipc.status.state != IpcConnectionState.connected) return null;
@@ -109,6 +111,25 @@ class _ReportsPageState extends State<ReportsPage> {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<(InventoryDomainSnapshot?, InventoryDomainSnapshot?)>
+      _fetchHardwareInventoryIfNeeded(PulseIpcClient ipc) async {
+    if (_template != ReportTemplate.hardwareInventory) {
+      return (null, null);
+    }
+    if (ipc.status.state != IpcConnectionState.connected) {
+      return (null, null);
+    }
+    InventoryDomainSnapshot? usb;
+    InventoryDomainSnapshot? pci;
+    try {
+      usb = await ipc.getInventoryDomain(domain: InventoryDomainId.usb);
+    } catch (_) {}
+    try {
+      pci = await ipc.getInventoryDomain(domain: InventoryDomainId.pci);
+    } catch (_) {}
+    return (usb, pci);
   }
 
   @override

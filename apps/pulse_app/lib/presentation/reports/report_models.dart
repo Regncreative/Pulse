@@ -38,7 +38,7 @@ extension ReportTemplateX on ReportTemplate {
         ReportTemplate.diagnostics =>
           'Service identity, IPC stats, pipeline stages, and client metrics.',
         ReportTemplate.hardwareInventory =>
-          'Static hardware summary from Health (PCI/USB Inventory domains land later).',
+          'USB and PCI device catalogs from the Inventory Engine (SetupAPI).',
         ReportTemplate.serviceInventory =>
           'Windows services from the Inventory Engine (SCM SERVICE_WIN32).',
         ReportTemplate.driverInventory =>
@@ -64,6 +64,7 @@ extension ReportTemplateX on ReportTemplate {
       };
 
   bool get usesInventoryEngine => switch (this) {
+        ReportTemplate.hardwareInventory ||
         ReportTemplate.serviceInventory ||
         ReportTemplate.driverInventory ||
         ReportTemplate.softwareInventory =>
@@ -75,6 +76,7 @@ extension ReportTemplateX on ReportTemplate {
         ReportTemplate.serviceInventory => InventoryDomainId.services,
         ReportTemplate.driverInventory => InventoryDomainId.drivers,
         ReportTemplate.softwareInventory => InventoryDomainId.software,
+        ReportTemplate.hardwareInventory => null, // USB + PCI pair
         _ => null,
       };
 }

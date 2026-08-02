@@ -22,6 +22,8 @@ class ReportExportInput {
     required this.format,
     this.health,
     this.inventory,
+    this.inventoryUsb,
+    this.inventoryPci,
     this.events = const [],
     this.diagnostics,
     this.ipcStatus,
@@ -35,6 +37,10 @@ class ReportExportInput {
   final HealthSnapshot? health;
   /// Inventory Engine snapshot for service / driver / software templates.
   final InventoryDomainSnapshot? inventory;
+  /// Hardware inventory SSOT (USB domain).
+  final InventoryDomainSnapshot? inventoryUsb;
+  /// Hardware inventory SSOT (PCI domain).
+  final InventoryDomainSnapshot? inventoryPci;
   final List<TimelineEvent> events;
   final DiagnosticsSnapshot? diagnostics;
   final IpcStatus? ipcStatus;
@@ -116,7 +122,7 @@ class ReportExporter {
       case ReportTemplate.healthSnapshot:
         return _keyValueCsv(healthMetricsRows(input.health));
       case ReportTemplate.hardwareInventory:
-        return _keyValueCsv(hardwareInventoryRows(input.health?.info));
+        return hardwareInventoryCsv(input.inventoryUsb, input.inventoryPci);
       case ReportTemplate.serviceInventory:
       case ReportTemplate.driverInventory:
       case ReportTemplate.softwareInventory:
@@ -276,7 +282,9 @@ class ReportExporter {
     return rows;
   }
 
-  static List<(String, String)> hardwareInventoryRows(HealthStaticInfo? info) {
+  /// Deprecated Health-static hardware flatten. Prefer Inventory USB/PCI.
+  /// Retained for P2 identity migration; not used by Hardware report SSOT.
+  static List<(String, String)> healthStaticHardwareRows(HealthStaticInfo? info) {
     if (info == null) {
       return const [('status', 'No hardware inventory available')];
     }
@@ -309,6 +317,23 @@ class ReportExporter {
       if (info.hasNetLinkSpeedBps)
         ('net_link_speed_bps', '${info.netLinkSpeedBps}'),
     ];
+  }
+
+  /// Hardware report CSV — Inventory USB + PCI catalogs (ADR-011 SSOT).
+  static String hardwareInventoryCsv(
+    InventoryDomainSnapshot? usb,
+    InventoryDomainSnapshot? pci,
+  ) {
+    final buf = StringBuffer()
+      ..writeln('# pulse-hardware')
+      ..writeln('# source=inventory_engine')
+      ..writeln()
+      ..writeln('## usb')
+      ..write(inventoryDomainCsv(usb))
+      ..writeln()
+      ..writeln('## pci')
+      ..write(inventoryDomainCsv(pci));
+    return buf.toString();
   }
 
   /// Tabular CSV for Inventory Engine catalogs (ADR-011 SSOT).
@@ -361,6 +386,34 @@ class ReportExporter {
             '${e.hasEstimatedSize ? e.estimatedSizeBytes : ''}',
           );
         }
+      case InventoryDomainId.usb:
+        meta.writeln(
+          'id,description,hardware_id,manufacturer,service,class_name,'
+          'class_guid,problem_code',
+        );
+        for (final e in snap.usb) {
+          meta.writeln(
+            '${_csvCell(e.id)},${_csvCell(e.description)},'
+            '${_csvCell(e.hardwareId)},${_csvCell(e.manufacturer)},'
+            '${_csvCell(e.service)},${_csvCell(e.className)},'
+            '${_csvCell(e.classGuid)},'
+            '${e.hasProblemCode ? e.problemCode : ''}',
+          );
+        }
+      case InventoryDomainId.pci:
+        meta.writeln(
+          'id,description,hardware_id,manufacturer,service,class_name,'
+          'class_guid,location_info,problem_code',
+        );
+        for (final e in snap.pci) {
+          meta.writeln(
+            '${_csvCell(e.id)},${_csvCell(e.description)},'
+            '${_csvCell(e.hardwareId)},${_csvCell(e.manufacturer)},'
+            '${_csvCell(e.service)},${_csvCell(e.className)},'
+            '${_csvCell(e.classGuid)},${_csvCell(e.locationInfo)},'
+            '${e.hasProblemCode ? e.problemCode : ''}',
+          );
+        }
       default:
         meta.writeln('note');
         meta.writeln(
@@ -375,6 +428,8 @@ class ReportExporter {
         InventoryDomainId.services => snap.services.length,
         InventoryDomainId.drivers => snap.drivers.length,
         InventoryDomainId.software => snap.software.length,
+        InventoryDomainId.usb => snap.usb.length,
+        InventoryDomainId.pci => snap.pci.length,
         _ => 0,
       };
 
@@ -434,6 +489,33 @@ class ReportExporter {
               'estimated_size_bytes': e.estimatedSizeBytes,
             'system_component': e.systemComponent,
             'architecture': e.architecture,
+          },
+      ],
+      'usb': [
+        for (final e in snap.usb)
+          {
+            'id': e.id,
+            'description': e.description,
+            'hardware_id': e.hardwareId,
+            'manufacturer': e.manufacturer,
+            'service': e.service,
+            'class_name': e.className,
+            'class_guid': e.classGuid,
+            if (e.hasProblemCode) 'problem_code': e.problemCode,
+          },
+      ],
+      'pci': [
+        for (final e in snap.pci)
+          {
+            'id': e.id,
+            'description': e.description,
+            'hardware_id': e.hardwareId,
+            'manufacturer': e.manufacturer,
+            'service': e.service,
+            'class_name': e.className,
+            'class_guid': e.classGuid,
+            'location_info': e.locationInfo,
+            if (e.hasProblemCode) 'problem_code': e.problemCode,
           },
       ],
     };
@@ -567,10 +649,9 @@ class ReportExporter {
             row.$1: row.$2,
         };
       case ReportTemplate.hardwareInventory:
-        base['hardware'] = {
-          for (final row in hardwareInventoryRows(input.health?.info))
-            row.$1: row.$2,
-        };
+        base['source'] = 'inventory_engine';
+        base['usb'] = inventoryDomainJson(input.inventoryUsb);
+        base['pci'] = inventoryDomainJson(input.inventoryPci);
       case ReportTemplate.serviceInventory:
       case ReportTemplate.driverInventory:
       case ReportTemplate.softwareInventory:
@@ -742,8 +823,14 @@ class ReportExporter {
         return '<section><h2>Health metrics</h2>'
             '${_kvTableHtml(healthMetricsRows(input.health))}</section>';
       case ReportTemplate.hardwareInventory:
-        return '<section><h2>Hardware</h2>'
-            '${_kvTableHtml(hardwareInventoryRows(input.health?.info))}</section>';
+        final usb = input.inventoryUsb;
+        final pci = input.inventoryPci;
+        final usbCount = usb == null ? 0 : _inventoryItemCount(usb);
+        final pciCount = pci == null ? 0 : _inventoryItemCount(pci);
+        return '<section><h2>USB inventory ($usbCount)</h2>'
+            '${_kvTableHtml(inventorySummaryRows(usb))}</section>'
+            '<section><h2>PCI inventory ($pciCount)</h2>'
+            '${_kvTableHtml(inventorySummaryRows(pci))}</section>';
       case ReportTemplate.serviceInventory:
       case ReportTemplate.driverInventory:
       case ReportTemplate.softwareInventory:
@@ -863,11 +950,18 @@ class ReportExporter {
       case ReportTemplate.hardwareInventory:
         return [
           pw.Text(
-            'Hardware',
+            'USB inventory',
             style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 6),
-          _pdfKeyValueTable(hardwareInventoryRows(input.health?.info)),
+          _pdfKeyValueTable(inventorySummaryRows(input.inventoryUsb)),
+          pw.SizedBox(height: 12),
+          pw.Text(
+            'PCI inventory',
+            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 6),
+          _pdfKeyValueTable(inventorySummaryRows(input.inventoryPci)),
         ];
       case ReportTemplate.serviceInventory:
       case ReportTemplate.driverInventory:

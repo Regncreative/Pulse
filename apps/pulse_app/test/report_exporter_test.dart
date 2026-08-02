@@ -88,27 +88,43 @@ void main() {
       expect(json, contains('System'));
     });
 
-    test('encodes hardware inventory', () {
-      final health = HealthSnapshot(
-        info: HealthStaticInfo(
-          cpuModel: 'Ryzen 7',
-          gpuModel: 'RTX',
-          diskModel: 'NVMe',
-          installedRamBytes: 32,
-        ),
-      );
-
+    test('encodes hardware inventory from Inventory USB/PCI', () {
       final json = ReportExporter.buildJson(
         ReportExportInput(
           template: ReportTemplate.hardwareInventory,
           format: ReportFormat.json,
-          health: health,
+          inventoryUsb: InventoryDomainSnapshot(
+            domain: InventoryDomainId.usb,
+            status: InventoryStatus.available,
+            generation: 1,
+            usb: [
+              InventoryUsbEntry(
+                id: r'USB\VID_1234&PID_5678\1',
+                description: 'Test USB Device',
+                manufacturer: 'PulseLab',
+              ),
+            ],
+          ),
+          inventoryPci: InventoryDomainSnapshot(
+            domain: InventoryDomainId.pci,
+            status: InventoryStatus.available,
+            generation: 2,
+            pci: [
+              InventoryPciEntry(
+                id: r'PCI\VEN_10DE&DEV_2684\0',
+                description: 'Test GPU',
+                hardwareId: r'PCI\VEN_10DE&DEV_2684',
+              ),
+            ],
+          ),
         ),
       );
 
       expect(json, contains('"pulse_export": "pulse-hardware"'));
-      expect(json, contains('Ryzen 7'));
-      expect(json, contains('NVMe'));
+      expect(json, contains('"source": "inventory_engine"'));
+      expect(json, contains('Test USB Device'));
+      expect(json, contains('Test GPU'));
+      expect(json, isNot(contains('Ryzen')));
     });
   });
 
@@ -162,20 +178,35 @@ void main() {
       expect(csv, contains('memory_used_bytes,100'));
     });
 
-    test('hardware CSV is key,value rows', () {
+    test('hardware CSV uses Inventory USB/PCI catalogs', () {
       final csv = ReportExporter.buildCsv(
         ReportExportInput(
           template: ReportTemplate.hardwareInventory,
           format: ReportFormat.csv,
-          health: HealthSnapshot(
-            info: HealthStaticInfo(cpuModel: 'Test CPU', cpuCores: 8),
+          inventoryUsb: InventoryDomainSnapshot(
+            domain: InventoryDomainId.usb,
+            status: InventoryStatus.available,
+            usb: [
+              InventoryUsbEntry(id: r'USB\VID_1\1', description: 'Hub'),
+            ],
+          ),
+          inventoryPci: InventoryDomainSnapshot(
+            domain: InventoryDomainId.pci,
+            status: InventoryStatus.partial,
+            statusDetail: 'truncated',
+            truncated: true,
+            pci: [
+              InventoryPciEntry(id: r'PCI\VEN_1\0', description: 'Bridge'),
+            ],
           ),
         ),
       );
 
-      expect(csv, startsWith('key,value\n'));
-      expect(csv, contains('cpu_model,Test CPU'));
-      expect(csv, contains('cpu_cores,8'));
+      expect(csv, contains('source=inventory_engine'));
+      expect(csv, contains('## usb'));
+      expect(csv, contains('## pci'));
+      expect(csv, contains('Hub'));
+      expect(csv, contains('Bridge'));
     });
 
     test('service inventory CSV uses Inventory Engine rows', () {

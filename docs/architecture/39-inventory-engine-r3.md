@@ -174,7 +174,7 @@ Wire codecs hand-maintained (`pulse.proto` + C++/Dart `pulse_wire`).
 | Consumer | R3 | Later |
 |----------|----|-------|
 | PulseMCP | Schema + `available: false` until collector; then `inventory.*` tools | Resources on generation change |
-| Reports | Optional JSON dump of snapshot | Service / Driver / Software report templates consume Inventory Engine SSOT; hardware summary still Health until PCI/USB |
+| Reports | Optional JSON dump of snapshot | Service / Driver / Software + Hardware (USB/PCI) report templates consume Inventory Engine SSOT; System/P2 identity still Health until those collectors ship |
 
 `service.status` catalog stub flips when `inventory.services` ships (ADR-010 follow-up).
 
