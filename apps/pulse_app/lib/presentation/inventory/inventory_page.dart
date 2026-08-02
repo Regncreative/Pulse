@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:pulse_protocol/pulse_wire.dart';
 
 import 'inventory_catalog.dart';
+import 'inventory_detail_model.dart';
 
 import '../../application/connection_controller.dart';
 import '../../app/theme/pulse_theme.dart';
@@ -15,6 +16,7 @@ import '../components/pulse_button.dart';
 import '../components/pulse_card.dart';
 import '../components/pulse_empty_state.dart';
 import '../components/service_lifecycle_controls.dart';
+import '../health/health_view_models.dart' show formatBytesBinary;
 import '../utils/pulse_user_errors.dart';
 
 enum _SortField { title, id, subtitle }
@@ -346,10 +348,118 @@ class _InventoryPageState extends State<InventoryPage> {
             },
           ));
         }
+      case InventoryDomainId.motherboard:
+        for (final e in snap.motherboard) {
+          final sections = motherboardDetailSections(e);
+          rows.add(_InventoryRow(
+            id: e.id.isEmpty ? 'motherboard' : e.id,
+            title: e.product.isEmpty ? 'Motherboard' : e.product,
+            subtitle: [
+              if (e.manufacturer.isNotEmpty) e.manufacturer,
+              if (e.version.isNotEmpty) e.version,
+            ].join(' · '),
+            details: _flattenSections(sections),
+            sections: sections,
+          ));
+        }
+      case InventoryDomainId.bios:
+        for (final e in snap.bios) {
+          final sections = biosDetailSections(e);
+          rows.add(_InventoryRow(
+            id: e.id.isEmpty ? 'bios' : e.id,
+            title: e.vendor.isEmpty ? 'System BIOS' : e.vendor,
+            subtitle: [
+              if (e.version.isNotEmpty) e.version,
+              if (e.releaseDate.isNotEmpty) e.releaseDate,
+            ].join(' · '),
+            details: _flattenSections(sections),
+            sections: sections,
+          ));
+        }
+      case InventoryDomainId.cpu:
+        for (final e in snap.cpu) {
+          final sections = cpuDetailSections(e);
+          rows.add(_InventoryRow(
+            id: e.id.isEmpty ? 'cpu' : e.id,
+            title: e.name.isEmpty ? 'CPU' : e.name,
+            subtitle: [
+              if (e.manufacturer.isNotEmpty) e.manufacturer,
+              if (e.hasPhysicalCores && e.hasLogicalProcessors)
+                '${e.physicalCores}C / ${e.logicalProcessors}T',
+              if (e.architecture.isNotEmpty) e.architecture,
+            ].join(' · '),
+            filterKey: e.architecture,
+            details: _flattenSections(sections),
+            sections: sections,
+          ));
+        }
+      case InventoryDomainId.memoryModules:
+        for (final e in snap.memoryModules) {
+          final sections = memoryModuleDetailSections(e);
+          rows.add(_InventoryRow(
+            id: e.id,
+            title: e.bankLocator.isEmpty ? e.id : e.bankLocator,
+            subtitle: [
+              if (e.hasSizeBytes)
+                formatBytesBinary(e.sizeBytes, fractionDigits: 0),
+              if (e.memoryType.isNotEmpty) e.memoryType,
+              if (e.hasSpeedMts) '${e.speedMts} MT/s',
+              if (!e.populated) 'empty slot',
+            ].join(' · '),
+            filterKey: e.populated ? e.memoryType : 'empty',
+            details: _flattenSections(sections),
+            sections: sections,
+          ));
+        }
+      case InventoryDomainId.storage:
+        for (final e in snap.storage) {
+          final sections = storageDetailSections(e);
+          rows.add(_InventoryRow(
+            id: e.id,
+            title: e.model.isEmpty ? e.id : e.model,
+            subtitle: [
+              if (e.vendor.isNotEmpty) e.vendor,
+              if (e.busType.isNotEmpty) e.busType,
+              if (e.hasSizeBytes)
+                formatBytesBinary(e.sizeBytes, fractionDigits: 0),
+            ].join(' · '),
+            filterKey: e.busType,
+            details: _flattenSections(sections),
+            sections: sections,
+          ));
+        }
+      case InventoryDomainId.networkAdapters:
+        for (final e in snap.networkAdapters) {
+          final sections = networkAdapterDetailSections(e);
+          rows.add(_InventoryRow(
+            id: e.id,
+            title: e.friendlyName.isEmpty
+                ? (e.description.isEmpty ? e.id : e.description)
+                : e.friendlyName,
+            subtitle: [
+              if (e.macAddress.isNotEmpty) e.macAddress,
+              if (e.connectionType.isNotEmpty) e.connectionType,
+              if (e.operationalStatus.isNotEmpty) e.operationalStatus,
+            ].join(' · '),
+            filterKey: e.connectionType,
+            details: _flattenSections(sections),
+            sections: sections,
+          ));
+        }
       default:
         break;
     }
     return rows;
+  }
+
+  Map<String, String> _flattenSections(List<InventoryDetailSection> sections) {
+    final map = <String, String>{};
+    for (final section in sections) {
+      for (final field in section.fields) {
+        map[field.$1] = field.$2;
+      }
+    }
+    return map;
   }
 
   _InventoryRow _pnpRow({
@@ -717,12 +827,20 @@ class _InventoryRow {
     required this.subtitle,
     required this.details,
     this.filterKey = '',
+    this.sections = const [],
   });
   final String id;
   final String title;
   final String subtitle;
   final String filterKey;
   final Map<String, String> details;
+
+  /// Rich sectioned fields (P2 domains). Falls back to [details] as a flat
+  /// "Details" section for domains that haven't migrated yet.
+  final List<InventoryDetailSection> sections;
+
+  List<InventoryDetailSection> get displaySections =>
+      sections.isNotEmpty ? sections : sectionsFromFlatDetails(details);
 }
 
 class _InventoryTree extends StatelessWidget {
@@ -890,6 +1008,13 @@ class _DomainHeader extends StatelessWidget {
             InventoryDomainId.bluetooth => snap.bluetooth.length,
             InventoryDomainId.printers => snap.printers.length,
             InventoryDomainId.battery => snap.batteries.length,
+            InventoryDomainId.motherboard => snap.motherboard.length,
+            InventoryDomainId.bios => snap.bios.length,
+            InventoryDomainId.cpu => snap.cpu.length,
+            InventoryDomainId.memoryModules => snap.memoryModules.length,
+            InventoryDomainId.storage => snap.storage.length,
+            InventoryDomainId.networkAdapters =>
+              snap.networkAdapters.length,
             _ => 0,
           };
 
@@ -1103,6 +1228,7 @@ class _InventoryDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sections = row.displaySections;
     return PulseCard(
       child: ListView(
         children: [
@@ -1115,34 +1241,56 @@ class _InventoryDetail extends StatelessWidget {
                   fontFamily: 'Consolas',
                 ),
           ),
-          const SizedBox(height: PulseTokens.spaceMd),
-          for (final e in row.details.entries)
-            if (e.value.isNotEmpty) ...[
+          if (sections.isEmpty) ...[
+            const SizedBox(height: PulseTokens.spaceMd),
+            Text(
+              'No structured fields returned for this item.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: PulseTokens.textSecondary,
+                  ),
+            ),
+          ],
+          for (final section in sections) ...[
+            const SizedBox(height: PulseTokens.spaceLg),
+            Text(
+              section.title,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: PulseTokens.accent,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            Divider(height: 1, color: PulseTokens.strokeSubtle),
+            const SizedBox(height: PulseTokens.spaceSm),
+            for (final field in section.fields) ...[
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      e.key,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: PulseTokens.textSecondary,
-                          ),
+                      field.$1,
+                      style:
+                          Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: PulseTokens.textSecondary,
+                              ),
                     ),
                   ),
                   IconButton(
                     tooltip: 'Copy value',
                     visualDensity: VisualDensity.compact,
                     iconSize: 14,
-                    onPressed: () => onCopyValue(e.value),
+                    onPressed: () => onCopyValue(field.$2),
                     icon: const Icon(LucideIcons.copy),
                   ),
                 ],
               ),
               SelectableText(
-                e.value,
+                field.$2,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: PulseTokens.spaceSm),
             ],
+          ],
         ],
       ),
     );
