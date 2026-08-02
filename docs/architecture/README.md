@@ -65,6 +65,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 35 | [Product stability (R1)](35-product-stability.md) | Budgets, diagnostics, soak — **Wave A closed** |
 | 36 | [Timeline Intelligence (R2)](36-timeline-intelligence-r2.md) | Flagship Timeline plan — incidents, RCA, details, export |
 | 37 | [Timeline correlation rules](37-timeline-correlation-rules.md) | Documented Event ID correlation / RCA rules |
+| 38 | [Intelligence rule inventory](38-timeline-intelligence-rules-inventory.md) | Pre-R2 38 → R2 **68** catalog |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 

@@ -71,10 +71,15 @@ Within Windows Event Log data (not ETW/WMI):
 - Root-cause hints only from static documented rules (no AI)
 - Bookmarks, pins, saved searches, event links, rich metadata badges
 - Export preserving filters / marks / correlation groups
+- Details: structured Wevtapi system fields + lazy raw Event XML
+- Retention cap up to **100,000** in-memory events; `SliverList` virtualization
+- Intelligence catalog: [38-timeline-intelligence-rules-inventory.md](38-timeline-intelligence-rules-inventory.md)
 
 See [36-timeline-intelligence-r2.md](36-timeline-intelligence-r2.md).
 
 **Wevtapi subscribe resume bookmarks:** deferred (explicit note; not required to close R2).
+
+**Validation:** [archives/r2-validation-report-2026-08-02.md](archives/r2-validation-report-2026-08-02.md).
 
 ## Explicitly Out of v1 / Phase 4 / R2
 
@@ -94,5 +99,8 @@ See [36-timeline-intelligence-r2.md](36-timeline-intelligence-r2.md).
 - [08 — Data Flow](08-data-flow.md)
 - [09 — Event Model](09-event-model.md)
 - [36 — Timeline Intelligence R2](36-timeline-intelligence-r2.md)
+- [37 — Timeline correlation rules](37-timeline-correlation-rules.md)
+- [38 — Intelligence rule inventory](38-timeline-intelligence-rules-inventory.md)
+- [archives/r2-validation-report-2026-08-02.md](archives/r2-validation-report-2026-08-02.md)
 - [21 — Event Viewer Integration](21-event-viewer-integration.md)
 - [29 — System Health quality milestone](29-system-health-quality-milestone.md)

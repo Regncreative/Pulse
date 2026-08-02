@@ -1,10 +1,16 @@
 # R2 — Timeline Intelligence (Flagship) Implementation Plan
 
-**Status:** Approved (extended 2026-08-01)  
+**Status:** **COMPLETE / FROZEN** (2026-08-02) — maintainer accepted  
+**Close evidence:** [archives/r2-validation-report-2026-08-02.md](archives/r2-validation-report-2026-08-02.md)  
+**Release notes draft:** [docs/releases/v0.3.0-beta.md](../releases/v0.3.0-beta.md)  
 **Roadmap:** [34-engineering-roadmap.md](34-engineering-roadmap.md)  
 **Constitution:** Observation only; no fabricated events, incidents, correlations, or AI prose.
 
-Wave A is closed. R2 makes Timeline a **flagship** product surface — not only filters.
+Do not reopen R2 without an ADR. Do not implement R3 until ADR-011 and the R3 plan are approved.
+
+Wave A is closed. R2 made Timeline a **flagship** product surface — not only filters.
+Intelligence catalog: [38-timeline-intelligence-rules-inventory.md](38-timeline-intelligence-rules-inventory.md) (baseline 38 → **68**).
+Correlation rules: [37-timeline-correlation-rules.md](37-timeline-correlation-rules.md).
 
 ---
 
@@ -109,4 +115,9 @@ Prefer **lazy XML** IPC to keep 100k lists memory-safe.
 
 ## Exit
 
-All original R2 success metrics in doc 34 **plus** flagship additions above validated; tests green; R3 blocked until then.
+All R2 success metrics in doc 34 validated; tests green; maintainer accepted 2026-08-02.
+
+**Close evidence:** [archives/r2-validation-report-2026-08-02.md](archives/r2-validation-report-2026-08-02.md).  
+**Release notes:** [docs/releases/v0.3.0-beta.md](../releases/v0.3.0-beta.md).
+
+**R2 is frozen.** R3 requires an accepted ADR-011 and an approved implementation plan before any inventory code.
