@@ -58,6 +58,11 @@ add_executable(PulseService WIN32
   src/inventory/software_collector.cpp
   src/inventory/usb_collector.cpp
   src/inventory/pci_collector.cpp
+  src/inventory/displays_collector.cpp
+  src/inventory/audio_collector.cpp
+  src/inventory/bluetooth_collector.cpp
+  src/inventory/printers_collector.cpp
+  src/inventory/battery_collector.cpp
   src/inventory/setupapi_device_enumerator.cpp
   src/windows/wevt_helpers.cpp
   src/logging/logger.cpp
@@ -92,6 +97,7 @@ target_link_libraries(PulseService PRIVATE
   wlanapi
   setupapi
   cfgmgr32
+  winspool
   bcrypt
 )
 
@@ -194,6 +200,75 @@ target_include_directories(pci_collector_tests PRIVATE
 target_link_libraries(pci_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32)
 add_test(NAME pci_collector_tests COMMAND pci_collector_tests)
 
+add_executable(displays_collector_tests
+  test/displays_collector_test.cpp
+  src/inventory/displays_collector.cpp
+  src/inventory/setupapi_device_enumerator.cpp
+  src/windows/wevt_helpers.cpp
+)
+target_include_directories(displays_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(displays_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32)
+add_test(NAME displays_collector_tests COMMAND displays_collector_tests)
+
+add_executable(audio_collector_tests
+  test/audio_collector_test.cpp
+  src/inventory/audio_collector.cpp
+  src/inventory/setupapi_device_enumerator.cpp
+  src/windows/wevt_helpers.cpp
+)
+target_include_directories(audio_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(audio_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32)
+add_test(NAME audio_collector_tests COMMAND audio_collector_tests)
+
+add_executable(bluetooth_collector_tests
+  test/bluetooth_collector_test.cpp
+  src/inventory/bluetooth_collector.cpp
+  src/inventory/setupapi_device_enumerator.cpp
+  src/windows/wevt_helpers.cpp
+)
+target_include_directories(bluetooth_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(bluetooth_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32)
+add_test(NAME bluetooth_collector_tests COMMAND bluetooth_collector_tests)
+
+add_executable(printers_collector_tests
+  test/printers_collector_test.cpp
+  src/inventory/printers_collector.cpp
+  src/windows/wevt_helpers.cpp
+)
+target_include_directories(printers_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(printers_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi winspool)
+add_test(NAME printers_collector_tests COMMAND printers_collector_tests)
+
+add_executable(battery_collector_tests
+  test/battery_collector_test.cpp
+  src/inventory/battery_collector.cpp
+  src/inventory/setupapi_device_enumerator.cpp
+  src/windows/wevt_helpers.cpp
+)
+target_include_directories(battery_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(battery_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32)
+add_test(NAME battery_collector_tests COMMAND battery_collector_tests)
+
 add_executable(inventory_engine_smoke_tests
   test/inventory_engine_smoke_test.cpp
   src/inventory/inventory_engine.cpp
@@ -202,6 +277,11 @@ add_executable(inventory_engine_smoke_tests
   src/inventory/software_collector.cpp
   src/inventory/usb_collector.cpp
   src/inventory/pci_collector.cpp
+  src/inventory/displays_collector.cpp
+  src/inventory/audio_collector.cpp
+  src/inventory/bluetooth_collector.cpp
+  src/inventory/printers_collector.cpp
+  src/inventory/battery_collector.cpp
   src/inventory/setupapi_device_enumerator.cpp
   src/windows/wevt_helpers.cpp
 )
@@ -210,7 +290,7 @@ target_include_directories(inventory_engine_smoke_tests PRIVATE
   "${PULSE_ROOT}/shared/pulse_protocol/cpp"
   "${PULSE_ROOT}/shared/pulse_common/include"
 )
-target_link_libraries(inventory_engine_smoke_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32)
+target_link_libraries(inventory_engine_smoke_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32 winspool)
 add_test(NAME inventory_engine_smoke_tests COMMAND inventory_engine_smoke_tests)
 
 add_executable(ipc_client_thread_lifetime_test

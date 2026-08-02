@@ -255,6 +255,60 @@ std::vector<uint8_t> EncodeInventoryPciEntry(const InventoryPciEntry& m) {
   return out;
 }
 
+std::vector<uint8_t> EncodeInventoryPnPDeviceEntry(
+    const InventoryPnPDeviceEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.description, &out);
+  WriteString(3, m.hardware_id, &out);
+  WriteString(4, m.manufacturer, &out);
+  WriteString(5, m.service, &out);
+  WriteString(6, m.class_name, &out);
+  WriteString(7, m.class_guid, &out);
+  WriteString(8, m.location_info, &out);
+  WriteU32(9, m.problem_code, &out);
+  WriteBool(10, m.has_problem_code, &out);
+  WriteString(11, m.adapter_name, &out);
+  WriteBool(12, m.description_from_enum_display, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeInventoryPrinterEntry(
+    const InventoryPrinterEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.port_name, &out);
+  WriteString(3, m.driver_name, &out);
+  WriteString(4, m.location, &out);
+  WriteString(5, m.comment, &out);
+  WriteBool(6, m.is_shared, &out);
+  WriteBool(7, m.is_default, &out);
+  WriteBool(8, m.is_network, &out);
+  WriteU32(9, m.attributes, &out);
+  WriteBool(10, m.has_attributes, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeInventoryBatteryEntry(
+    const InventoryBatteryEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.description, &out);
+  WriteString(3, m.manufacturer, &out);
+  WriteString(4, m.chemistry, &out);
+  WriteU32(5, m.design_capacity_mwh, &out);
+  WriteBool(6, m.has_design_capacity, &out);
+  WriteU32(7, m.full_charged_capacity_mwh, &out);
+  WriteBool(8, m.has_full_charged_capacity, &out);
+  WriteU32(9, m.cycle_count, &out);
+  WriteBool(10, m.has_cycle_count, &out);
+  WriteU32(11, m.capacity_percent, &out);
+  WriteBool(12, m.has_capacity_percent, &out);
+  WriteString(13, m.power_state, &out);
+  WriteBool(14, m.from_system_power_fallback, &out);
+  return out;
+}
+
 std::vector<uint8_t> EncodeGetInventoryDomain(const GetInventoryDomain& m) {
   std::vector<uint8_t> out;
   WriteU32(1, static_cast<uint32_t>(m.domain), &out);
@@ -289,6 +343,21 @@ std::vector<uint8_t> EncodeInventoryDomainSnapshot(
   }
   for (const auto& e : m.pci) {
     WriteBytesField(14, EncodeInventoryPciEntry(e), &out);
+  }
+  for (const auto& e : m.displays) {
+    WriteBytesField(15, EncodeInventoryPnPDeviceEntry(e), &out);
+  }
+  for (const auto& e : m.audio) {
+    WriteBytesField(16, EncodeInventoryPnPDeviceEntry(e), &out);
+  }
+  for (const auto& e : m.bluetooth) {
+    WriteBytesField(17, EncodeInventoryPnPDeviceEntry(e), &out);
+  }
+  for (const auto& e : m.printers) {
+    WriteBytesField(18, EncodeInventoryPrinterEntry(e), &out);
+  }
+  for (const auto& e : m.batteries) {
+    WriteBytesField(19, EncodeInventoryBatteryEntry(e), &out);
   }
   return out;
 }
@@ -1284,6 +1353,161 @@ bool DecodeInventoryPciEntry(const uint8_t* data, size_t len,
   return true;
 }
 
+bool DecodeInventoryPnPDeviceEntry(const uint8_t* data, size_t len,
+                                   InventoryPnPDeviceEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->description)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->hardware_id)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->manufacturer)) return false;
+    } else if (field == 5 && wire == 2) {
+      if (!DecodeString(p, end, &m->service)) return false;
+    } else if (field == 6 && wire == 2) {
+      if (!DecodeString(p, end, &m->class_name)) return false;
+    } else if (field == 7 && wire == 2) {
+      if (!DecodeString(p, end, &m->class_guid)) return false;
+    } else if (field == 8 && wire == 2) {
+      if (!DecodeString(p, end, &m->location_info)) return false;
+    } else if (field == 9 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->problem_code = static_cast<uint32_t>(v);
+    } else if (field == 10 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_problem_code = v != 0;
+    } else if (field == 11 && wire == 2) {
+      if (!DecodeString(p, end, &m->adapter_name)) return false;
+    } else if (field == 12 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->description_from_enum_display = v != 0;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeInventoryPrinterEntry(const uint8_t* data, size_t len,
+                                 InventoryPrinterEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->port_name)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->driver_name)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->location)) return false;
+    } else if (field == 5 && wire == 2) {
+      if (!DecodeString(p, end, &m->comment)) return false;
+    } else if (field == 6 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->is_shared = v != 0;
+    } else if (field == 7 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->is_default = v != 0;
+    } else if (field == 8 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->is_network = v != 0;
+    } else if (field == 9 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->attributes = static_cast<uint32_t>(v);
+      m->has_attributes = true;
+    } else if (field == 10 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_attributes = v != 0;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeInventoryBatteryEntry(const uint8_t* data, size_t len,
+                                 InventoryBatteryEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->description)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->manufacturer)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->chemistry)) return false;
+    } else if (field == 5 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->design_capacity_mwh = static_cast<uint32_t>(v);
+    } else if (field == 6 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_design_capacity = v != 0;
+    } else if (field == 7 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->full_charged_capacity_mwh = static_cast<uint32_t>(v);
+    } else if (field == 8 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_full_charged_capacity = v != 0;
+    } else if (field == 9 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->cycle_count = static_cast<uint32_t>(v);
+    } else if (field == 10 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_cycle_count = v != 0;
+    } else if (field == 11 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->capacity_percent = static_cast<uint32_t>(v);
+    } else if (field == 12 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_capacity_percent = v != 0;
+    } else if (field == 13 && wire == 2) {
+      if (!DecodeString(p, end, &m->power_state)) return false;
+    } else if (field == 14 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->from_system_power_fallback = v != 0;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool DecodeGetInventoryDomain(const uint8_t* data, size_t len,
                               GetInventoryDomain* m) {
   const uint8_t* p = data;
@@ -1404,6 +1628,59 @@ bool DecodeInventoryDomainSnapshot(const uint8_t* data, size_t len,
         return false;
       }
       m->pci.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 15 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryPnPDeviceEntry entry;
+      if (!DecodeInventoryPnPDeviceEntry(p, static_cast<size_t>(blen),
+                                         &entry)) {
+        return false;
+      }
+      m->displays.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 16 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryPnPDeviceEntry entry;
+      if (!DecodeInventoryPnPDeviceEntry(p, static_cast<size_t>(blen),
+                                         &entry)) {
+        return false;
+      }
+      m->audio.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 17 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryPnPDeviceEntry entry;
+      if (!DecodeInventoryPnPDeviceEntry(p, static_cast<size_t>(blen),
+                                         &entry)) {
+        return false;
+      }
+      m->bluetooth.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 18 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryPrinterEntry entry;
+      if (!DecodeInventoryPrinterEntry(p, static_cast<size_t>(blen), &entry)) {
+        return false;
+      }
+      m->printers.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 19 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryBatteryEntry entry;
+      if (!DecodeInventoryBatteryEntry(p, static_cast<size_t>(blen), &entry)) {
+        return false;
+      }
+      m->batteries.push_back(std::move(entry));
       p += static_cast<size_t>(blen);
     } else if (!SkipField(wire, p, end)) {
       return false;

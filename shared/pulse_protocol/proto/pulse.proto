@@ -676,6 +676,52 @@ message InventoryPciEntry {
   bool has_problem_code = 10;
 }
 
+// Shared PnP shape for Displays / Audio / Bluetooth (ADR-011 domain lists).
+message InventoryPnPDeviceEntry {
+  string id = 1;              // stable: Device Instance ID
+  string description = 2;
+  string hardware_id = 3;
+  string manufacturer = 4;
+  string service = 5;
+  string class_name = 6;
+  string class_guid = 7;
+  string location_info = 8;
+  uint32 problem_code = 9;
+  bool has_problem_code = 10;
+  string adapter_name = 11;   // Displays: EnumDisplayDevices adapter name when known
+  bool description_from_enum_display = 12; // Displays enrichment flag
+}
+
+message InventoryPrinterEntry {
+  string id = 1;              // stable: spooler printer name
+  string port_name = 2;
+  string driver_name = 3;
+  string location = 4;
+  string comment = 5;
+  bool is_shared = 6;
+  bool is_default = 7;
+  bool is_network = 8;
+  uint32 attributes = 9;
+  bool has_attributes = 10;
+}
+
+message InventoryBatteryEntry {
+  string id = 1;              // instance ID or system_power
+  string description = 2;
+  string manufacturer = 3;
+  string chemistry = 4;
+  uint32 design_capacity_mwh = 5;
+  bool has_design_capacity = 6;
+  uint32 full_charged_capacity_mwh = 7;
+  bool has_full_charged_capacity = 8;
+  uint32 cycle_count = 9;
+  bool has_cycle_count = 10;
+  uint32 capacity_percent = 11;
+  bool has_capacity_percent = 12;
+  string power_state = 13;    // online | offline | unknown
+  bool from_system_power_fallback = 14;
+}
+
 message GetInventoryDomain {
   InventoryDomainId domain = 1;
   bool force_refresh = 2;
@@ -697,6 +743,11 @@ message InventoryDomainSnapshot {
   repeated InventorySoftwareEntry software = 12;
   repeated InventoryUsbEntry usb = 13;
   repeated InventoryPciEntry pci = 14;
+  repeated InventoryPnPDeviceEntry displays = 15;
+  repeated InventoryPnPDeviceEntry audio = 16;
+  repeated InventoryPnPDeviceEntry bluetooth = 17;
+  repeated InventoryPrinterEntry printers = 18;
+  repeated InventoryBatteryEntry batteries = 19;
 }
 
 message Envelope {

@@ -631,6 +631,51 @@ struct InventoryPciEntry {
   bool has_problem_code = false;
 };
 
+struct InventoryPnPDeviceEntry {
+  std::string id;
+  std::string description;
+  std::string hardware_id;
+  std::string manufacturer;
+  std::string service;
+  std::string class_name;
+  std::string class_guid;
+  std::string location_info;
+  uint32_t problem_code = 0;
+  bool has_problem_code = false;
+  std::string adapter_name;
+  bool description_from_enum_display = false;
+};
+
+struct InventoryPrinterEntry {
+  std::string id;
+  std::string port_name;
+  std::string driver_name;
+  std::string location;
+  std::string comment;
+  bool is_shared = false;
+  bool is_default = false;
+  bool is_network = false;
+  uint32_t attributes = 0;
+  bool has_attributes = false;
+};
+
+struct InventoryBatteryEntry {
+  std::string id;
+  std::string description;
+  std::string manufacturer;
+  std::string chemistry;
+  uint32_t design_capacity_mwh = 0;
+  bool has_design_capacity = false;
+  uint32_t full_charged_capacity_mwh = 0;
+  bool has_full_charged_capacity = false;
+  uint32_t cycle_count = 0;
+  bool has_cycle_count = false;
+  uint32_t capacity_percent = 0;
+  bool has_capacity_percent = false;
+  std::string power_state;
+  bool from_system_power_fallback = false;
+};
+
 struct GetInventoryDomain {
   InventoryDomainId domain = InventoryDomainId::Unspecified;
   bool force_refresh = false;
@@ -652,6 +697,11 @@ struct InventoryDomainSnapshot {
   std::vector<InventorySoftwareEntry> software;
   std::vector<InventoryUsbEntry> usb;
   std::vector<InventoryPciEntry> pci;
+  std::vector<InventoryPnPDeviceEntry> displays;
+  std::vector<InventoryPnPDeviceEntry> audio;
+  std::vector<InventoryPnPDeviceEntry> bluetooth;
+  std::vector<InventoryPrinterEntry> printers;
+  std::vector<InventoryBatteryEntry> batteries;
 };
 
 struct Envelope {

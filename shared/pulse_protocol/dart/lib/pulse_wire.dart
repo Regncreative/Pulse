@@ -294,6 +294,93 @@ class InventoryPciEntry {
   bool hasProblemCode;
 }
 
+class InventoryPnPDeviceEntry {
+  InventoryPnPDeviceEntry({
+    this.id = '',
+    this.description = '',
+    this.hardwareId = '',
+    this.manufacturer = '',
+    this.service = '',
+    this.className = '',
+    this.classGuid = '',
+    this.locationInfo = '',
+    this.problemCode = 0,
+    this.hasProblemCode = false,
+    this.adapterName = '',
+    this.descriptionFromEnumDisplay = false,
+  });
+  String id;
+  String description;
+  String hardwareId;
+  String manufacturer;
+  String service;
+  String className;
+  String classGuid;
+  String locationInfo;
+  int problemCode;
+  bool hasProblemCode;
+  String adapterName;
+  bool descriptionFromEnumDisplay;
+}
+
+class InventoryPrinterEntry {
+  InventoryPrinterEntry({
+    this.id = '',
+    this.portName = '',
+    this.driverName = '',
+    this.location = '',
+    this.comment = '',
+    this.isShared = false,
+    this.isDefault = false,
+    this.isNetwork = false,
+    this.attributes = 0,
+    this.hasAttributes = false,
+  });
+  String id;
+  String portName;
+  String driverName;
+  String location;
+  String comment;
+  bool isShared;
+  bool isDefault;
+  bool isNetwork;
+  int attributes;
+  bool hasAttributes;
+}
+
+class InventoryBatteryEntry {
+  InventoryBatteryEntry({
+    this.id = '',
+    this.description = '',
+    this.manufacturer = '',
+    this.chemistry = '',
+    this.designCapacityMwh = 0,
+    this.hasDesignCapacity = false,
+    this.fullChargedCapacityMwh = 0,
+    this.hasFullChargedCapacity = false,
+    this.cycleCount = 0,
+    this.hasCycleCount = false,
+    this.capacityPercent = 0,
+    this.hasCapacityPercent = false,
+    this.powerState = '',
+    this.fromSystemPowerFallback = false,
+  });
+  String id;
+  String description;
+  String manufacturer;
+  String chemistry;
+  int designCapacityMwh;
+  bool hasDesignCapacity;
+  int fullChargedCapacityMwh;
+  bool hasFullChargedCapacity;
+  int cycleCount;
+  bool hasCycleCount;
+  int capacityPercent;
+  bool hasCapacityPercent;
+  String powerState;
+  bool fromSystemPowerFallback;
+}
+
 class GetInventoryDomain {
   GetInventoryDomain({
     this.domain = InventoryDomainId.unspecified,
@@ -322,11 +409,21 @@ class InventoryDomainSnapshot {
     List<InventorySoftwareEntry>? software,
     List<InventoryUsbEntry>? usb,
     List<InventoryPciEntry>? pci,
+    List<InventoryPnPDeviceEntry>? displays,
+    List<InventoryPnPDeviceEntry>? audio,
+    List<InventoryPnPDeviceEntry>? bluetooth,
+    List<InventoryPrinterEntry>? printers,
+    List<InventoryBatteryEntry>? batteries,
   })  : services = services ?? <InventoryServiceEntry>[],
         drivers = drivers ?? <InventoryDriverEntry>[],
         software = software ?? <InventorySoftwareEntry>[],
         usb = usb ?? <InventoryUsbEntry>[],
-        pci = pci ?? <InventoryPciEntry>[];
+        pci = pci ?? <InventoryPciEntry>[],
+        displays = displays ?? <InventoryPnPDeviceEntry>[],
+        audio = audio ?? <InventoryPnPDeviceEntry>[],
+        bluetooth = bluetooth ?? <InventoryPnPDeviceEntry>[],
+        printers = printers ?? <InventoryPrinterEntry>[],
+        batteries = batteries ?? <InventoryBatteryEntry>[];
   InventoryDomainId domain;
   InventoryStatus status;
   String statusDetail;
@@ -340,6 +437,11 @@ class InventoryDomainSnapshot {
   List<InventorySoftwareEntry> software;
   List<InventoryUsbEntry> usb;
   List<InventoryPciEntry> pci;
+  List<InventoryPnPDeviceEntry> displays;
+  List<InventoryPnPDeviceEntry> audio;
+  List<InventoryPnPDeviceEntry> bluetooth;
+  List<InventoryPrinterEntry> printers;
+  List<InventoryBatteryEntry> batteries;
 }
 
 class GetTimelineSnapshot {
@@ -1380,6 +1482,57 @@ Uint8List _encodeInventoryPciEntry(InventoryPciEntry m) {
   return out.toBytes();
 }
 
+Uint8List _encodeInventoryPnPDeviceEntry(InventoryPnPDeviceEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.description, out);
+  _writeString(3, m.hardwareId, out);
+  _writeString(4, m.manufacturer, out);
+  _writeString(5, m.service, out);
+  _writeString(6, m.className, out);
+  _writeString(7, m.classGuid, out);
+  _writeString(8, m.locationInfo, out);
+  _writeU64(9, m.problemCode, out);
+  _writeBool(10, m.hasProblemCode, out);
+  _writeString(11, m.adapterName, out);
+  _writeBool(12, m.descriptionFromEnumDisplay, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeInventoryPrinterEntry(InventoryPrinterEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.portName, out);
+  _writeString(3, m.driverName, out);
+  _writeString(4, m.location, out);
+  _writeString(5, m.comment, out);
+  _writeBool(6, m.isShared, out);
+  _writeBool(7, m.isDefault, out);
+  _writeBool(8, m.isNetwork, out);
+  _writeU64(9, m.attributes, out);
+  _writeBool(10, m.hasAttributes, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeInventoryBatteryEntry(InventoryBatteryEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.description, out);
+  _writeString(3, m.manufacturer, out);
+  _writeString(4, m.chemistry, out);
+  _writeU64(5, m.designCapacityMwh, out);
+  _writeBool(6, m.hasDesignCapacity, out);
+  _writeU64(7, m.fullChargedCapacityMwh, out);
+  _writeBool(8, m.hasFullChargedCapacity, out);
+  _writeU64(9, m.cycleCount, out);
+  _writeBool(10, m.hasCycleCount, out);
+  _writeU64(11, m.capacityPercent, out);
+  _writeBool(12, m.hasCapacityPercent, out);
+  _writeString(13, m.powerState, out);
+  _writeBool(14, m.fromSystemPowerFallback, out);
+  return out.toBytes();
+}
+
 Uint8List _encodeGetInventoryDomain(GetInventoryDomain m) {
   final out = BytesBuilder();
   _writeU64(1, m.domain.index, out);
@@ -1413,6 +1566,21 @@ Uint8List _encodeInventoryDomainSnapshot(InventoryDomainSnapshot m) {
   }
   for (final e in m.pci) {
     _writeBytesField(14, _encodeInventoryPciEntry(e), out);
+  }
+  for (final e in m.displays) {
+    _writeBytesField(15, _encodeInventoryPnPDeviceEntry(e), out);
+  }
+  for (final e in m.audio) {
+    _writeBytesField(16, _encodeInventoryPnPDeviceEntry(e), out);
+  }
+  for (final e in m.bluetooth) {
+    _writeBytesField(17, _encodeInventoryPnPDeviceEntry(e), out);
+  }
+  for (final e in m.printers) {
+    _writeBytesField(18, _encodeInventoryPrinterEntry(e), out);
+  }
+  for (final e in m.batteries) {
+    _writeBytesField(19, _encodeInventoryBatteryEntry(e), out);
   }
   return out.toBytes();
 }
@@ -2434,6 +2602,121 @@ InventoryPciEntry _decodeInventoryPciEntry(Uint8List data) {
   return m;
 }
 
+InventoryPnPDeviceEntry _decodeInventoryPnPDeviceEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryPnPDeviceEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.description = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.hardwareId = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.manufacturer = r.readString();
+    } else if (field == 5 && wire == 2) {
+      m.service = r.readString();
+    } else if (field == 6 && wire == 2) {
+      m.className = r.readString();
+    } else if (field == 7 && wire == 2) {
+      m.classGuid = r.readString();
+    } else if (field == 8 && wire == 2) {
+      m.locationInfo = r.readString();
+    } else if (field == 9 && wire == 0) {
+      m.problemCode = r.readVarint();
+    } else if (field == 10 && wire == 0) {
+      m.hasProblemCode = r.readVarint() != 0;
+    } else if (field == 11 && wire == 2) {
+      m.adapterName = r.readString();
+    } else if (field == 12 && wire == 0) {
+      m.descriptionFromEnumDisplay = r.readVarint() != 0;
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+InventoryPrinterEntry _decodeInventoryPrinterEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryPrinterEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.portName = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.driverName = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.location = r.readString();
+    } else if (field == 5 && wire == 2) {
+      m.comment = r.readString();
+    } else if (field == 6 && wire == 0) {
+      m.isShared = r.readVarint() != 0;
+    } else if (field == 7 && wire == 0) {
+      m.isDefault = r.readVarint() != 0;
+    } else if (field == 8 && wire == 0) {
+      m.isNetwork = r.readVarint() != 0;
+    } else if (field == 9 && wire == 0) {
+      m.attributes = r.readVarint();
+      m.hasAttributes = true;
+    } else if (field == 10 && wire == 0) {
+      m.hasAttributes = r.readVarint() != 0;
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+InventoryBatteryEntry _decodeInventoryBatteryEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryBatteryEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.description = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.manufacturer = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.chemistry = r.readString();
+    } else if (field == 5 && wire == 0) {
+      m.designCapacityMwh = r.readVarint();
+    } else if (field == 6 && wire == 0) {
+      m.hasDesignCapacity = r.readVarint() != 0;
+    } else if (field == 7 && wire == 0) {
+      m.fullChargedCapacityMwh = r.readVarint();
+    } else if (field == 8 && wire == 0) {
+      m.hasFullChargedCapacity = r.readVarint() != 0;
+    } else if (field == 9 && wire == 0) {
+      m.cycleCount = r.readVarint();
+    } else if (field == 10 && wire == 0) {
+      m.hasCycleCount = r.readVarint() != 0;
+    } else if (field == 11 && wire == 0) {
+      m.capacityPercent = r.readVarint();
+    } else if (field == 12 && wire == 0) {
+      m.hasCapacityPercent = r.readVarint() != 0;
+    } else if (field == 13 && wire == 2) {
+      m.powerState = r.readString();
+    } else if (field == 14 && wire == 0) {
+      m.fromSystemPowerFallback = r.readVarint() != 0;
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
 GetInventoryDomain _decodeGetInventoryDomain(Uint8List data) {
   final r = _Reader(data);
   final m = GetInventoryDomain();
@@ -2489,6 +2772,16 @@ InventoryDomainSnapshot _decodeInventoryDomainSnapshot(Uint8List data) {
       m.usb.add(_decodeInventoryUsbEntry(r.readBytes()));
     } else if (field == 14 && wire == 2) {
       m.pci.add(_decodeInventoryPciEntry(r.readBytes()));
+    } else if (field == 15 && wire == 2) {
+      m.displays.add(_decodeInventoryPnPDeviceEntry(r.readBytes()));
+    } else if (field == 16 && wire == 2) {
+      m.audio.add(_decodeInventoryPnPDeviceEntry(r.readBytes()));
+    } else if (field == 17 && wire == 2) {
+      m.bluetooth.add(_decodeInventoryPnPDeviceEntry(r.readBytes()));
+    } else if (field == 18 && wire == 2) {
+      m.printers.add(_decodeInventoryPrinterEntry(r.readBytes()));
+    } else if (field == 19 && wire == 2) {
+      m.batteries.add(_decodeInventoryBatteryEntry(r.readBytes()));
     } else {
       r.skip(wire);
     }

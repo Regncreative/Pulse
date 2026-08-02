@@ -1,7 +1,12 @@
 #include "inventory/inventory_engine.hpp"
 
+#include "inventory/audio_collector.hpp"
+#include "inventory/battery_collector.hpp"
+#include "inventory/bluetooth_collector.hpp"
+#include "inventory/displays_collector.hpp"
 #include "inventory/drivers_collector.hpp"
 #include "inventory/pci_collector.hpp"
+#include "inventory/printers_collector.hpp"
 #include "inventory/services_collector.hpp"
 #include "inventory/software_collector.hpp"
 #include "inventory/usb_collector.hpp"
@@ -112,6 +117,80 @@ ipc::InventoryDomainSnapshot InventoryEngine::CollectPci(std::uint32_t limit) {
   return snap;
 }
 
+ipc::InventoryDomainSnapshot InventoryEngine::CollectDisplays(
+    std::uint32_t limit) {
+  const auto collected = DisplaysCollector::Collect(limit);
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Displays;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.displays = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = DisplaysCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
+ipc::InventoryDomainSnapshot InventoryEngine::CollectAudio(std::uint32_t limit) {
+  const auto collected = AudioCollector::Collect(limit);
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Audio;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.audio = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = AudioCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
+ipc::InventoryDomainSnapshot InventoryEngine::CollectBluetooth(
+    std::uint32_t limit) {
+  const auto collected = BluetoothCollector::Collect(limit);
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Bluetooth;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.bluetooth = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = BluetoothCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
+ipc::InventoryDomainSnapshot InventoryEngine::CollectPrinters(
+    std::uint32_t limit) {
+  const auto collected = PrintersCollector::Collect(limit);
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Printers;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.printers = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = PrintersCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
+ipc::InventoryDomainSnapshot InventoryEngine::CollectBattery(
+    std::uint32_t limit) {
+  const auto collected = BatteryCollector::Collect(limit);
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Battery;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.batteries = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = BatteryCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
 ipc::InventoryDomainSnapshot InventoryEngine::CollectFresh(
     const CollectRequest& request) {
   switch (request.domain) {
@@ -126,10 +205,15 @@ ipc::InventoryDomainSnapshot InventoryEngine::CollectFresh(
     case ipc::InventoryDomainId::Pci:
       return CollectPci(request.limit);
     case ipc::InventoryDomainId::Displays:
+      return CollectDisplays(request.limit);
     case ipc::InventoryDomainId::Audio:
+      return CollectAudio(request.limit);
     case ipc::InventoryDomainId::Bluetooth:
+      return CollectBluetooth(request.limit);
     case ipc::InventoryDomainId::Printers:
+      return CollectPrinters(request.limit);
     case ipc::InventoryDomainId::Battery:
+      return CollectBattery(request.limit);
     case ipc::InventoryDomainId::Motherboard:
     case ipc::InventoryDomainId::Bios:
     case ipc::InventoryDomainId::Cpu:
@@ -150,6 +234,34 @@ ipc::InventoryDomainSnapshot InventoryEngine::CollectFresh(
   }
 }
 
+InventoryEngine::CachedDomain* InventoryEngine::CacheFor(
+    ipc::InventoryDomainId domain) {
+  switch (domain) {
+    case ipc::InventoryDomainId::Services:
+      return &services_;
+    case ipc::InventoryDomainId::Drivers:
+      return &drivers_;
+    case ipc::InventoryDomainId::Software:
+      return &software_;
+    case ipc::InventoryDomainId::Usb:
+      return &usb_;
+    case ipc::InventoryDomainId::Pci:
+      return &pci_;
+    case ipc::InventoryDomainId::Displays:
+      return &displays_;
+    case ipc::InventoryDomainId::Audio:
+      return &audio_;
+    case ipc::InventoryDomainId::Bluetooth:
+      return &bluetooth_;
+    case ipc::InventoryDomainId::Printers:
+      return &printers_;
+    case ipc::InventoryDomainId::Battery:
+      return &battery_;
+    default:
+      return nullptr;
+  }
+}
+
 ipc::InventoryDomainSnapshot InventoryEngine::ServeCachedOrCollect(
     CachedDomain* cache, const CollectRequest& request) {
   const std::int64_t now = NowUnixMs();
@@ -157,14 +269,16 @@ ipc::InventoryDomainSnapshot InventoryEngine::ServeCachedOrCollect(
       !request.force_refresh && CacheFresh(cache->meta, now);
   if (use_cache) {
     auto snap = cache->snapshot;
-    // Incremental diffs land in a follow-up; full snapshot for now.
     snap.full_resync = true;
     return snap;
   }
 
   auto snap = CollectFresh(request);
+  // Cache successful observation states, including unsupported empty catalogs
+  // (e.g. no Bluetooth) so refresh/TTL semantics stay uniform.
   if (snap.status == ipc::InventoryStatus::Available ||
-      snap.status == ipc::InventoryStatus::Partial) {
+      snap.status == ipc::InventoryStatus::Partial ||
+      snap.status == ipc::InventoryStatus::Unsupported) {
     snap.generation = next_generation_++;
     cache->meta.generation = snap.generation;
     cache->meta.generated_at_unix_ms = snap.generated_at_unix_ms;
@@ -180,23 +294,10 @@ ipc::InventoryDomainSnapshot InventoryEngine::GetDomain(
     const CollectRequest& request) {
   std::lock_guard lock(mutex_);
 
-  if (request.domain == ipc::InventoryDomainId::Services) {
-    return ServeCachedOrCollect(&services_, request);
-  }
-  if (request.domain == ipc::InventoryDomainId::Drivers) {
-    return ServeCachedOrCollect(&drivers_, request);
-  }
-  if (request.domain == ipc::InventoryDomainId::Software) {
-    return ServeCachedOrCollect(&software_, request);
-  }
-  if (request.domain == ipc::InventoryDomainId::Usb) {
-    return ServeCachedOrCollect(&usb_, request);
-  }
-  if (request.domain == ipc::InventoryDomainId::Pci) {
-    return ServeCachedOrCollect(&pci_, request);
+  if (CachedDomain* cache = CacheFor(request.domain)) {
+    return ServeCachedOrCollect(cache, request);
   }
 
-  // Unimplemented domains: no cache fill of unsupported beyond response.
   auto snap = CollectFresh(request);
   snap.generation = 0;
   return snap;

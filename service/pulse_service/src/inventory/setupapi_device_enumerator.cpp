@@ -32,7 +32,6 @@ std::string ReadRegistryPropertyString(HDEVINFO set, SP_DEVINFO_DATA* info,
     return wevt::WideToUtf8(buffer);
   }
   if (type == REG_MULTI_SZ) {
-    // First string of MULTI_SZ (HardwareIDs / CompatibleIDs).
     return wevt::WideToUtf8(buffer);
   }
   return {};
@@ -46,7 +45,6 @@ std::string ReadInstanceId(HDEVINFO set, SP_DEVINFO_DATA* info,
     return wevt::WideToUtf8(buffer);
   }
 
-  // ADR-011 USB fallback: CfgMgr32 device ID if SetupAPI instance string empty.
   WCHAR cm_id[MAX_DEVICE_ID_LEN]{};
   const CONFIGRET cr =
       CM_Get_Device_IDW(info->DevInst, cm_id, MAX_DEVICE_ID_LEN, 0);
@@ -69,19 +67,8 @@ void ReadProblemCode(SP_DEVINFO_DATA* info, SetupApiDeviceRow* row) {
   }
 }
 
-}  // namespace
-
-SetupApiEnumResult EnumeratePresentByEnumerator(const wchar_t* enumerator,
-                                                std::uint32_t limit) {
+SetupApiEnumResult EnumerateDevInfoSet(HDEVINFO set, std::uint32_t limit) {
   SetupApiEnumResult out;
-  if (enumerator == nullptr || enumerator[0] == L'\0' || limit == 0) {
-    out.error = true;
-    out.status_detail = "Invalid SetupAPI enumerator request";
-    return out;
-  }
-
-  const HDEVINFO set = SetupDiGetClassDevsW(
-      nullptr, enumerator, nullptr, DIGCF_PRESENT | DIGCF_ALLCLASSES);
   if (set == INVALID_HANDLE_VALUE) {
     const DWORD err = GetLastError();
     if (err == ERROR_ACCESS_DENIED) {
@@ -129,6 +116,49 @@ SetupApiEnumResult EnumeratePresentByEnumerator(const wchar_t* enumerator,
 
   SetupDiDestroyDeviceInfoList(set);
   return out;
+}
+
+}  // namespace
+
+SetupApiEnumResult EnumeratePresentByEnumerator(const wchar_t* enumerator,
+                                                std::uint32_t limit) {
+  if (enumerator == nullptr || enumerator[0] == L'\0' || limit == 0) {
+    SetupApiEnumResult out;
+    out.error = true;
+    out.status_detail = "Invalid SetupAPI enumerator request";
+    return out;
+  }
+
+  const HDEVINFO set = SetupDiGetClassDevsW(
+      nullptr, enumerator, nullptr, DIGCF_PRESENT | DIGCF_ALLCLASSES);
+  return EnumerateDevInfoSet(set, limit);
+}
+
+SetupApiEnumResult EnumeratePresentByClassGuid(const GUID& class_guid,
+                                               std::uint32_t limit) {
+  if (limit == 0) {
+    SetupApiEnumResult out;
+    out.error = true;
+    out.status_detail = "Invalid SetupAPI class GUID request";
+    return out;
+  }
+
+  const HDEVINFO set =
+      SetupDiGetClassDevsW(&class_guid, nullptr, nullptr, DIGCF_PRESENT);
+  return EnumerateDevInfoSet(set, limit);
+}
+
+bool ResolveSetupClassGuid(const wchar_t* class_name, GUID* out_guid) {
+  if (class_name == nullptr || class_name[0] == L'\0' || out_guid == nullptr) {
+    return false;
+  }
+  GUID guid{};
+  DWORD required = 0;
+  if (!SetupDiClassGuidsFromNameW(class_name, &guid, 1, &required)) {
+    return false;
+  }
+  *out_guid = guid;
+  return true;
 }
 
 }  // namespace pulse::inventory

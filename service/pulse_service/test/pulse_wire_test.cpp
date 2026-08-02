@@ -642,6 +642,65 @@ int main() {
     return 42;
   }
 
+  InventoryDomainSnapshot p1_snap;
+  p1_snap.domain = InventoryDomainId::Displays;
+  p1_snap.status = InventoryStatus::Partial;
+  p1_snap.generation = 7;
+  InventoryPnPDeviceEntry display;
+  display.id = R"(DISPLAY\ABC1234\5&1&0&UID256)";
+  display.description = "Generic PnP Monitor";
+  display.adapter_name = "Intel UHD";
+  display.description_from_enum_display = true;
+  p1_snap.displays.push_back(display);
+  InventoryPnPDeviceEntry audio;
+  audio.id = R"(HDAUDIO\FUNC_01&VEN_10EC&DEV_0899\4&2&0)";
+  audio.description = "Realtek Audio";
+  p1_snap.audio.push_back(audio);
+  InventoryPnPDeviceEntry bluetooth;
+  bluetooth.id = R"(BTH\MS_BTHBRB\6&3&0&0)";
+  bluetooth.description = "Bluetooth Radio";
+  p1_snap.bluetooth.push_back(bluetooth);
+  InventoryPrinterEntry printer;
+  printer.id = "Microsoft Print to PDF";
+  printer.port_name = "PORTPROMPT:";
+  printer.driver_name = "Microsoft Print To PDF";
+  printer.is_default = true;
+  printer.has_attributes = true;
+  p1_snap.printers.push_back(printer);
+  InventoryBatteryEntry battery;
+  battery.id = "system_power";
+  battery.description = "System power status aggregate";
+  battery.capacity_percent = 87;
+  battery.has_capacity_percent = true;
+  battery.power_state = "online";
+  battery.from_system_power_fallback = true;
+  p1_snap.batteries.push_back(battery);
+  Envelope p1_env;
+  p1_env.request_id = 43;
+  p1_env.body = p1_snap;
+  std::vector<uint8_t> p1_payload;
+  if (!EncodeEnvelope(p1_env, &p1_payload)) {
+    std::cerr << "InventoryDomainSnapshot p1 encode failed\n";
+    return 43;
+  }
+  Envelope p1_decoded;
+  if (!DecodeEnvelope(p1_payload.data(), p1_payload.size(), &p1_decoded) ||
+      !std::holds_alternative<InventoryDomainSnapshot>(p1_decoded.body)) {
+    std::cerr << "InventoryDomainSnapshot p1 decode failed\n";
+    return 43;
+  }
+  const auto& p1_out = std::get<InventoryDomainSnapshot>(p1_decoded.body);
+  if (p1_out.displays.size() != 1 ||
+      p1_out.displays[0].adapter_name != "Intel UHD" ||
+      p1_out.audio.size() != 1 || p1_out.bluetooth.size() != 1 ||
+      p1_out.printers.size() != 1 ||
+      p1_out.printers[0].id != "Microsoft Print to PDF" ||
+      p1_out.batteries.size() != 1 ||
+      !p1_out.batteries[0].from_system_power_fallback) {
+    std::cerr << "InventoryDomainSnapshot p1 payload mismatch\n";
+    return 43;
+  }
+
   std::cout << "pulse_wire_tests OK\n";
   return 0;
 }

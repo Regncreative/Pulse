@@ -4,10 +4,12 @@
 #include <string>
 #include <vector>
 
+#include <guiddef.h>
+
 namespace pulse::inventory {
 
 /// Shared SetupAPI read helpers for Inventory device domains (ADR-011).
-/// Not a collector — USB/PCI collectors own membership and status.
+/// Not a collector — domain collectors own membership and status.
 struct SetupApiDeviceRow {
   std::string instance_id;       // stable id
   std::string description;       // SPDRP_FRIENDLYNAME or SPDRP_DEVICEDESC
@@ -31,8 +33,15 @@ struct SetupApiEnumResult {
 };
 
 /// Enumerate present devices by PnP enumerator (e.g. L"USB", L"PCI").
-/// Primary: SetupDiGetClassDevsW(enumerator). Fallback id: CM_Get_Device_IDW.
 [[nodiscard]] SetupApiEnumResult EnumeratePresentByEnumerator(
     const wchar_t* enumerator, std::uint32_t limit);
+
+/// Enumerate present devices by device setup class GUID (DIGCF_PRESENT).
+[[nodiscard]] SetupApiEnumResult EnumeratePresentByClassGuid(
+    const GUID& class_guid, std::uint32_t limit);
+
+/// Resolve a setup class name (e.g. L"Monitor") to its GUID via SetupAPI.
+[[nodiscard]] bool ResolveSetupClassGuid(const wchar_t* class_name,
+                                         GUID* out_guid);
 
 }  // namespace pulse::inventory

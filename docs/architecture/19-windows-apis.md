@@ -53,6 +53,11 @@ Observation-only. Linked as domains ship. Primary APIs:
 | Software | `RegOpenKeyExW` / `RegEnumKeyExW` on HKLM Uninstall (+ WOW6432Node); HKCU/Store omitted |
 | USB | `SetupDiGetClassDevsW` enumerator `USB` + `SetupDiGetDeviceInstanceIdW`; fallback `CM_Get_Device_IDW` |
 | PCI | Same SetupAPI pattern with enumerator `PCI` (membership); GPU PCIe link stays Health enrichment |
+| Displays | SetupAPI class `Monitor` via `SetupDiClassGuidsFromNameW` + `SetupDiGetClassDevsW`; description fallback `EnumDisplayDevicesW` |
+| Audio | SetupAPI class `Media` (no fallback) |
+| Bluetooth | SetupAPI class `Bluetooth`; empty → `unsupported` |
+| Printers | `EnumPrintersW` (`PRINTER_ENUM_LOCAL \| PRINTER_ENUM_CONNECTIONS`), level 2, read-only |
+| Battery | SetupAPI class `Battery` + `IOCTL_BATTERY_QUERY_*` via `GUID_DEVINTERFACE_BATTERY`; fallback `GetSystemPowerStatus` (`partial`, id `system_power`) |
 
 See [ADR-011](decisions/ADR-011-inventory-engine.md) for full domain catalog, fallbacks, and permissions.
 
