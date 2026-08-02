@@ -155,6 +155,22 @@ class PulseThemeData extends ThemeExtension<PulseThemeData> {
   static const Color accentPurple = Color(0xFFB48EFC);
   static const Color accentOrange = Color(0xFFFFA657);
 
+  /// Accent swatch for Settings chips. [brightness] reserved for future
+  /// light/dark tuning; presets currently share the same brand colors.
+  static Color accentForPreset(String preset, Brightness brightness) {
+    switch (preset) {
+      case 'green':
+        return accentGreen;
+      case 'purple':
+        return accentPurple;
+      case 'orange':
+        return accentOrange;
+      case 'blue':
+      default:
+        return accentBlue;
+    }
+  }
+
   /// Layout constants (theme-independent).
   static const double iconSm = 14;
   static const double iconMd = 16;
