@@ -30,6 +30,19 @@ Without a clear boundary, R3 risks **duplicate collectors**, Health cadence blee
 
 ADR-010 already reserves full Windows service catalog for Inventory and keeps `service.status` as PulseService identity until then.
 
+### Codebase anchors (as of R2 freeze)
+
+| Path | Relevance |
+|------|-----------|
+| `collectors/health_metrics_collector.*` | Health orchestrator (static + 1 Hz sample + process inventory) — **not** Inventory |
+| `collectors/system_overview_info.*` | CPU topology/CPUID, SMBIOS RAM summary, Storage IOCTL disk identity, IP Helper net — **share helpers later**, do not dual-walk on Health tick for Inventory lists |
+| `collectors/gpu_adapter_info.*` | Only SetupAPI usage today (PCIe link); reuse for PCI/display-adapter rows |
+| `collectors/hardware_sensors_collector.*` | SMART/temp into Health sample — stay Health |
+| `diagnostics/service_identity.cpp` | SCM for **PulseService only**; no `EnumServicesStatusEx` machine catalog yet |
+| Reports `hardwareInventory` | Subset of `HealthStaticInfo` only (`report_exporter.dart`) — R4 inventory templates consume Inventory IPC once P0/P2 ship |
+
+No WMI collectors in service today. Doc 33 has **no** `inventory.*` tools registered yet.
+
 ---
 
 ## Decision
