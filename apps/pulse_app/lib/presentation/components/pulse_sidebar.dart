@@ -32,6 +32,7 @@ class PulseSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Theme.of(context);
     final wide = MediaQuery.sizeOf(context).width >= 1100;
     final width = wide ? PulseTokens.sidebarWidth : PulseTokens.sidebarNarrow;
 

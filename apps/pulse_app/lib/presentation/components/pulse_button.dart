@@ -15,6 +15,9 @@ class PulseButton extends StatefulWidget {
     this.variant = PulseButtonVariant.primary,
     this.loading = false,
     this.expanded = false,
+    this.iconOnly = false,
+    this.dense = false,
+    this.tooltip,
   });
 
   final String label;
@@ -24,6 +27,13 @@ class PulseButton extends StatefulWidget {
   final bool loading;
   final bool expanded;
 
+  /// When true, render only the icon (label used as tooltip fallback).
+  final bool iconOnly;
+
+  /// Compact padding for 36px app-bar rows (avoids vertical clipping).
+  final bool dense;
+  final String? tooltip;
+
   @override
   State<PulseButton> createState() => _PulseButtonState();
 }
@@ -31,8 +41,11 @@ class PulseButton extends StatefulWidget {
 class _PulseButtonState extends State<PulseButton> with SafeHoverState {
   @override
   Widget build(BuildContext context) {
+    // Depend on Material theme so Dark/Light switches repaint immediately.
+    Theme.of(context);
     final enabled = widget.onPressed != null && !widget.loading;
     final colors = _palette(widget.variant, enabled, hover);
+    final iconOnly = widget.iconOnly && widget.icon != null;
 
     final child = Row(
       mainAxisSize: widget.expanded ? MainAxisSize.max : MainAxisSize.min,
@@ -49,17 +62,18 @@ class _PulseButtonState extends State<PulseButton> with SafeHoverState {
           )
         else if (widget.icon != null)
           Icon(widget.icon, size: 16, color: colors.$2),
-        if (widget.loading || widget.icon != null) const SizedBox(width: 8),
-        Text(
-          widget.label,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: colors.$2,
-              ),
-        ),
+        if (!iconOnly) ...[
+          if (widget.loading || widget.icon != null) const SizedBox(width: 8),
+          Text(
+            widget.label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: colors.$2,
+                ),
+          ),
+        ],
       ],
     );
 
-    // Single pointer annotation via InkWell — do not nest MouseRegion.
     final button = AnimatedContainer(
       duration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
@@ -88,22 +102,33 @@ class _PulseButtonState extends State<PulseButton> with SafeHoverState {
           mouseCursor:
               enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: iconOnly
+                ? EdgeInsets.all(widget.dense ? 7 : 9)
+                : EdgeInsets.symmetric(
+                    horizontal: widget.dense ? 12 : 16,
+                    vertical: widget.dense ? 6 : 10,
+                  ),
             child: child,
           ),
         ),
       ),
     );
 
-    if (widget.variant != PulseButtonVariant.primary) {
-      return button;
+    Widget result = button;
+    if (widget.variant == PulseButtonVariant.primary) {
+      result = PulseFocus(
+        enabled: enabled,
+        onPressed: enabled ? widget.onPressed : null,
+        borderRadius: BorderRadius.circular(PulseTokens.radiusMd),
+        child: button,
+      );
     }
-    return PulseFocus(
-      enabled: enabled,
-      onPressed: enabled ? widget.onPressed : null,
-      borderRadius: BorderRadius.circular(PulseTokens.radiusMd),
-      child: button,
-    );
+
+    final tip = widget.tooltip ?? (iconOnly ? widget.label : null);
+    if (tip != null && tip.isNotEmpty) {
+      return Tooltip(message: tip, child: result);
+    }
+    return result;
   }
 
   /// bg, fg, border
@@ -122,8 +147,10 @@ class _PulseButtonState extends State<PulseButton> with SafeHoverState {
     switch (variant) {
       case PulseButtonVariant.primary:
         return (
-          hovered ? const Color(0xFF78D6FF) : PulseTokens.accent,
-          const Color(0xFF001B26),
+          hovered
+              ? Color.lerp(PulseTokens.accent, PulseTokens.onAccent, 0.12)!
+              : PulseTokens.accent,
+          PulseTokens.onAccent,
           Colors.transparent,
         );
       case PulseButtonVariant.secondary:

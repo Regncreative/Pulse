@@ -10,18 +10,21 @@ class PulseMicaBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final depth = dark
+        ? const Color(0xFF050508).withValues(alpha: 0.16)
+        : const Color(0xFF1C1E24).withValues(alpha: 0.04);
     return Stack(
       fit: StackFit.expand,
       children: [
         ColoredBox(color: PulseTokens.canvas),
-        // Subtle cool tint — reads like system Mica under dark chrome
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: RadialGradient(
               center: const Alignment(-0.85, -0.95),
               radius: 1.15,
               colors: [
-                PulseTokens.canvasTint.withValues(alpha: 0.55),
+                PulseTokens.canvasTint.withValues(alpha: dark ? 0.55 : 0.4),
                 Colors.transparent,
               ],
             ),
@@ -33,13 +36,12 @@ class PulseMicaBackground extends StatelessWidget {
               center: const Alignment(1.05, 1.1),
               radius: 1.0,
               colors: [
-                PulseTokens.accent.withValues(alpha: 0.035),
+                PulseTokens.accent.withValues(alpha: dark ? 0.035 : 0.05),
                 Colors.transparent,
               ],
             ),
           ),
         ),
-        // Soft top wash for depth without noise
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -48,7 +50,7 @@ class PulseMicaBackground extends StatelessWidget {
               colors: [
                 PulseTokens.micaOverlay,
                 Colors.transparent,
-                Colors.black.withValues(alpha: 0.12),
+                depth,
               ],
               stops: const [0, 0.35, 1],
             ),

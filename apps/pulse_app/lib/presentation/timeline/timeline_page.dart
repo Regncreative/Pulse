@@ -13,7 +13,6 @@ import '../../app/theme/pulse_theme.dart';
 import '../../application/connection_controller.dart';
 import '../../application/timeline_library_controller.dart';
 import '../../application/timeline_session_controller.dart';
-import '../../features/timeline/timeline_display.dart';
 import '../../features/timeline/timeline_export.dart';
 import '../../features/timeline/timeline_incident_engine.dart';
 import '../../features/timeline/timeline_query.dart';
@@ -48,6 +47,7 @@ class _TimelinePageState extends State<TimelinePage> {
   final _processFilterController = TextEditingController();
   final _incidentEngine = TimelineIncidentEngine();
   final Set<String> _expandedIncidents = {};
+  bool _advancedFiltersOpen = false;
 
   TimelineSessionController? _session;
   String? _lastTopEventId;
@@ -59,16 +59,7 @@ class _TimelinePageState extends State<TimelinePage> {
   void initState() {
     super.initState();
     _listScrollController.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      unawaited(context.read<TimelineSessionController>().setPageVisible(true));
-    });
-  }
-
-  @override
-  void deactivate() {
-    unawaited(context.read<TimelineSessionController>().setPageVisible(false));
-    super.deactivate();
+    // Visibility is owned by AppShell (IndexedStack keeps this State alive).
   }
 
   @override
@@ -415,6 +406,7 @@ class _TimelinePageState extends State<TimelinePage> {
 
   @override
   Widget build(BuildContext context) {
+    Theme.of(context);
     final connectionLabel = context.select<ConnectionController, String>(
       (c) => c.statusLabel,
     );
@@ -518,6 +510,10 @@ class _TimelinePageState extends State<TimelinePage> {
                           providerFilterController: _providerFilterController,
                           eventIdFilterController: _eventIdFilterController,
                           processFilterController: _processFilterController,
+                          advancedFiltersOpen: _advancedFiltersOpen,
+                          onToggleAdvancedFilters: () => setState(
+                            () => _advancedFiltersOpen = !_advancedFiltersOpen,
+                          ),
                           filtersActive: _filtersActive,
                           visible: visible,
                           hasStoredEvents: events.isNotEmpty,
@@ -599,6 +595,8 @@ class _TimelineBody extends StatelessWidget {
     required this.providerFilterController,
     required this.eventIdFilterController,
     required this.processFilterController,
+    required this.advancedFiltersOpen,
+    required this.onToggleAdvancedFilters,
     required this.filtersActive,
     required this.visible,
     required this.hasStoredEvents,
@@ -636,6 +634,8 @@ class _TimelineBody extends StatelessWidget {
   final TextEditingController providerFilterController;
   final TextEditingController eventIdFilterController;
   final TextEditingController processFilterController;
+  final bool advancedFiltersOpen;
+  final VoidCallback onToggleAdvancedFilters;
   final bool filtersActive;
   final List<TimelineEvent> visible;
   final bool hasStoredEvents;
@@ -681,178 +681,33 @@ class _TimelineBody extends StatelessWidget {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
                   PulseTokens.pagePadX,
-                  PulseTokens.pagePadTop,
+                  12,
                   PulseTokens.pagePadX,
-                  8,
+                  4,
                 ),
                 sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _FilterSection(
-                              label: 'Severity',
-                              child: _SeverityRow(
-                                selected: query.severity,
-                                onSelected: onSeverity,
-                              ),
-                            ),
-                          ),
-                          PopupMenuButton<String>(
-                            tooltip: 'Export timeline',
-                            onSelected: (value) {
-                              if (value == 'json') onExportJson();
-                              if (value == 'csv') onExportCsv();
-                            },
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                value: 'json',
-                                child: Text(
-                                  selectedEvent != null
-                                      ? 'Export selected as JSON'
-                                      : 'Export visible as JSON',
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'csv',
-                                child: Text(
-                                  selectedEvent != null
-                                      ? 'Export selected as CSV'
-                                      : 'Export visible as CSV',
-                                ),
-                              ),
-                            ],
-                            icon: const Icon(LucideIcons.download, size: 16),
-                          ),
-                          IconButton(
-                            tooltip: 'Refresh snapshot',
-                            onPressed: onRefresh,
-                            constraints: const BoxConstraints(
-                              minWidth: 40,
-                              minHeight: 40,
-                            ),
-                            icon: const Icon(LucideIcons.refreshCw, size: 16),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _FilterSection(
-                              label: 'Source',
-                              child: _SourceRow(
-                                selected: query.source,
-                                onSelected: onSource,
-                              ),
-                            ),
-                          ),
-                          if (filtersActive)
-                            TextButton.icon(
-                              onPressed: onClearFilters,
-                              icon: const Icon(LucideIcons.filterX, size: 14),
-                              label: const Text('Clear filters'),
-                              style: TextButton.styleFrom(
-                                foregroundColor: PulseTokens.textSecondary,
-                                textStyle: const TextStyle(fontSize: 12.5),
-                              ),
-                            ),
-                          if (filtersActive)
-                            TextButton.icon(
-                              onPressed: onSaveSearch,
-                              icon: const Icon(LucideIcons.save, size: 14),
-                              label: const Text('Save search'),
-                              style: TextButton.styleFrom(
-                                foregroundColor: PulseTokens.textSecondary,
-                                textStyle: const TextStyle(fontSize: 12.5),
-                              ),
-                            ),
-                          Consumer<TimelineLibraryController>(
-                            builder: (context, library, _) {
-                              if (library.savedSearches.isEmpty) {
-                                return const SizedBox.shrink();
-                              }
-                              return PopupMenuButton<String>(
-                                tooltip: 'Saved searches',
-                                onSelected: (id) {
-                                  if (id.startsWith('del:')) {
-                                    library.deleteSavedSearch(
-                                      id.substring(4),
-                                    );
-                                    return;
-                                  }
-                                  for (final s in library.savedSearches) {
-                                    if (s.id == id) {
-                                      onApplySavedSearch(s);
-                                      break;
-                                    }
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  for (final s in library.savedSearches) ...[
-                                    PopupMenuItem(
-                                      value: s.id,
-                                      child: Text(s.name),
-                                    ),
-                                    PopupMenuItem(
-                                      value: 'del:${s.id}',
-                                      child: Text(
-                                        'Delete “${s.name}”',
-                                        style: TextStyle(
-                                          color: PulseTokens.severityError,
-                                          fontSize: 12.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                                child: const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 8),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(LucideIcons.bookmark, size: 14),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        'Saved',
-                                        style: TextStyle(fontSize: 12.5),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      _FilterSection(
-                        label: 'Type',
-                        child: _CategoryRow(
-                          selected: query.category,
-                          onSelected: onCategory,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      _FilterSection(
-                        label: 'When',
-                        child: _DateRangeRow(
-                          selected: query.dateRange,
-                          onSelected: onDateRange,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      _AdvancedFilterFields(
-                        providerController: providerFilterController,
-                        eventIdController: eventIdFilterController,
-                        processController: processFilterController,
-                        onProvider: onProviderFilter,
-                        onEventId: onEventIdFilter,
-                        onProcess: onProcessFilter,
-                      ),
-                    ],
+                  child: _CompactFilterToolbar(
+                    query: query,
+                    advancedOpen: advancedFiltersOpen,
+                    onToggleAdvanced: onToggleAdvancedFilters,
+                    providerFilterController: providerFilterController,
+                    eventIdFilterController: eventIdFilterController,
+                    processFilterController: processFilterController,
+                    filtersActive: filtersActive,
+                    selectedEvent: selectedEvent,
+                    onSeverity: onSeverity,
+                    onSource: onSource,
+                    onCategory: onCategory,
+                    onDateRange: onDateRange,
+                    onProviderFilter: onProviderFilter,
+                    onEventIdFilter: onEventIdFilter,
+                    onProcessFilter: onProcessFilter,
+                    onClearFilters: onClearFilters,
+                    onSaveSearch: onSaveSearch,
+                    onApplySavedSearch: onApplySavedSearch,
+                    onRefresh: onRefresh,
+                    onExportJson: onExportJson,
+                    onExportCsv: onExportCsv,
                   ),
                 ),
               ),
@@ -955,7 +810,7 @@ class _TimelineBody extends StatelessWidget {
             ),
             if (pendingNewCount > 0)
               Positioned(
-                top: 96,
+                top: 52,
                 left: 0,
                 right: showSideDetail ? 400 : 0,
                 child: Center(
@@ -1061,29 +916,463 @@ class _IncidentGroupTile extends StatelessWidget {
   }
 }
 
-class _FilterSection extends StatelessWidget {
-  const _FilterSection({required this.label, required this.child});
+class _CompactFilterToolbar extends StatelessWidget {
+  const _CompactFilterToolbar({
+    required this.query,
+    required this.advancedOpen,
+    required this.onToggleAdvanced,
+    required this.providerFilterController,
+    required this.eventIdFilterController,
+    required this.processFilterController,
+    required this.filtersActive,
+    required this.selectedEvent,
+    required this.onSeverity,
+    required this.onSource,
+    required this.onCategory,
+    required this.onDateRange,
+    required this.onProviderFilter,
+    required this.onEventIdFilter,
+    required this.onProcessFilter,
+    required this.onClearFilters,
+    required this.onSaveSearch,
+    required this.onApplySavedSearch,
+    required this.onRefresh,
+    required this.onExportJson,
+    required this.onExportCsv,
+  });
 
-  final String label;
-  final Widget child;
+  final TimelineQuery query;
+  final bool advancedOpen;
+  final VoidCallback onToggleAdvanced;
+  final TextEditingController providerFilterController;
+  final TextEditingController eventIdFilterController;
+  final TextEditingController processFilterController;
+  final bool filtersActive;
+  final TimelineEvent? selectedEvent;
+  final ValueChanged<TimelineSeverityFilter> onSeverity;
+  final ValueChanged<TimelineSourceFilter> onSource;
+  final ValueChanged<TimelineCategoryFilter> onCategory;
+  final ValueChanged<TimelineDateRangeFilter> onDateRange;
+  final ValueChanged<String> onProviderFilter;
+  final ValueChanged<String> onEventIdFilter;
+  final ValueChanged<String> onProcessFilter;
+  final VoidCallback onClearFilters;
+  final VoidCallback onSaveSearch;
+  final ValueChanged<SavedTimelineSearch> onApplySavedSearch;
+  final VoidCallback onRefresh;
+  final VoidCallback onExportJson;
+  final VoidCallback onExportCsv;
+
+  static String _severityLabel(TimelineSeverityFilter v) => switch (v) {
+        TimelineSeverityFilter.all => 'All severity',
+        TimelineSeverityFilter.errors => 'Errors',
+        TimelineSeverityFilter.warnings => 'Warnings',
+        TimelineSeverityFilter.info => 'Info',
+      };
+
+  static String _sourceLabel(TimelineSourceFilter v) => switch (v) {
+        TimelineSourceFilter.all => 'All sources',
+        TimelineSourceFilter.system => 'System',
+        TimelineSourceFilter.application => 'Application',
+        TimelineSourceFilter.security => 'Security',
+        TimelineSourceFilter.other => 'Other',
+      };
+
+  static String _categoryLabel(TimelineCategoryFilter v) => switch (v) {
+        TimelineCategoryFilter.all => 'All types',
+        TimelineCategoryFilter.crash => 'Crash',
+        TimelineCategoryFilter.service => 'Service',
+        TimelineCategoryFilter.power => 'Power',
+        TimelineCategoryFilter.update => 'Update',
+        TimelineCategoryFilter.device => 'Device',
+        TimelineCategoryFilter.boot => 'Boot',
+        TimelineCategoryFilter.security => 'Security',
+        TimelineCategoryFilter.storage => 'Storage',
+      };
+
+  static String _dateLabel(TimelineDateRangeFilter v) => switch (v) {
+        TimelineDateRangeFilter.all => 'All time',
+        TimelineDateRangeFilter.lastHour => '1 hour',
+        TimelineDateRangeFilter.last24Hours => '24 hours',
+        TimelineDateRangeFilter.last7Days => '7 days',
+      };
+
+  List<_ActiveFilterChip> _activeChips() {
+    final chips = <_ActiveFilterChip>[];
+    if (query.severity != TimelineSeverityFilter.all) {
+      chips.add(_ActiveFilterChip(
+        label: _severityLabel(query.severity),
+        onRemove: () => onSeverity(TimelineSeverityFilter.all),
+      ));
+    }
+    if (query.source != TimelineSourceFilter.all) {
+      chips.add(_ActiveFilterChip(
+        label: _sourceLabel(query.source),
+        onRemove: () => onSource(TimelineSourceFilter.all),
+      ));
+    }
+    if (query.category != TimelineCategoryFilter.all) {
+      chips.add(_ActiveFilterChip(
+        label: _categoryLabel(query.category),
+        onRemove: () => onCategory(TimelineCategoryFilter.all),
+      ));
+    }
+    if (query.dateRange != TimelineDateRangeFilter.all) {
+      chips.add(_ActiveFilterChip(
+        label: _dateLabel(query.dateRange),
+        onRemove: () => onDateRange(TimelineDateRangeFilter.all),
+      ));
+    }
+    final provider = query.providerContains.trim();
+    if (provider.isNotEmpty) {
+      chips.add(_ActiveFilterChip(
+        label: 'Provider: $provider',
+        onRemove: () {
+          providerFilterController.clear();
+          onProviderFilter('');
+        },
+      ));
+    }
+    final eventId = query.eventIdEquals.trim();
+    if (eventId.isNotEmpty) {
+      chips.add(_ActiveFilterChip(
+        label: 'Event ID: $eventId',
+        onRemove: () {
+          eventIdFilterController.clear();
+          onEventIdFilter('');
+        },
+      ));
+    }
+    final process = query.processContains.trim();
+    if (process.isNotEmpty) {
+      chips.add(_ActiveFilterChip(
+        label: 'Process: $process',
+        onRemove: () {
+          processFilterController.clear();
+          onProcessFilter('');
+        },
+      ));
+    }
+    return chips;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final chips = _activeChips();
+    final advancedActive = query.providerContains.trim().isNotEmpty ||
+        query.eventIdEquals.trim().isNotEmpty ||
+        query.processContains.trim().isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          width: 64,
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: PulseTokens.textTertiary,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
+        Row(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _FilterDropdown<TimelineSeverityFilter>(
+                      label: _severityLabel(query.severity),
+                      value: query.severity,
+                      items: TimelineSeverityFilter.values,
+                      itemLabel: _severityLabel,
+                      onSelected: onSeverity,
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterDropdown<TimelineSourceFilter>(
+                      label: _sourceLabel(query.source),
+                      value: query.source,
+                      items: TimelineSourceFilter.values,
+                      itemLabel: _sourceLabel,
+                      onSelected: onSource,
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterDropdown<TimelineCategoryFilter>(
+                      label: _categoryLabel(query.category),
+                      value: query.category,
+                      items: TimelineCategoryFilter.values,
+                      itemLabel: _categoryLabel,
+                      onSelected: onCategory,
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterDropdown<TimelineDateRangeFilter>(
+                      label: _dateLabel(query.dateRange),
+                      value: query.dateRange,
+                      items: TimelineDateRangeFilter.values,
+                      itemLabel: _dateLabel,
+                      onSelected: onDateRange,
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                      label: advancedOpen
+                          ? 'Hide advanced'
+                          : (advancedActive
+                              ? 'Advanced (${[
+                                  if (query.providerContains.trim().isNotEmpty)
+                                    1,
+                                  if (query.eventIdEquals.trim().isNotEmpty) 1,
+                                  if (query.processContains.trim().isNotEmpty)
+                                    1,
+                                ].length})'
+                              : 'Advanced'),
+                      selected: advancedOpen || advancedActive,
+                      onTap: onToggleAdvanced,
+                    ),
+                  ],
                 ),
+              ),
+            ),
+            if (filtersActive)
+              IconButton(
+                tooltip: 'Clear filters',
+                onPressed: onClearFilters,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                icon: const Icon(LucideIcons.filterX, size: 16),
+              ),
+            if (filtersActive)
+              IconButton(
+                tooltip: 'Save search',
+                onPressed: onSaveSearch,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                icon: const Icon(LucideIcons.save, size: 16),
+              ),
+            Consumer<TimelineLibraryController>(
+              builder: (context, library, _) {
+                if (library.savedSearches.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return PopupMenuButton<String>(
+                  tooltip: 'Saved searches',
+                  onSelected: (id) {
+                    if (id.startsWith('del:')) {
+                      library.deleteSavedSearch(id.substring(4));
+                      return;
+                    }
+                    for (final s in library.savedSearches) {
+                      if (s.id == id) {
+                        onApplySavedSearch(s);
+                        break;
+                      }
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    for (final s in library.savedSearches) ...[
+                      PopupMenuItem(value: s.id, child: Text(s.name)),
+                      PopupMenuItem(
+                        value: 'del:${s.id}',
+                        child: Text(
+                          'Delete “${s.name}”',
+                          style: TextStyle(
+                            color: PulseTokens.severityError,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                  icon: const Icon(LucideIcons.bookmark, size: 16),
+                );
+              },
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Export timeline',
+              onSelected: (value) {
+                if (value == 'json') onExportJson();
+                if (value == 'csv') onExportCsv();
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'json',
+                  child: Text(
+                    selectedEvent != null
+                        ? 'Export selected as JSON'
+                        : 'Export visible as JSON',
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'csv',
+                  child: Text(
+                    selectedEvent != null
+                        ? 'Export selected as CSV'
+                        : 'Export visible as CSV',
+                  ),
+                ),
+              ],
+              icon: const Icon(LucideIcons.download, size: 16),
+            ),
+            IconButton(
+              tooltip: 'Refresh snapshot',
+              onPressed: onRefresh,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              icon: const Icon(LucideIcons.refreshCw, size: 16),
+            ),
+          ],
+        ),
+        if (chips.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final chip in chips)
+                _RemovableFilterChip(
+                  label: chip.label,
+                  onRemove: chip.onRemove,
+                ),
+            ],
+          ),
+        ],
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: _AdvancedFilterFields(
+              providerController: providerFilterController,
+              eventIdController: eventIdFilterController,
+              processController: processFilterController,
+              onProvider: onProviderFilter,
+              onEventId: onEventIdFilter,
+              onProcess: onProcessFilter,
+            ),
+          ),
+          crossFadeState: advancedOpen
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: PulseTokens.motionFast,
+        ),
+      ],
+    );
+  }
+}
+
+class _ActiveFilterChip {
+  const _ActiveFilterChip({required this.label, required this.onRemove});
+  final String label;
+  final VoidCallback onRemove;
+}
+
+class _FilterDropdown<T> extends StatelessWidget {
+  const _FilterDropdown({
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.itemLabel,
+    required this.onSelected,
+  });
+
+  final String label;
+  final T value;
+  final List<T> items;
+  final String Function(T) itemLabel;
+  final ValueChanged<T> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = value != items.first;
+    return PopupMenuButton<T>(
+      tooltip: label,
+      onSelected: onSelected,
+      itemBuilder: (context) => [
+        for (final item in items)
+          PopupMenuItem(
+            value: item,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 18,
+                  child: item == value
+                      ? Icon(
+                          LucideIcons.check,
+                          size: 14,
+                          color: PulseTokens.accent,
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 6),
+                Text(itemLabel(item)),
+              ],
+            ),
+          ),
+      ],
+      child: AnimatedContainer(
+        duration: PulseTokens.motionFast,
+        constraints: const BoxConstraints(minHeight: 28),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: active
+              ? PulseTokens.accentSoft
+              : PulseTokens.surface.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: active
+                ? PulseTokens.accent.withValues(alpha: 0.38)
+                : PulseTokens.stroke.withValues(alpha: 0.65),
           ),
         ),
-        Expanded(child: child),
-      ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: active
+                        ? PulseTokens.accent
+                        : PulseTokens.textSecondary,
+                    fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                    fontSize: 12.5,
+                  ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              LucideIcons.chevronDown,
+              size: 12,
+              color: active ? PulseTokens.accent : PulseTokens.textTertiary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RemovableFilterChip extends StatelessWidget {
+  const _RemovableFilterChip({
+    required this.label,
+    required this.onRemove,
+  });
+
+  final String label;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: PulseTokens.accentSoft,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onRemove,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: PulseTokens.accent,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+              ),
+              const SizedBox(width: 4),
+              Icon(LucideIcons.x, size: 12, color: PulseTokens.accent),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1168,128 +1457,6 @@ class _PreviewBanner extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SeverityRow extends StatelessWidget {
-  const _SeverityRow({required this.selected, required this.onSelected});
-
-  final TimelineSeverityFilter selected;
-  final ValueChanged<TimelineSeverityFilter> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      (TimelineSeverityFilter.all, 'All'),
-      (TimelineSeverityFilter.errors, 'Errors'),
-      (TimelineSeverityFilter.warnings, 'Warnings'),
-      (TimelineSeverityFilter.info, 'Info'),
-    ];
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final item in items)
-          _FilterChip(
-            label: item.$2,
-            selected: selected == item.$1,
-            onTap: () => onSelected(item.$1),
-          ),
-      ],
-    );
-  }
-}
-
-class _SourceRow extends StatelessWidget {
-  const _SourceRow({required this.selected, required this.onSelected});
-
-  final TimelineSourceFilter selected;
-  final ValueChanged<TimelineSourceFilter> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      (TimelineSourceFilter.all, 'All'),
-      (TimelineSourceFilter.system, 'System'),
-      (TimelineSourceFilter.application, 'Application'),
-      (TimelineSourceFilter.security, 'Security'),
-      (TimelineSourceFilter.other, 'Other'),
-    ];
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final item in items)
-          _FilterChip(
-            label: item.$2,
-            selected: selected == item.$1,
-            onTap: () => onSelected(item.$1),
-          ),
-      ],
-    );
-  }
-}
-
-class _CategoryRow extends StatelessWidget {
-  const _CategoryRow({required this.selected, required this.onSelected});
-
-  final TimelineCategoryFilter selected;
-  final ValueChanged<TimelineCategoryFilter> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      (TimelineCategoryFilter.all, 'All'),
-      (TimelineCategoryFilter.crash, 'Crash'),
-      (TimelineCategoryFilter.service, 'Service'),
-      (TimelineCategoryFilter.power, 'Power'),
-      (TimelineCategoryFilter.update, 'Update'),
-      (TimelineCategoryFilter.device, 'Device'),
-      (TimelineCategoryFilter.boot, 'Boot'),
-      (TimelineCategoryFilter.security, 'Security'),
-      (TimelineCategoryFilter.storage, 'Storage'),
-    ];
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final item in items)
-          _FilterChip(
-            label: item.$2,
-            selected: selected == item.$1,
-            onTap: () => onSelected(item.$1),
-          ),
-      ],
-    );
-  }
-}
-
-class _DateRangeRow extends StatelessWidget {
-  const _DateRangeRow({required this.selected, required this.onSelected});
-
-  final TimelineDateRangeFilter selected;
-  final ValueChanged<TimelineDateRangeFilter> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      (TimelineDateRangeFilter.all, 'All time'),
-      (TimelineDateRangeFilter.lastHour, '1 hour'),
-      (TimelineDateRangeFilter.last24Hours, '24 hours'),
-      (TimelineDateRangeFilter.last7Days, '7 days'),
-    ];
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final item in items)
-          _FilterChip(
-            label: item.$2,
-            selected: selected == item.$1,
-            onTap: () => onSelected(item.$1),
-          ),
-      ],
     );
   }
 }

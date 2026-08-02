@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/theme/pulse_theme.dart';
+import '../../app/theme/pulse_window_chrome.dart';
+import '../../application/diagnostics_controller.dart';
 import '../../application/health_navigation.dart';
 import '../../application/settings_controller.dart';
+import '../../application/timeline_session_controller.dart';
 import '../../ipc/pulse_ipc_client.dart';
 import '../components/pulse_content_frame.dart';
 import '../components/pulse_mica.dart';
@@ -43,6 +48,16 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = PulseShellPages.timeline;
   bool _paletteOpen = false;
+
+  /// Stable page instances — IndexedStack keeps state alive so Timeline ↔
+  /// Inventory never tears down Inventory (root cause of the open flash).
+  late final List<Widget> _pages = [
+    for (var i = 0; i < PulseShellPages.count; i++)
+      KeyedSubtree(
+        key: ValueKey('shell-page-$i'),
+        child: _pageFor(i, _titles[i]),
+      ),
+  ];
 
   static const _nav = [
     PulseNavItem(
@@ -86,10 +101,38 @@ class _AppShellState extends State<AppShell> {
     'Settings',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncPageVisibility(_index);
+    });
+  }
+
   void _selectPage(int index) {
     if (index < 0 || index >= PulseShellPages.count) return;
     if (_index == index) return;
     setState(() => _index = index);
+    _syncPageVisibility(index);
+  }
+
+  /// IndexedStack keeps pages mounted — visibility side-effects must be driven
+  /// by the shell, not by State.deactivate (which no longer fires on nav).
+  void _syncPageVisibility(int index) {
+    final timeline = context.read<TimelineSessionController>();
+    final diag = context.read<DiagnosticsController>();
+    unawaited(timeline.setPageVisible(index == PulseShellPages.timeline));
+    if (index == PulseShellPages.diagnostics) {
+      diag.frameMetrics.noteRebuild();
+      diag.startPolling();
+    } else {
+      diag.stopPolling();
+    }
+    if (index == PulseShellPages.inventory) {
+      // Inventory may have mounted before IPC was ready — nudge a load.
+      InventoryPage.visibilityTick.value++;
+    }
   }
 
   Future<void> _openCommandPalette({String initialQuery = ''}) async {
@@ -250,6 +293,15 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Bind the whole shell + active page to Material theme animation frames so
+    // PulseTokens.* never lag behind Dark/Light switches.
+    final materialTheme = Theme.of(context);
+    final pulse = materialTheme.extension<PulseThemeData>();
+    if (pulse != null) {
+      PulseThemeScope.sync(pulse);
+    }
+    PulseWindowChrome.syncLater(materialTheme.brightness);
+
     // Do not watch IPC here — that rebuilt the entire page tree (and every
     // MouseRegion) on each connection tick. Sidebar status is isolated below.
     return CallbackShortcuts(
@@ -304,49 +356,13 @@ class _AppShellState extends State<AppShell> {
                     Expanded(
                       child: PulseMicaBackground(
                         child: PulseContentFrame(
-                          child: AnimatedSwitcher(
-                            duration: () {
-                              if (MediaQuery.disableAnimationsOf(context)) {
-                                return Duration.zero;
-                              }
-                              final speed = context.select<SettingsController,
-                                  double>((s) => s.animationSpeed);
-                              return PulseTokens.scaleMotion(
-                                PulseTokens.motionPage,
-                                speed,
-                              );
-                            }(),
-                            switchInCurve: PulseTokens.motionEmphasized,
-                            switchOutCurve: Curves.easeInCubic,
-                            layoutBuilder: (currentChild, previousChildren) {
-                              return Stack(
-                                alignment: Alignment.topCenter,
-                                children: [
-                                  ...previousChildren,
-                                  ?currentChild,
-                                ],
-                              );
-                            },
-                            transitionBuilder: (child, animation) {
-                              final curved = CurvedAnimation(
-                                parent: animation,
-                                curve: PulseTokens.motionEmphasized,
-                              );
-                              return FadeTransition(
-                                opacity: curved,
-                                child: SlideTransition(
-                                  position: Tween<Offset>(
-                                    begin: const Offset(0.012, 0),
-                                    end: Offset.zero,
-                                  ).animate(curved),
-                                  child: child,
-                                ),
-                              );
-                            },
-                            child: KeyedSubtree(
-                              key: ValueKey(_index),
-                              child: _pageFor(_index, _titles[_index]),
-                            ),
+                          // Keep every page Element alive. AnimatedSwitcher was
+                          // fading through a transparent frame (mica/canvas flash)
+                          // and disposing Inventory on every leave.
+                          child: IndexedStack(
+                            index: _index,
+                            sizing: StackFit.expand,
+                            children: _pages,
                           ),
                         ),
                       ),

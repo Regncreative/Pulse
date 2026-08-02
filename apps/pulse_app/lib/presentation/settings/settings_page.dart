@@ -161,6 +161,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    Theme.of(context);
     final connectionLabel = context.select<ConnectionController, String>(
       (c) => c.statusLabel,
     );

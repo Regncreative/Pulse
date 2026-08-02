@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -10,13 +12,14 @@ import 'inventory_detail_model.dart';
 import '../../application/connection_controller.dart';
 import '../../app/theme/pulse_theme.dart';
 import '../../ipc/pulse_ipc_client.dart';
+import '../../logging/app_logger.dart';
 import '../components/pulse_app_bar.dart';
 import '../components/pulse_badge.dart';
-import '../components/pulse_button.dart';
 import '../components/pulse_card.dart';
 import '../components/pulse_empty_state.dart';
 import '../components/service_lifecycle_controls.dart';
 import '../health/health_view_models.dart' show formatBytesBinary;
+import '../utils/pulse_snack.dart';
 import '../utils/pulse_user_errors.dart';
 
 enum _SortField { title, id, subtitle }
@@ -27,15 +30,30 @@ class InventoryPage extends StatefulWidget {
 
   final String title;
 
+  /// Bumped by AppShell when Inventory becomes the visible IndexedStack child
+  /// so a page that mounted before IPC was ready can load once visible.
+  static final ValueNotifier<int> visibilityTick = ValueNotifier<int>(0);
+
   @override
   State<InventoryPage> createState() => _InventoryPageState();
 }
 
-class _InventoryPageState extends State<InventoryPage> {
+class _InventoryPageState extends State<InventoryPage>
+    with AutomaticKeepAliveClientMixin {
   InventoryDomainId _domain = InventoryDomainId.services;
-  InventoryDomainSnapshot? _snapshot;
+
+  /// Per-domain snapshots from InventoryEngine (IPC / service cache).
+  final Map<InventoryDomainId, InventoryDomainSnapshot> _domainCache = {};
+
+  /// Last painted catalog held across in-flight loads (previous frame).
+  InventoryDomainSnapshot? _holdSnapshot;
+
   String? _error;
   bool _loading = false;
+  int _loadSeq = 0;
+  InventoryDomainId? _inFlightDomain;
+  IpcConnectionState? _lastIpcState;
+  String? _lastBuildSig;
   String _filter = '';
   String? _selectedId;
   _SortField _sortField = _SortField.title;
@@ -46,80 +64,281 @@ class _InventoryPageState extends State<InventoryPage> {
   };
 
   @override
+  bool get wantKeepAlive => true;
+
+  /// Snapshot used for painting: prefer selected-domain cache, else hold frame.
+  InventoryDomainSnapshot? get _displaySnapshot {
+    final cached = _domainCache[_domain];
+    if (cached != null) return cached;
+    if (_holdSnapshot != null) return _holdSnapshot;
+    return null;
+  }
+
+  void _log(String message) {
+    // warn so Release console + AppLogger buffer always keep these lines.
+    try {
+      context.read<AppLogger>().warn('inventory', message);
+    } catch (_) {
+      // ignore: avoid_print
+      print('[pulse.inventory] $message');
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
+    _log('initState domain=${_domain.name}');
+    InventoryPage.visibilityTick.addListener(_onShellVisibility);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final state = context.read<PulseIpcClient>().status.state;
-      if (state == IpcConnectionState.connected) {
-        _load(forceRefresh: false);
-      }
+      _log('postFrame ensureLoaded');
+      _ensureLoaded(reason: 'initState');
     });
   }
 
-  Future<void> _load({required bool forceRefresh}) async {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final state = context.read<PulseIpcClient>().status.state;
+    _log('didChangeDependencies ipc=$state domain=${_domain.name}');
+    if (_lastIpcState != state) {
+      final prev = _lastIpcState;
+      _lastIpcState = state;
+      if (state == IpcConnectionState.connected &&
+          prev != IpcConnectionState.connected) {
+        _log('ipc became connected — ensureLoaded');
+        _ensureLoaded(reason: 'ipc_connected');
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    InventoryPage.visibilityTick.removeListener(_onShellVisibility);
+    _log('dispose');
+    super.dispose();
+  }
+
+  void _onShellVisibility() {
+    if (!mounted) return;
+    _log('shell visibilityTick=${InventoryPage.visibilityTick.value}');
+    _ensureLoaded(reason: 'shell_visible');
+  }
+
+  void _ensureLoaded({required String reason}) {
     final ipc = context.read<PulseIpcClient>();
-    if (ipc.status.state != IpcConnectionState.connected) {
-      setState(() {
-        _snapshot = null;
-        _error = null;
-        _loading = false;
-      });
+    final state = ipc.status.state;
+    _log(
+      'ensureLoaded reason=$reason ipc=$state loading=$_loading '
+      'cache=${_domainCache.containsKey(_domain)} domain=${_domain.name}',
+    );
+    if (state != IpcConnectionState.connected) {
+      _log('ensureLoaded skip — not connected');
       return;
     }
     final node = inventoryNodeFor(_domain);
     if (node == null || !node.implemented) {
+      _log('ensureLoaded skip — domain not implemented');
+      return;
+    }
+    // Always fetch when we have no cache for the selected domain.
+    if (!_domainCache.containsKey(_domain) || _error != null) {
+      unawaited(_load(forceRefresh: false, reason: reason));
+    }
+  }
+
+  Future<void> _load({
+    required bool forceRefresh,
+    String reason = 'load',
+  }) async {
+    final seq = ++_loadSeq;
+    final ipc = context.read<PulseIpcClient>();
+    final requested = _domain;
+    // Coalesce only while this domain still owns the in-flight slot.
+    // forceRefresh always bypasses (Retry must never no-op).
+    if (!forceRefresh &&
+        _inFlightDomain == requested &&
+        _loading) {
+      _log('loadDomain#$seq coalesce — already in flight for ${requested.name}');
+      return;
+    }
+    _log(
+      'loadDomain#$seq start reason=$reason domain=${requested.name} '
+      'forceRefresh=$forceRefresh mounted=$mounted',
+    );
+
+    if (ipc.status.state != IpcConnectionState.connected) {
+      _log('loadDomain#$seq abort — ipc not connected');
+      if (!mounted) return;
       setState(() {
-        _snapshot = null;
-        _error = null;
         _loading = false;
+        _inFlightDomain = null;
+        _error = 'PulseService is offline.';
       });
       return;
     }
+
+    final node = inventoryNodeFor(requested);
+    if (node == null || !node.implemented) {
+      _log('loadDomain#$seq abort — not implemented');
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _inFlightDomain = null;
+        _error = null;
+      });
+      return;
+    }
+
+    final cacheHit = _domainCache.containsKey(requested);
+    _log(cacheHit ? 'cache hit ${requested.name}' : 'cache miss ${requested.name}');
+
+    if (!mounted) {
+      _log('loadDomain#$seq abort — not mounted before setState');
+      return;
+    }
     setState(() {
-      _loading = true;
+      _inFlightDomain = requested;
+      if (!cacheHit) _loading = true;
       _error = null;
     });
+    _log('loading=true/keep inFlight=${requested.name} cacheHit=$cacheHit');
+
+    var completedOk = false;
     try {
+      _log('RPC request GetInventoryDomain domain=${requested.name}');
+      final sw = Stopwatch()..start();
       final snap = await ipc.getInventoryDomain(
-        domain: _domain,
+        domain: requested,
         forceRefresh: forceRefresh,
       );
-      if (!mounted) return;
+      sw.stop();
+      final count = _snapshotItemCount(snap);
+      _log(
+        'RPC response domain=${snap.domain.name} status=${snap.status.name} '
+        'items=$count gen=${snap.generation} ms=${sw.elapsedMilliseconds} '
+        'seq=$seq stillMounted=$mounted selected=${_domain.name}',
+      );
+      if (!mounted) {
+        _log('loadDomain#$seq drop — unmounted after RPC');
+        return;
+      }
       setState(() {
-        _snapshot = snap;
-        _selectedId = null;
-        _loading = false;
+        _domainCache[requested] = snap;
+        if (_domain == requested) {
+          _holdSnapshot = snap;
+          _loading = false;
+          _error = null;
+        } else {
+          _log(
+            'loadDomain#$seq warm-cache only (selected=${_domain.name})',
+          );
+        }
       });
-    } catch (e) {
-      if (!mounted) return;
+      completedOk = true;
+      _log(
+        'loadDomain#$seq done loading=$_loading '
+        'selectedCached=${_domainCache.containsKey(_domain)} '
+        'selectedItems=${_domainCache[_domain] == null ? 0 : _snapshotItemCount(_domainCache[_domain]!)}',
+      );
+    } catch (e, st) {
+      _log('loadDomain#$seq ERROR $e');
+      _log('loadDomain#$seq stack $st');
+      if (!mounted) {
+        _log('loadDomain#$seq drop error — unmounted');
+        return;
+      }
       setState(() {
-        _snapshot = null;
-        _error = PulseUserErrors.fromObject(e);
-        _loading = false;
+        if (_domain == requested) {
+          _error = PulseUserErrors.fromObject(e);
+          _loading = false;
+        }
       });
+    } finally {
+      // Always release the in-flight slot for this request so coalesce cannot
+      // permanently block later ensureLoaded/Retry after a dropped setState.
+      if (_inFlightDomain == requested) {
+        _inFlightDomain = null;
+      }
+      if (mounted &&
+          _domain == requested &&
+          _loading &&
+          !completedOk &&
+          !_domainCache.containsKey(requested)) {
+        _log(
+          'loadDomain#$seq finally — clearing stuck loading '
+          '(no cache, request ended)',
+        );
+        setState(() {
+          _loading = false;
+          _error ??= 'Inventory load did not complete.';
+        });
+      }
+      _log(
+        'loadDomain#$seq finally ok=$completedOk loading=$_loading '
+        'inFlight=$_inFlightDomain',
+      );
     }
+  }
+
+  static int _snapshotItemCount(InventoryDomainSnapshot snap) {
+    return switch (snap.domain) {
+      InventoryDomainId.services => snap.services.length,
+      InventoryDomainId.drivers => snap.drivers.length,
+      InventoryDomainId.software => snap.software.length,
+      InventoryDomainId.usb => snap.usb.length,
+      InventoryDomainId.pci => snap.pci.length,
+      InventoryDomainId.displays => snap.displays.length,
+      InventoryDomainId.audio => snap.audio.length,
+      InventoryDomainId.bluetooth => snap.bluetooth.length,
+      InventoryDomainId.printers => snap.printers.length,
+      InventoryDomainId.battery => snap.batteries.length,
+      InventoryDomainId.motherboard => snap.motherboard.length,
+      InventoryDomainId.bios => snap.bios.length,
+      InventoryDomainId.cpu => snap.cpu.length,
+      InventoryDomainId.memoryModules => snap.memoryModules.length,
+      InventoryDomainId.storage => snap.storage.length,
+      InventoryDomainId.networkAdapters => snap.networkAdapters.length,
+      _ => 0,
+    };
   }
 
   void _selectDomain(InventoryDomainId domain) {
     if (_domain == domain) return;
+    final cached = _domainCache[domain];
+    _log(
+      'selectDomain ${_domain.name} → ${domain.name} '
+      'cache=${cached != null}',
+    );
     setState(() {
+      if (_domainCache[_domain] != null) {
+        _holdSnapshot = _domainCache[_domain];
+      }
       _domain = domain;
-      _snapshot = null;
       _selectedId = null;
       _filter = '';
       _stateFilter = null;
       _error = null;
+      if (cached != null) {
+        _holdSnapshot = cached;
+        _loading = false;
+      } else {
+        _loading = true;
+      }
     });
     final node = inventoryNodeFor(domain);
     if (node != null && node.implemented) {
-      _load(forceRefresh: false);
+      unawaited(_load(forceRefresh: false, reason: 'selectDomain'));
+    } else {
+      setState(() => _loading = false);
     }
   }
 
   List<_InventoryRow> _allRows() {
-    final snap = _snapshot;
+    final snap = _displaySnapshot;
     if (snap == null) return const [];
+    // While holding the previous domain, still render its rows (prior frame).
+    // Once the selected domain is cached, rows match _domain.
     final rows = <_InventoryRow>[];
     switch (snap.domain) {
       case InventoryDomainId.services:
@@ -542,7 +761,7 @@ class _InventoryPageState extends State<InventoryPage> {
     final buffer = StringBuffer();
     buffer.writeln('# Pulse Inventory export');
     buffer.writeln('domain=${_domain.name}');
-    final snap = _snapshot;
+    final snap = _domainCache[_domain];
     if (snap != null) {
       buffer.writeln('status=${snap.status.name}');
       buffer.writeln('generation=${snap.generation}');
@@ -561,22 +780,48 @@ class _InventoryPageState extends State<InventoryPage> {
     }
     await Clipboard.setData(ClipboardData(text: buffer.toString()));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Exported ${rows.length} items to clipboard')),
-    );
+    PulseSnack.success(context, 'Exported ${rows.length} items to clipboard');
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // AutomaticKeepAliveClientMixin
+    Theme.of(context); // keep Inventory on Material theme animation ticks
     final connectionLabel = context.select<ConnectionController, String>(
       (c) => c.statusLabel,
     );
     final state = context.select<PulseIpcClient, IpcConnectionState>(
       (c) => c.status.state,
     );
+    // IndexedStack mounts us early — reload when IPC connects after first build.
+    if (_lastIpcState != state) {
+      final prev = _lastIpcState;
+      _lastIpcState = state;
+      if (state == IpcConnectionState.connected &&
+          prev != null &&
+          prev != IpcConnectionState.connected) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _ensureLoaded(reason: 'build_ipc_edge');
+        });
+      }
+    }
     final offline = state != IpcConnectionState.connected;
     final node = inventoryNodeFor(_domain);
+    final displaySnap = _displaySnapshot;
+    final showingHold =
+        _loading && _domainCache[_domain] == null && _holdSnapshot != null;
     final rows = _visibleRows();
+    final buildSig =
+        '${_domain.name}|$state|$_loading|${_domainCache.containsKey(_domain)}|'
+        '${rows.length}|${_error != null}|$showingHold';
+    if (buildSig != _lastBuildSig) {
+      _lastBuildSig = buildSig;
+      _log(
+        'build domain=${_domain.name} ipc=$state loading=$_loading '
+        'cache=${_domainCache.containsKey(_domain)} hold=${_holdSnapshot != null} '
+        'rows=${rows.length} error=${_error != null} showingHold=$showingHold',
+      );
+    }
     final selected = rows.cast<_InventoryRow?>().firstWhere(
           (r) => r!.id == _selectedId,
           orElse: () => null,
@@ -592,32 +837,33 @@ class _InventoryPageState extends State<InventoryPage> {
           searchHint: 'Search this domain…',
           searchQuery: _filter,
           onSearchChanged: (v) => setState(() => _filter = v),
-          actions: [
-            PulseButton(
+          headerActions: [
+            PulseHeaderAction(
               label: 'Copy',
               icon: LucideIcons.copy,
-              variant: PulseButtonVariant.secondary,
+              tooltip: 'Copy selected item',
+              collapseFirst: true,
               onPressed: offline || selected == null
                   ? null
                   : () => _copySelected(selected),
             ),
-            PulseButton(
+            PulseHeaderAction(
               label: 'Export',
               icon: LucideIcons.download,
-              variant: PulseButtonVariant.secondary,
+              tooltip: 'Export visible items',
               onPressed: offline || rows.isEmpty
                   ? null
                   : () => _exportVisible(rows),
             ),
-            PulseButton(
+            PulseHeaderAction(
               label: 'Refresh',
               icon: LucideIcons.refreshCw,
-              variant: PulseButtonVariant.secondary,
+              tooltip: 'Refresh domain',
               onPressed: offline ||
                       _loading ||
                       !(node?.implemented ?? false)
                   ? null
-                  : () => _load(forceRefresh: true),
+                  : () => _load(forceRefresh: true, reason: 'refresh'),
             ),
           ],
         ),
@@ -660,8 +906,9 @@ class _InventoryPageState extends State<InventoryPage> {
                           children: [
                             _DomainHeader(
                               node: node,
-                              snapshot: _snapshot,
+                              snapshot: _domainCache[_domain],
                               loading: _loading,
+                              holdingPrevious: showingHold,
                               filterOptions: _filterOptions(),
                               stateFilter: _stateFilter,
                               sortField: _sortField,
@@ -692,6 +939,8 @@ class _InventoryPageState extends State<InventoryPage> {
                                 node: node,
                                 rows: rows,
                                 selected: selected,
+                                displaySnap: displaySnap,
+                                showingHold: showingHold,
                               ),
                             ),
                           ],
@@ -710,6 +959,8 @@ class _InventoryPageState extends State<InventoryPage> {
     required InventoryDomainNode? node,
     required List<_InventoryRow> rows,
     required _InventoryRow? selected,
+    required InventoryDomainSnapshot? displaySnap,
+    required bool showingHold,
   }) {
     if (node == null) {
       return const PulseEmptyState(
@@ -721,17 +972,15 @@ class _InventoryPageState extends State<InventoryPage> {
     if (!node.implemented) {
       return PulseEmptyState(
         icon: LucideIcons.clock,
-        title: '${node.label} — coming in P2',
+        title: '${node.label} — not available',
         message:
-            'This System domain is reserved. Collectors ship after the P1 '
-            'Inventory platform validation report.',
+            'This inventory domain is not implemented on this build.',
       );
     }
-    if (_loading && _snapshot == null) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    }
-    final snap = _snapshot;
+    final snap = _domainCache[_domain] ?? displaySnap;
     if (snap != null &&
+        !showingHold &&
+        snap.domain == _domain &&
         snap.status != InventoryStatus.available &&
         snap.status != InventoryStatus.partial) {
       return PulseEmptyState(
@@ -741,16 +990,39 @@ class _InventoryPageState extends State<InventoryPage> {
             ? 'This inventory domain could not be collected.'
             : snap.statusDetail,
         actionLabel: 'Retry',
-        onAction: () => _load(forceRefresh: true),
+        onAction: () => _load(forceRefresh: true, reason: 'retry_status'),
       );
     }
+    // Never paint a blank canvas. Always cached content, fresh content, or
+    // an explicit empty/error state with Retry.
     if (rows.isEmpty) {
+      if (_error != null) {
+        return PulseEmptyState(
+          icon: LucideIcons.triangleAlert,
+          title: 'Inventory load failed',
+          message: _error!,
+          actionLabel: 'Retry',
+          onAction: () => _load(forceRefresh: true, reason: 'retry_error'),
+        );
+      }
+      if (_loading || displaySnap == null) {
+        return PulseEmptyState(
+          icon: LucideIcons.loader,
+          title: 'Loading ${_domain.name}…',
+          message:
+              'Waiting for InventoryEngine over IPC. If this persists, retry.',
+          actionLabel: 'Retry',
+          onAction: () => _load(forceRefresh: true, reason: 'retry_waiting'),
+        );
+      }
       return PulseEmptyState(
         icon: LucideIcons.search,
         title: 'No matching items',
         message: _filter.isEmpty && (_stateFilter == null)
             ? 'The collector returned an empty catalog for this domain.'
             : 'No items match the current search/filter.',
+        actionLabel: 'Refresh',
+        onAction: () => _load(forceRefresh: true, reason: 'retry_empty'),
       );
     }
 
@@ -776,9 +1048,7 @@ class _InventoryPageState extends State<InventoryPage> {
                     onCopyValue: (v) async {
                       await Clipboard.setData(ClipboardData(text: v));
                       if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Copied value')),
-                      );
+                      PulseSnack.success(context, 'Copied value');
                     },
                   ),
                 ),
@@ -796,7 +1066,8 @@ class _InventoryPageState extends State<InventoryPage> {
               child: selected == null
                   ? PulseCard(
                       child: Text(
-                        'Select an item to inspect structured fields.',
+                        'Select an item to inspect Identity, Hardware, '
+                        'Firmware, Driver, Capabilities, Power, and Advanced.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: PulseTokens.textSecondary,
                             ),
@@ -807,9 +1078,7 @@ class _InventoryPageState extends State<InventoryPage> {
                       onCopyValue: (v) async {
                         await Clipboard.setData(ClipboardData(text: v));
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Copied value')),
-                        );
+                        PulseSnack.success(context, 'Copied value');
                       },
                     ),
             ),
@@ -972,6 +1241,7 @@ class _DomainHeader extends StatelessWidget {
     required this.node,
     required this.snapshot,
     required this.loading,
+    required this.holdingPrevious,
     required this.filterOptions,
     required this.stateFilter,
     required this.sortField,
@@ -984,6 +1254,7 @@ class _DomainHeader extends StatelessWidget {
   final InventoryDomainNode? node;
   final InventoryDomainSnapshot? snapshot;
   final bool loading;
+  final bool holdingPrevious;
   final List<String> filterOptions;
   final String? stateFilter;
   final _SortField sortField;
@@ -994,7 +1265,12 @@ class _DomainHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final snap = snapshot;
+    // Only show counts for the selected domain's own cache (not hold frame).
+    final snap = (snapshot != null &&
+            node != null &&
+            snapshot!.domain == node!.id)
+        ? snapshot
+        : null;
     final count = snap == null
         ? 0
         : switch (snap.domain) {
@@ -1052,13 +1328,15 @@ class _DomainHeader extends StatelessWidget {
               ],
               const Spacer(),
               Text(
-                snap == null
-                    ? 'Not loaded'
-                    : [
-                        '$count items',
-                        if (snap.generation > 0) 'gen ${snap.generation}',
-                        if (snap.truncated) 'truncated',
-                      ].join(' · '),
+                holdingPrevious
+                    ? 'Loading…'
+                    : snap == null
+                        ? (loading ? 'Loading…' : 'Not loaded')
+                        : [
+                            '$count items',
+                            if (snap.generation > 0) 'gen ${snap.generation}',
+                            if (snap.truncated) 'truncated',
+                          ].join(' · '),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: PulseTokens.textSecondary,
                     ),

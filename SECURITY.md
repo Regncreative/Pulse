@@ -4,7 +4,7 @@
 
 | Version | Supported |
 | --- | --- |
-| `0.2.0-beta.x` (pre-release) | Yes — best effort |
+| `0.2.1-beta.x` (pre-release) | Yes — best effort |
 | `0.1.0-beta.x` (pre-release) | Yes — best effort |
 | Older / unsigned experimental builds | No |
 

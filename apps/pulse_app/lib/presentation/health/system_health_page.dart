@@ -181,6 +181,7 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
 
   @override
   Widget build(BuildContext context) {
+    Theme.of(context);
     final connectionLabel = context.select<ConnectionController, String>(
       (c) => c.statusLabel,
     );

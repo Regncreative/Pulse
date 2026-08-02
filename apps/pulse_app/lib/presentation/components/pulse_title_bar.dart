@@ -65,6 +65,7 @@ class _PulseTitleBarState extends State<PulseTitleBar> with WindowListener {
 
   @override
   Widget build(BuildContext context) {
+    Theme.of(context);
     final fg = _focused ? PulseTokens.textPrimary : PulseTokens.textTertiary;
 
     return DragToMoveArea(

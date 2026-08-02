@@ -4,7 +4,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/theme/pulse_theme.dart';
 import '../../ipc/pulse_ipc_client.dart';
 import 'connection_indicator.dart';
+import 'pulse_button.dart';
+import 'pulse_header_action.dart';
 import 'safe_hover.dart';
+
+export 'pulse_header_action.dart';
 
 class PulseAppBar extends StatelessWidget {
   const PulseAppBar({
@@ -13,6 +17,7 @@ class PulseAppBar extends StatelessWidget {
     required this.connectionState,
     required this.connectionLabel,
     this.actions,
+    this.headerActions,
     this.searchHint,
     this.searchQuery,
     this.onSearchChanged,
@@ -22,7 +27,13 @@ class PulseAppBar extends StatelessWidget {
   final String title;
   final IpcConnectionState connectionState;
   final String connectionLabel;
+
+  /// Legacy widget actions (not auto-responsive). Prefer [headerActions].
   final List<Widget>? actions;
+
+  /// Overflow-safe actions laid out by density (full → partial → icons → ⋯).
+  final List<PulseHeaderAction>? headerActions;
+
   final String? searchHint;
   final String? searchQuery;
   final ValueChanged<String>? onSearchChanged;
@@ -30,55 +41,81 @@ class PulseAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild with Material theme animation frames.
+    Theme.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(
         PulseTokens.pagePadX,
-        12,
-        28,
-        12,
+        10,
+        PulseTokens.pagePadX,
+        10,
       ),
       decoration: BoxDecoration(
-        color: PulseTokens.canvas.withValues(alpha: 0.35),
+        color: PulseTokens.header.withValues(alpha: 0.72),
         border: Border(
-          bottom: BorderSide(color: PulseTokens.strokeSubtle),
+          bottom: BorderSide(color: PulseTokens.divider),
         ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            height: 32,
-            child: Row(
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontSize: 20,
-                        letterSpacing: -0.3,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final windowW = MediaQuery.sizeOf(context).width;
+              final narrowBadge = windowW < 1100;
+              final actionSlot = _resolveActions(
+                context: context,
+                windowWidth: windowW,
+                barWidth: constraints.maxWidth,
+              );
+              return SizedBox(
+                height: 36,
+                child: Row(
+                  children: [
+                    // Title + connection shrink first; actions keep intrinsic width.
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(
+                                    fontSize: 20,
+                                    letterSpacing: -0.3,
+                                    color: PulseTokens.primaryText,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: ConnectionIndicator(
+                                state: connectionState,
+                                label: connectionLabel,
+                                compact: narrowBadge,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: ConnectionIndicator(
-                      state: connectionState,
-                      label: connectionLabel,
-                      compact: MediaQuery.sizeOf(context).width < 1100,
                     ),
-                  ),
+                    if (actionSlot != null) ...[
+                      const SizedBox(width: 8),
+                      actionSlot,
+                    ],
+                  ],
                 ),
-                if (actions != null && actions!.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  ...actions!,
-                ],
-              ],
-            ),
+              );
+            },
           ),
           if (searchHint != null || searchEnabled) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             _SearchField(
               hint: searchHint ?? 'Search events…',
               enabled: searchEnabled,
@@ -90,6 +127,187 @@ class PulseAppBar extends StatelessWidget {
       ),
     );
   }
+
+  Widget? _resolveActions({
+    required BuildContext context,
+    required double windowWidth,
+    required double barWidth,
+  }) {
+    final declarative = headerActions;
+    if (declarative != null && declarative.isNotEmpty) {
+      final density = _ActionDensity.resolve(
+        windowWidth: windowWidth,
+        barWidth: barWidth,
+        actionCount: declarative.length,
+      );
+      return _HeaderActionStrip(actions: declarative, density: density);
+    }
+    if (actions == null || actions!.isEmpty) return null;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < actions!.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          actions![i],
+        ],
+      ],
+    );
+  }
+}
+
+enum _ActionDensity {
+  /// ≥1400 — all labels.
+  full,
+
+  /// 1200–1400 — collapseFirst → icon; others labeled.
+  partial,
+
+  /// 1000–1200 — all icons + tooltips.
+  icons,
+
+  /// <1000 — overflow menu.
+  overflow;
+
+  static _ActionDensity resolve({
+    required double windowWidth,
+    required double barWidth,
+    required int actionCount,
+  }) {
+    var density = switch (windowWidth) {
+      >= 1400 => _ActionDensity.full,
+      >= 1200 => _ActionDensity.partial,
+      >= 1000 => _ActionDensity.icons,
+      _ => _ActionDensity.overflow,
+    };
+
+    // Available bar width can be tighter than the window (sidebar + padding).
+    // Escalate collapse so actions never clip the title row.
+    final budget = barWidth * 0.42;
+    final fullNeed = actionCount * 108.0;
+    final partialNeed = actionCount * 78.0;
+    final iconsNeed = actionCount * 44.0;
+
+    if (density == _ActionDensity.full && budget < fullNeed) {
+      density = _ActionDensity.partial;
+    }
+    if (density == _ActionDensity.partial && budget < partialNeed) {
+      density = _ActionDensity.icons;
+    }
+    if ((density == _ActionDensity.icons ||
+            density == _ActionDensity.partial ||
+            density == _ActionDensity.full) &&
+        budget < iconsNeed) {
+      density = _ActionDensity.overflow;
+    }
+    return density;
+  }
+}
+
+class _HeaderActionStrip extends StatelessWidget {
+  const _HeaderActionStrip({
+    required this.actions,
+    required this.density,
+  });
+
+  final List<PulseHeaderAction> actions;
+  final _ActionDensity density;
+
+  @override
+  Widget build(BuildContext context) {
+    if (density == _ActionDensity.overflow) {
+      return _OverflowActionsButton(actions: actions);
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < actions.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          _buildButton(actions[i]),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildButton(PulseHeaderAction action) {
+    final iconOnly = switch (density) {
+      _ActionDensity.full => false,
+      _ActionDensity.partial => action.collapseFirst,
+      _ActionDensity.icons => true,
+      _ActionDensity.overflow => true,
+    };
+    return PulseButton(
+      label: action.label,
+      icon: action.icon,
+      variant: PulseButtonVariant.secondary,
+      dense: true,
+      iconOnly: iconOnly,
+      tooltip: action.tooltip ?? action.label,
+      onPressed: action.onPressed,
+    );
+  }
+}
+
+class _OverflowActionsButton extends StatelessWidget {
+  const _OverflowActionsButton({required this.actions});
+
+  final List<PulseHeaderAction> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<int>(
+      tooltip: 'More actions',
+      padding: EdgeInsets.zero,
+      offset: const Offset(0, 40),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(PulseTokens.radiusMd),
+        side: BorderSide(color: PulseTokens.stroke),
+      ),
+      color: PulseTokens.surfaceElevated,
+      onSelected: (index) => actions[index].onPressed?.call(),
+      itemBuilder: (context) {
+        return [
+          for (var i = 0; i < actions.length; i++)
+            PopupMenuItem<int>(
+              value: i,
+              enabled: actions[i].onPressed != null,
+              child: Row(
+                children: [
+                  Icon(
+                    actions[i].icon,
+                    size: 16,
+                    color: actions[i].onPressed == null
+                        ? PulseTokens.textDisabled
+                        : PulseTokens.textSecondary,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(actions[i].label),
+                ],
+              ),
+            ),
+        ];
+      },
+      child: Tooltip(
+        message: 'More actions',
+        child: Material(
+          color: PulseTokens.surfaceElevated,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(PulseTokens.radiusMd),
+            side: BorderSide(color: PulseTokens.stroke),
+          ),
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Icon(
+              LucideIcons.ellipsis,
+              size: 16,
+              color: PulseTokens.textPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _SearchField extends StatefulWidget {
@@ -97,7 +315,7 @@ class _SearchField extends StatefulWidget {
     required this.hint,
     required this.enabled,
     required this.query,
-    this.onChanged,
+    required this.onChanged,
   });
 
   final String hint;

@@ -8,7 +8,7 @@ namespace pulse {
 struct VersionInfo {
   int major = 0;
   int minor = 2;
-  int patch = 0;
+  int patch = 1;
   const char* label = "beta";
 
   std::string ToString() const {

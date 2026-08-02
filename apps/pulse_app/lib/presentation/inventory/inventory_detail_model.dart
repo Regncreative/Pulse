@@ -15,18 +15,108 @@ class InventoryDetailSection {
   final List<(String label, String value)> fields;
 }
 
-/// Builds sections for a flat `Map<String, String>` legacy detail bag
-/// (P0/P1 domains) under a single "Details" section — keeps the sectioned
-/// panel usable everywhere without forcing every call site to migrate.
+/// Groups a flat `Map<String, String>` detail bag into the standard Inventory
+/// detail sections (Identity / Hardware / Firmware / Driver / Capabilities /
+/// Power / Advanced). Unknown keys land in Advanced.
 List<InventoryDetailSection> sectionsFromFlatDetails(
   Map<String, String> details,
 ) {
-  final fields = <(String, String)>[
-    for (final e in details.entries)
-      if (e.value.trim().isNotEmpty) (_titleCase(e.key), e.value),
+  const identity = {
+    'id',
+    'display_name',
+    'description',
+    'manufacturer',
+    'publisher',
+    'version',
+    'architecture',
+    'hardware_id',
+    'class_name',
+    'class_guid',
+    'location_info',
+    'adapter_name',
+    'location',
+    'comment',
+    'install_date',
+    'install_location',
+  };
+  const hardware = {
+    'binary_path',
+    'account',
+    'start_type',
+    'driver_type',
+    'port_name',
+    'estimated_size_bytes',
+  };
+  const firmware = {
+    'firmware_revision',
+    'rom_size',
+    'release_date',
+  };
+  const driver = {
+    'driver_name',
+    'service',
+    'driver_provider',
+    'driver_version',
+    'driver_date',
+  };
+  const capabilities = {
+    'state',
+    'system_component',
+    'is_shared',
+    'is_default',
+    'is_network',
+    'attributes',
+    'description_from_enum_display',
+    'problem_code',
+  };
+  const power = {
+    'power_state',
+    'chemistry',
+    'capacity_percent',
+    'design_capacity_mwh',
+    'full_charged_capacity_mwh',
+    'cycle_count',
+    'from_system_power_fallback',
+  };
+
+  final buckets = <String, List<(String, String)>>{
+    'Identity': [],
+    'Hardware': [],
+    'Firmware': [],
+    'Driver': [],
+    'Capabilities': [],
+    'Power': [],
+    'Advanced': [],
+  };
+
+  for (final e in details.entries) {
+    final value = e.value.trim();
+    if (value.isEmpty) continue;
+    final key = e.key;
+    final label = _titleCase(key);
+    final field = (label, value);
+    if (identity.contains(key)) {
+      buckets['Identity']!.add(field);
+    } else if (hardware.contains(key)) {
+      buckets['Hardware']!.add(field);
+    } else if (firmware.contains(key)) {
+      buckets['Firmware']!.add(field);
+    } else if (driver.contains(key)) {
+      buckets['Driver']!.add(field);
+    } else if (capabilities.contains(key)) {
+      buckets['Capabilities']!.add(field);
+    } else if (power.contains(key)) {
+      buckets['Power']!.add(field);
+    } else {
+      buckets['Advanced']!.add(field);
+    }
+  }
+
+  return [
+    for (final title in buckets.keys)
+      if (buckets[title]!.isNotEmpty)
+        InventoryDetailSection(title: title, fields: buckets[title]!),
   ];
-  if (fields.isEmpty) return const [];
-  return [InventoryDetailSection(title: 'Details', fields: fields)];
 }
 
 List<InventoryDetailSection> motherboardDetailSections(
@@ -43,7 +133,7 @@ List<InventoryDetailSection> motherboardDetailSections(
       ],
     ),
     (
-      'Chassis',
+      'Advanced',
       [
         _s('Serial number', e.serialNumber),
         _s('Asset tag', e.assetTag),
@@ -89,7 +179,7 @@ List<InventoryDetailSection> cpuDetailSections(InventoryCpuEntry e) {
       ],
     ),
     (
-      'Topology',
+      'Hardware',
       [
         if (e.hasSockets) _s('Sockets', '${e.sockets}'),
         if (e.hasPhysicalCores) _s('Physical cores', '${e.physicalCores}'),
@@ -162,7 +252,6 @@ List<InventoryDetailSection> storageDetailSections(InventoryStorageEntry e) {
         _s('Manufacturer', e.manufacturer),
         _s('Description', e.description),
         _s('Serial number', e.serialNumber),
-        _s('Firmware revision', e.firmwareRevision),
         _s('Device path', e.devicePath),
         if (e.hasPhysicalDriveNumber)
           _s('Physical drive number', '${e.physicalDriveNumber}'),
@@ -178,6 +267,12 @@ List<InventoryDetailSection> storageDetailSections(InventoryStorageEntry e) {
           _s('Size', formatBytesBinary(e.sizeBytes, fractionDigits: 1)),
         if (e.hasSectorSizeBytes)
           _s('Sector size', '${e.sectorSizeBytes} B'),
+      ],
+    ),
+    (
+      'Firmware',
+      [
+        _s('Firmware revision', e.firmwareRevision),
       ],
     ),
     (
@@ -206,7 +301,7 @@ List<InventoryDetailSection> networkAdapterDetailSections(
       ],
     ),
     (
-      'Network',
+      'Capabilities',
       [
         _s('Operational status', e.operationalStatus),
         if (e.hasDhcpEnabled)

@@ -46,22 +46,25 @@ class DiagnosticsPage extends StatefulWidget {
   State<DiagnosticsPage> createState() => _DiagnosticsPageState();
 }
 
+enum _DiagSectionId {
+  service,
+  ipc,
+  live,
+  pipeline,
+  collectors,
+  performance,
+  healthChecks,
+  advanced,
+}
+
 class _DiagnosticsPageState extends State<DiagnosticsPage> {
+  _DiagSectionId _section = _DiagSectionId.service;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final diag = context.read<DiagnosticsController>();
-      diag.frameMetrics.noteRebuild();
-      diag.startPolling();
-    });
-  }
-
-  @override
-  void deactivate() {
-    context.read<DiagnosticsController>().stopPolling();
-    super.deactivate();
+    // Polling is started/stopped by AppShell when this page is selected
+    // (IndexedStack keeps Diagnostics mounted across navigation).
   }
 
   void _snackSuccess(String message) {
@@ -88,8 +91,127 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     }
   }
 
+  Widget _sectionBody({
+    required DiagnosticsController diag,
+    required TimelineSessionController timeline,
+    required IpcStatus ipcStatus,
+    required ClientFrameMetrics frameMetrics,
+    required bool advanced,
+  }) {
+    final snap = diag.snapshot;
+    final busy = diag.actionBusy;
+    return switch (_section) {
+      _DiagSectionId.service => _ServiceCard(
+          snap: snap,
+          status: ipcStatus,
+          error: diag.snapshotError,
+          expand: true,
+          advanced: advanced,
+        ),
+      _DiagSectionId.ipc => _IpcCard(
+          status: ipcStatus,
+          snap: snap,
+          busy: busy,
+          snapshotLatencyMs: diag.lastSnapshotLatencyMs,
+          expand: true,
+          advanced: advanced,
+          onPing: () => _run(
+            () async => diag.ping(),
+            fallbackOk: 'Ping complete',
+          ),
+          onRestart: () => _run(
+            () async {
+              await diag.restartIpc();
+              return 'IPC connection restarted';
+            },
+            fallbackOk: 'IPC connection restarted',
+          ),
+          onCopy: () => _run(
+            () async => diag.copyDiagnosticsText(),
+            fallbackOk: 'Diagnostics copied',
+          ),
+        ),
+      _DiagSectionId.live => _LiveCard(
+          snap: snap,
+          timeline: timeline,
+          status: ipcStatus,
+          expand: true,
+        ),
+      _DiagSectionId.pipeline => _PipelineCard(
+          snap: snap,
+          connected: diag.connected,
+          liveActive: timeline.liveActive,
+          timelineCount: timeline.events.length,
+          expand: true,
+        ),
+      _DiagSectionId.collectors => _CollectorsCard(
+          snap: snap,
+          error: diag.snapshotError,
+          expand: true,
+        ),
+      _DiagSectionId.performance => _PerformanceCard(
+          snap: snap,
+          error: diag.snapshotError,
+          frameMetrics: frameMetrics,
+          expand: true,
+          advanced: advanced,
+        ),
+      _DiagSectionId.healthChecks => _BudgetsCard(
+          snap: snap,
+          status: ipcStatus,
+          snapshotLatencyMs: diag.lastSnapshotLatencyMs,
+          frameMetrics: frameMetrics,
+          expand: true,
+        ),
+      _DiagSectionId.advanced => advanced
+          ? _DeveloperToolsCard(
+              busy: busy,
+              expand: true,
+              onTestEvent: () => _run(
+                () async {
+                  await diag.injectTestEvent();
+                  return 'Test event sent to Timeline';
+                },
+                fallbackOk: 'Test event sent',
+              ),
+              onRestartLive: () => _run(
+                () async {
+                  await timeline.restartLiveMonitoring();
+                  return 'Live monitoring restarted';
+                },
+                fallbackOk: 'Live monitoring restarted',
+              ),
+              onClearTimeline: () => _run(
+                () async {
+                  await timeline.clearTimeline();
+                  return 'Timeline cleared';
+                },
+                fallbackOk: 'Timeline cleared',
+              ),
+              onExport: () => _run(
+                () async {
+                  final path = await diag.exportReport();
+                  return 'Exported: $path';
+                },
+                fallbackOk: 'Export complete',
+              ),
+            )
+          : PulseCard(
+              child: Text(
+                'Advanced developer tools are hidden. Enable them in '
+                'Settings → Diagnostics → Show advanced diagnostics.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: PulseTokens.textSecondary,
+                      height: 1.45,
+                    ),
+              ),
+            ),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
+    Theme.of(context);
     final connectionLabel = context.select<ConnectionController, String>(
       (c) => c.statusLabel,
     );
@@ -99,10 +221,10 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
     final diag = context.watch<DiagnosticsController>();
     final timeline = context.watch<TimelineSessionController>();
     final ipcStatus = context.watch<PulseIpcClient>().status;
-    final advanced =
-        context.select<SettingsController, bool>((s) => s.showAdvancedDiagnostics);
+    final advanced = context.select<SettingsController, bool>(
+      (s) => s.showAdvancedDiagnostics,
+    );
     final snap = diag.snapshot;
-    final busy = diag.actionBusy;
     final frameMetrics = context.watch<ClientFrameMetrics>();
 
     return Column(
@@ -112,6 +234,19 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
           title: widget.title,
           connectionState: state,
           connectionLabel: connectionLabel,
+          headerActions: [
+            PulseHeaderAction(
+              label: 'Copy diagnostics',
+              icon: LucideIcons.copy,
+              tooltip: 'Copy diagnostics',
+              onPressed: state != IpcConnectionState.connected
+                  ? null
+                  : () => _run(
+                        () async => diag.copyDiagnosticsText(),
+                        fallbackOk: 'Diagnostics copied',
+                      ),
+            ),
+          ],
         ),
         Expanded(
           child: state == IpcConnectionState.disconnected ||
@@ -121,200 +256,201 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
                   showFullControls: true,
                 )
               : snap == null && diag.snapshotError == null
-                  ? ListView(
+                  ? Padding(
                       padding: EdgeInsets.fromLTRB(
                         PulseTokens.pagePadX,
                         20,
                         PulseTokens.pagePadX,
                         PulseTokens.pagePadBottom,
                       ),
-                      children: const [
-                        PulseSkeletonList(rows: 6, rowHeight: 88, spacing: 12),
-                      ],
+                      child: const PulseSkeletonList(
+                        rows: 6,
+                        rowHeight: 88,
+                        spacing: 12,
+                      ),
                     )
-                  : LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 980;
-              final pagePad = EdgeInsets.fromLTRB(
-                PulseTokens.pagePadX,
-                20,
-                PulseTokens.pagePadX,
-                PulseTokens.pagePadBottom,
-              );
-
-              final service = _ServiceCard(
-                snap: snap,
-                status: ipcStatus,
-                error: diag.snapshotError,
-                expand: wide,
-                advanced: advanced,
-              );
-              final live = _LiveCard(
-                snap: snap,
-                timeline: timeline,
-                status: ipcStatus,
-                expand: wide,
-              );
-              final ipc = _IpcCard(
-                status: ipcStatus,
-                snap: snap,
-                busy: busy,
-                snapshotLatencyMs: diag.lastSnapshotLatencyMs,
-                expand: wide,
-                advanced: advanced,
-                onPing: () => _run(
-                  () async => diag.ping(),
-                  fallbackOk: 'Ping complete',
-                ),
-                onRestart: () => _run(
-                  () async {
-                    await diag.restartIpc();
-                    return 'IPC connection restarted';
-                  },
-                  fallbackOk: 'IPC connection restarted',
-                ),
-                onCopy: () => _run(
-                  () async => diag.copyDiagnosticsText(),
-                  fallbackOk: 'Diagnostics copied',
-                ),
-              );
-              final pipeline = _PipelineCard(
-                snap: snap,
-                connected: diag.connected,
-                liveActive: timeline.liveActive,
-                timelineCount: timeline.events.length,
-                expand: wide,
-              );
-              final perf = _PerformanceCard(
-                snap: snap,
-                error: diag.snapshotError,
-                frameMetrics: frameMetrics,
-                expand: wide,
-                advanced: advanced,
-              );
-              final collectors = _CollectorsCard(
-                snap: snap,
-                error: diag.snapshotError,
-                expand: wide,
-              );
-              final budgets = _BudgetsCard(
-                snap: snap,
-                status: ipcStatus,
-                snapshotLatencyMs: diag.lastSnapshotLatencyMs,
-                frameMetrics: frameMetrics,
-                expand: false,
-              );
-              final tools = _DeveloperToolsCard(
-                busy: busy,
-                expand: false,
-                onTestEvent: () => _run(
-                  () async {
-                    await diag.injectTestEvent();
-                    return 'Test event sent to Timeline';
-                  },
-                  fallbackOk: 'Test event sent',
-                ),
-                onRestartLive: () => _run(
-                  () async {
-                    await timeline.restartLiveMonitoring();
-                    return 'Live monitoring restarted';
-                  },
-                  fallbackOk: 'Live monitoring restarted',
-                ),
-                onClearTimeline: () => _run(
-                  () async {
-                    await timeline.clearTimeline();
-                    return 'Timeline cleared';
-                  },
-                  fallbackOk: 'Timeline cleared',
-                ),
-                onExport: () => _run(
-                  () async {
-                    final path = await diag.exportReport();
-                    return 'Exported: $path';
-                  },
-                  fallbackOk: 'Export complete',
-                ),
-              );
-
-              return ListView(
-                padding: pagePad,
-                children: [
-                  PulseSectionHeader(
-                    title: 'Troubleshooting',
-                    subtitle: advanced
-                        ? 'Advanced surfaces on. Toggle off in Settings → Diagnostics.'
-                        : 'When something looks wrong, start here. Enable advanced diagnostics in Settings for identity, throughput, and developer tools.',
-                    trailing: ConnectionIndicator(
-                      state: state,
-                      label: connectionLabel,
-                    ),
-                  ),
-                  const SizedBox(height: PulseTokens.spaceMd),
-                  if (wide) ...[
-                    IntrinsicHeight(
+                  : Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        PulseTokens.pagePadX,
+                        PulseTokens.spaceMd,
+                        PulseTokens.pagePadX,
+                        PulseTokens.spaceLg,
+                      ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: service),
-                          const SizedBox(width: 12),
-                          Expanded(child: live),
+                          SizedBox(
+                            width: 220,
+                            child: _DiagnosticsNav(
+                              selected: _section,
+                              advancedEnabled: advanced,
+                              onSelected: (id) =>
+                                  setState(() => _section = id),
+                            ),
+                          ),
+                          const SizedBox(width: PulseTokens.spaceMd),
+                          Expanded(
+                            child: ListView(
+                              children: [
+                                PulseSectionHeader(
+                                  title: _diagSectionTitle(_section),
+                                  subtitle: _diagSectionSubtitle(
+                                    _section,
+                                    advanced: advanced,
+                                  ),
+                                  trailing: ConnectionIndicator(
+                                    state: state,
+                                    label: connectionLabel,
+                                  ),
+                                ),
+                                const SizedBox(height: PulseTokens.spaceMd),
+                                _sectionBody(
+                                  diag: diag,
+                                  timeline: timeline,
+                                  ipcStatus: ipcStatus,
+                                  frameMetrics: frameMetrics,
+                                  advanced: advanced,
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(child: ipc),
-                          const SizedBox(width: 12),
-                          Expanded(child: pipeline),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(child: collectors),
-                          const SizedBox(width: 12),
-                          Expanded(child: perf),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    budgets,
-                    if (advanced) ...[
-                      const SizedBox(height: 12),
-                      tools,
-                    ],
-                  ] else ...[
-                    service,
-                    const SizedBox(height: 12),
-                    live,
-                    const SizedBox(height: 12),
-                    ipc,
-                    const SizedBox(height: 12),
-                    pipeline,
-                    const SizedBox(height: 12),
-                    collectors,
-                    const SizedBox(height: 12),
-                    perf,
-                    const SizedBox(height: 12),
-                    budgets,
-                    if (advanced) ...[
-                      const SizedBox(height: 12),
-                      tools,
-                    ],
-                  ],
-                ],
-              );
-            },
-          ),
         ),
       ],
+    );
+  }
+}
+
+String _diagSectionTitle(_DiagSectionId id) => switch (id) {
+      _DiagSectionId.service => 'Service',
+      _DiagSectionId.ipc => 'IPC',
+      _DiagSectionId.live => 'Live Monitoring',
+      _DiagSectionId.pipeline => 'Event Pipeline',
+      _DiagSectionId.collectors => 'Collectors',
+      _DiagSectionId.performance => 'Performance',
+      _DiagSectionId.healthChecks => 'Health Checks',
+      _DiagSectionId.advanced => 'Advanced',
+    };
+
+String _diagSectionSubtitle(
+  _DiagSectionId id, {
+  required bool advanced,
+}) =>
+    switch (id) {
+      _DiagSectionId.service =>
+        'Windows service status, uptime, and identity overview.',
+      _DiagSectionId.ipc =>
+        'Named-pipe connection health, latency, and recovery actions.',
+      _DiagSectionId.live =>
+        'Live subscription state and Timeline session activity.',
+      _DiagSectionId.pipeline =>
+        'How events move from collectors into the Timeline.',
+      _DiagSectionId.collectors =>
+        'Collector readiness and observed pipeline sources.',
+      _DiagSectionId.performance => advanced
+          ? 'Frame timing, memory, and advanced throughput metrics.'
+          : 'Frame timing and memory. Enable advanced diagnostics for more.',
+      _DiagSectionId.healthChecks =>
+        'Product budgets from AGENTS.md compared to observed samples.',
+      _DiagSectionId.advanced => advanced
+          ? 'Developer tools for Timeline injection, restart, and export.'
+          : 'Hidden until enabled in Settings → Diagnostics.',
+    };
+
+class _DiagnosticsNav extends StatelessWidget {
+  const _DiagnosticsNav({
+    required this.selected,
+    required this.advancedEnabled,
+    required this.onSelected,
+  });
+
+  final _DiagSectionId selected;
+  final bool advancedEnabled;
+  final ValueChanged<_DiagSectionId> onSelected;
+
+  static const _items = <(_DiagSectionId, IconData, String)>[
+    (_DiagSectionId.service, LucideIcons.server, 'Service'),
+    (_DiagSectionId.ipc, LucideIcons.cable, 'IPC'),
+    (_DiagSectionId.live, LucideIcons.radio, 'Live Monitoring'),
+    (_DiagSectionId.pipeline, LucideIcons.gitBranch, 'Event Pipeline'),
+    (_DiagSectionId.collectors, LucideIcons.layers, 'Collectors'),
+    (_DiagSectionId.performance, LucideIcons.gauge, 'Performance'),
+    (_DiagSectionId.healthChecks, LucideIcons.heartPulse, 'Health Checks'),
+    (_DiagSectionId.advanced, LucideIcons.wrench, 'Advanced'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return PulseCard(
+      child: ListView(
+        children: [
+          Text(
+            'Diagnostics',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: PulseTokens.textTertiary,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 10),
+          for (final item in _items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Material(
+                color: selected == item.$1
+                    ? PulseTokens.accentSoft
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(PulseTokens.radiusSm),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(PulseTokens.radiusSm),
+                  onTap: () => onSelected(item.$1),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 9,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          item.$2,
+                          size: 15,
+                          color: selected == item.$1
+                              ? PulseTokens.accent
+                              : PulseTokens.textSecondary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            item.$3,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: selected == item.$1
+                                      ? PulseTokens.accent
+                                      : PulseTokens.textPrimary,
+                                  fontWeight: selected == item.$1
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                ),
+                          ),
+                        ),
+                        if (item.$1 == _DiagSectionId.advanced &&
+                            !advancedEnabled)
+                          Icon(
+                            LucideIcons.lock,
+                            size: 12,
+                            color: PulseTokens.textTertiary,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

@@ -4,9 +4,25 @@ import 'package:flutter/material.dart';
 enum PulseAccentPreset { blue, green, purple, orange, custom }
 
 /// Ambient holder so legacy `PulseTokens.*` call sites track the active theme
-/// without requiring a [BuildContext]. Synced from [PulseApp]'s builder.
+/// without requiring a [BuildContext]. Synced from [PulseApp]'s builder and
+/// [AppShell] on every Material theme animation frame.
 class PulseThemeScope {
   static PulseThemeData current = PulseThemeData.dark();
+
+  /// Bumped whenever [apply] installs a new palette. UI that cannot depend on
+  /// [Theme.of] may listen to this to force a rebuild.
+  static final ValueNotifier<int> revision = ValueNotifier<int>(0);
+
+  static void apply(PulseThemeData theme) {
+    current = theme;
+    revision.value = revision.value + 1;
+  }
+
+  /// Apply without bumping [revision] (used on every animation tick where the
+  /// shell already rebuilds via [Theme.of]).
+  static void sync(PulseThemeData theme) {
+    current = theme;
+  }
 }
 
 /// Convenient access to Pulse design tokens from a [BuildContext].
@@ -16,12 +32,18 @@ extension PulseThemeX on BuildContext {
 }
 
 /// Typed Pulse design tokens carried as a [ThemeExtension].
+///
+/// Pulse Dark and Pulse Light are first-class palettes — Light is never a
+/// simple inversion of Dark. Prefer semantic getters ([background], [card],
+/// [primaryText], …) for new code; legacy field names remain supported.
 class PulseThemeData extends ThemeExtension<PulseThemeData> {
   const PulseThemeData({
+    required this.brightness,
     required this.canvas,
     required this.canvasTint,
     required this.sidebar,
     required this.sidebarSolid,
+    required this.header,
     required this.micaOverlay,
     required this.surface,
     required this.surfaceElevated,
@@ -75,17 +97,32 @@ class PulseThemeData extends ThemeExtension<PulseThemeData> {
     required this.motionEmphasized,
   });
 
+  final Brightness brightness;
+
   // Surfaces
   final Color canvas;
   final Color canvasTint;
   final Color sidebar;
   final Color sidebarSolid;
+  final Color header;
   final Color micaOverlay;
   final Color surface;
   final Color surfaceElevated;
   final Color surfaceHover;
   final Color surfacePressed;
   final Color acrylicFill;
+
+  // Semantic aliases (independent values live in the factories above).
+  Color get background => canvas;
+  Color get surfaceVariant => surfaceElevated;
+  Color get card => surface;
+  Color get border => stroke;
+  Color get divider => strokeSubtle;
+  Color get primaryText => textPrimary;
+  Color get secondaryText => textSecondary;
+  Color get hover => surfaceHover;
+  Color get pressed => surfacePressed;
+  Color get selected => accentSoft;
 
   // Strokes / focus
   final Color stroke;
@@ -155,20 +192,21 @@ class PulseThemeData extends ThemeExtension<PulseThemeData> {
   static const Color accentPurple = Color(0xFFB48EFC);
   static const Color accentOrange = Color(0xFFFFA657);
 
-  /// Accent swatch for Settings chips. [brightness] reserved for future
-  /// light/dark tuning; presets currently share the same brand colors.
+  /// Accent swatch for Settings chips — deeper on light surfaces for contrast.
   static Color accentForPreset(String preset, Brightness brightness) {
+    final Color base;
     switch (preset) {
       case 'green':
-        return accentGreen;
+        base = accentGreen;
       case 'purple':
-        return accentPurple;
+        base = accentPurple;
       case 'orange':
-        return accentOrange;
+        base = accentOrange;
       case 'blue':
       default:
-        return accentBlue;
+        base = accentBlue;
     }
+    return brightness == Brightness.light ? _lightAccent(base) : base;
   }
 
   /// Layout constants (theme-independent).
@@ -188,27 +226,30 @@ class PulseThemeData extends ThemeExtension<PulseThemeData> {
   static const double pagePadTop = 20;
   static const double pagePadBottom = 40;
 
+  /// Pulse Dark — deep charcoal surfaces (never pure black).
   factory PulseThemeData.dark({Color accent = defaultAccent}) {
     final derived = _deriveAccent(accent, Brightness.dark);
     return PulseThemeData(
-      canvas: const Color(0xFF17181B),
+      brightness: Brightness.dark,
+      canvas: const Color(0xFF16171A),
       canvasTint: const Color(0xFF1A2430),
-      sidebar: const Color(0xCC1C1D21),
-      sidebarSolid: const Color(0xFF1C1D21),
-      micaOverlay: const Color(0x14FFFFFF),
-      surface: const Color(0xFF24252A),
-      surfaceElevated: const Color(0xFF2C2D32),
-      surfaceHover: const Color(0xFF34353B),
-      surfacePressed: const Color(0xFF3A3B42),
-      acrylicFill: const Color(0xE624252A),
-      stroke: const Color(0xFF3C3E44),
-      strokeSubtle: const Color(0xFF2A2B30),
-      strokeStrong: const Color(0xFF484A52),
+      sidebar: const Color(0xCC1A1B1F),
+      sidebarSolid: const Color(0xFF1A1B1F),
+      header: const Color(0xFF1E1F24),
+      micaOverlay: const Color(0x14F5F5F5),
+      surface: const Color(0xFF222329),
+      surfaceElevated: const Color(0xFF2A2B32),
+      surfaceHover: const Color(0xFF32333B),
+      surfacePressed: const Color(0xFF383942),
+      acrylicFill: const Color(0xE6222329),
+      stroke: const Color(0xFF3A3C44),
+      strokeSubtle: const Color(0xFF282A30),
+      strokeStrong: const Color(0xFF4A4C56),
       focusRing: derived.focusRing,
-      textPrimary: const Color(0xFFF5F5F5),
-      textSecondary: const Color(0xFFB4B4B4),
-      textTertiary: const Color(0xFF9A9A9A),
-      textDisabled: const Color(0xFF5A5A5A),
+      textPrimary: const Color(0xFFF2F3F5),
+      textSecondary: const Color(0xFFB0B3BB),
+      textTertiary: const Color(0xFF8B8F99),
+      textDisabled: const Color(0xFF5C606A),
       accent: accent,
       accentMuted: derived.muted,
       accentSoft: derived.soft,
@@ -249,43 +290,49 @@ class PulseThemeData extends ThemeExtension<PulseThemeData> {
     );
   }
 
+  /// Pulse Light — first-class light UI (Win11 Settings / Linear / Raycast).
+  /// Never pure white/black; cards separate via border + soft elevation.
   factory PulseThemeData.light({Color accent = defaultAccent}) {
-    final derived = _deriveAccent(accent, Brightness.light);
+    // Light accent is slightly deeper for contrast on pale surfaces.
+    final lightAccent = _lightAccent(accent);
+    final derived = _deriveAccent(lightAccent, Brightness.light);
     return PulseThemeData(
-      canvas: const Color(0xFFF3F3F3),
-      canvasTint: const Color(0xFFE8F1F8),
-      sidebar: const Color(0xE6F9F9F9),
-      sidebarSolid: const Color(0xFFF9F9F9),
-      micaOverlay: const Color(0x0A000000),
-      surface: const Color(0xFFFFFFFF),
-      surfaceElevated: const Color(0xFFFFFFFF),
-      surfaceHover: const Color(0xFFF0F0F0),
-      surfacePressed: const Color(0xFFE8E8E8),
-      acrylicFill: const Color(0xE6FFFFFF),
-      stroke: const Color(0xFFD1D1D1),
-      strokeSubtle: const Color(0xFFE5E5E5),
-      strokeStrong: const Color(0xFFBDBDBD),
+      brightness: Brightness.light,
+      canvas: const Color(0xFFF4F5F7),
+      canvasTint: const Color(0xFFE8EEF6),
+      sidebar: const Color(0xF2ECEEF2),
+      sidebarSolid: const Color(0xFFECEEF2),
+      header: const Color(0xFFE8EAEE),
+      micaOverlay: const Color(0x0A1C1E24),
+      surface: const Color(0xFFF9FAFB),
+      surfaceElevated: const Color(0xFFFCFCFD),
+      surfaceHover: const Color(0xFFEEF0F4),
+      surfacePressed: const Color(0xFFE4E7ED),
+      acrylicFill: const Color(0xE6F9FAFB),
+      stroke: const Color(0xFFD8DCE3),
+      strokeSubtle: const Color(0xFFE6E8EE),
+      strokeStrong: const Color(0xFFC2C7D0),
       focusRing: derived.focusRing,
-      textPrimary: const Color(0xFF1A1A1A),
-      textSecondary: const Color(0xFF5C5C5C),
-      textTertiary: const Color(0xFF757575),
-      textDisabled: const Color(0xFFA3A3A3),
-      accent: accent,
+      textPrimary: const Color(0xFF1C1E24),
+      textSecondary: const Color(0xFF5C6370),
+      textTertiary: const Color(0xFF7A8290),
+      textDisabled: const Color(0xFFA8AEB8),
+      accent: lightAccent,
       accentMuted: derived.muted,
       accentSoft: derived.soft,
       onAccent: derived.onAccent,
-      success: const Color(0xFF107C10),
-      successSoft: const Color(0xFFDFF6DD),
-      warning: const Color(0xFF9D5D00),
-      warningSoft: const Color(0xFFFFF4CE),
-      error: const Color(0xFFC42B1C),
-      errorSoft: const Color(0xFFFDE7E9),
-      info: accent,
+      success: const Color(0xFF0F7B0F),
+      successSoft: const Color(0xFFE3F5E1),
+      warning: const Color(0xFF9A5B00),
+      warningSoft: const Color(0xFFFFF3D6),
+      error: const Color(0xFFC50F1F),
+      errorSoft: const Color(0xFFFDE7EA),
+      info: lightAccent,
       infoSoft: derived.soft,
-      severityInfo: accent,
-      severityWarning: const Color(0xFF9D5D00),
-      severityError: const Color(0xFFC42B1C),
-      severitySuccess: const Color(0xFF107C10),
+      severityInfo: lightAccent,
+      severityWarning: const Color(0xFF9A5B00),
+      severityError: const Color(0xFFC50F1F),
+      severitySuccess: const Color(0xFF0F7B0F),
       severityCritical: const Color(0xFFA4262C),
       radiusSm: 6,
       radiusMd: 8,
@@ -310,42 +357,86 @@ class PulseThemeData extends ThemeExtension<PulseThemeData> {
     );
   }
 
-  List<BoxShadow> elevationSoft() => [
+  /// Soft depth for light; restrained lift for dark. Never harsh black shadows.
+  List<BoxShadow> elevationSoft() {
+    if (brightness == Brightness.light) {
+      return [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.18),
+          color: const Color(0xFF1C1E24).withValues(alpha: 0.04),
+          blurRadius: 2,
+          offset: const Offset(0, 1),
+        ),
+      ];
+    }
+    return [
+      BoxShadow(
+        color: const Color(0xFF050508).withValues(alpha: 0.35),
+        blurRadius: 8,
+        offset: const Offset(0, 1),
+        spreadRadius: -1,
+      ),
+    ];
+  }
+
+  List<BoxShadow> elevation1() {
+    if (brightness == Brightness.light) {
+      return [
+        BoxShadow(
+          color: const Color(0xFF1C1E24).withValues(alpha: 0.06),
           blurRadius: 8,
-          offset: const Offset(0, 1),
-          spreadRadius: -1,
-        ),
-      ];
-
-  List<BoxShadow> elevation1() => [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.22),
-          blurRadius: 12,
           offset: const Offset(0, 2),
-          spreadRadius: -2,
         ),
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.08),
-          blurRadius: 3,
+          color: const Color(0xFF1C1E24).withValues(alpha: 0.03),
+          blurRadius: 1,
           offset: const Offset(0, 1),
         ),
       ];
+    }
+    return [
+      BoxShadow(
+        color: const Color(0xFF050508).withValues(alpha: 0.4),
+        blurRadius: 12,
+        offset: const Offset(0, 2),
+        spreadRadius: -2,
+      ),
+      BoxShadow(
+        color: const Color(0xFF050508).withValues(alpha: 0.18),
+        blurRadius: 3,
+        offset: const Offset(0, 1),
+      ),
+    ];
+  }
 
-  List<BoxShadow> elevationLift() => [
+  List<BoxShadow> elevationLift() {
+    if (brightness == Brightness.light) {
+      return [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.28),
-          blurRadius: 18,
-          offset: const Offset(0, 6),
-          spreadRadius: -3,
+          color: const Color(0xFF1C1E24).withValues(alpha: 0.08),
+          blurRadius: 14,
+          offset: const Offset(0, 4),
         ),
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.12),
-          blurRadius: 4,
+          color: const Color(0xFF1C1E24).withValues(alpha: 0.04),
+          blurRadius: 2,
           offset: const Offset(0, 1),
         ),
       ];
+    }
+    return [
+      BoxShadow(
+        color: const Color(0xFF050508).withValues(alpha: 0.45),
+        blurRadius: 18,
+        offset: const Offset(0, 6),
+        spreadRadius: -3,
+      ),
+      BoxShadow(
+        color: const Color(0xFF050508).withValues(alpha: 0.2),
+        blurRadius: 4,
+        offset: const Offset(0, 1),
+      ),
+    ];
+  }
 
   List<BoxShadow> severityGlow(Color color, {double intensity = 1}) => [
         BoxShadow(
@@ -367,10 +458,12 @@ class PulseThemeData extends ThemeExtension<PulseThemeData> {
 
   @override
   PulseThemeData copyWith({
+    Brightness? brightness,
     Color? canvas,
     Color? canvasTint,
     Color? sidebar,
     Color? sidebarSolid,
+    Color? header,
     Color? micaOverlay,
     Color? surface,
     Color? surfaceElevated,
@@ -424,10 +517,12 @@ class PulseThemeData extends ThemeExtension<PulseThemeData> {
     Curve? motionEmphasized,
   }) {
     return PulseThemeData(
+      brightness: brightness ?? this.brightness,
       canvas: canvas ?? this.canvas,
       canvasTint: canvasTint ?? this.canvasTint,
       sidebar: sidebar ?? this.sidebar,
       sidebarSolid: sidebarSolid ?? this.sidebarSolid,
+      header: header ?? this.header,
       micaOverlay: micaOverlay ?? this.micaOverlay,
       surface: surface ?? this.surface,
       surfaceElevated: surfaceElevated ?? this.surfaceElevated,
@@ -486,10 +581,12 @@ class PulseThemeData extends ThemeExtension<PulseThemeData> {
   PulseThemeData lerp(ThemeExtension<PulseThemeData>? other, double t) {
     if (other is! PulseThemeData) return this;
     return PulseThemeData(
+      brightness: t < 0.5 ? brightness : other.brightness,
       canvas: Color.lerp(canvas, other.canvas, t)!,
       canvasTint: Color.lerp(canvasTint, other.canvasTint, t)!,
       sidebar: Color.lerp(sidebar, other.sidebar, t)!,
       sidebarSolid: Color.lerp(sidebarSolid, other.sidebarSolid, t)!,
+      header: Color.lerp(header, other.header, t)!,
       micaOverlay: Color.lerp(micaOverlay, other.micaOverlay, t)!,
       surface: Color.lerp(surface, other.surface, t)!,
       surfaceElevated:
@@ -549,6 +646,18 @@ class PulseThemeData extends ThemeExtension<PulseThemeData> {
 
   static double _lerpDouble(double a, double b, double t) => a + (b - a) * t;
 
+  /// Map a dark-leaning accent to a light-surface accent without inventing hues.
+  static Color _lightAccent(Color accent) {
+    if (accent == accentBlue || accent == defaultAccent) {
+      return const Color(0xFF0F6CBD); // Win11 Settings blue
+    }
+    final hsv = HSVColor.fromColor(accent);
+    return hsv
+        .withSaturation((hsv.saturation * 0.92).clamp(0.35, 1.0))
+        .withValue((hsv.value * 0.78).clamp(0.35, 0.78))
+        .toColor();
+  }
+
   static ({Color muted, Color soft, Color onAccent, Color focusRing})
       _deriveAccent(Color accent, Brightness brightness) {
     final hsv = HSVColor.fromColor(accent);
@@ -568,13 +677,14 @@ class PulseThemeData extends ThemeExtension<PulseThemeData> {
             .withValue(0.18)
             .toColor()
         : hsv
-            .withSaturation((hsv.saturation * 0.22).clamp(0.0, 1.0))
-            .withValue(0.94)
+            .withSaturation((hsv.saturation * 0.18).clamp(0.0, 1.0))
+            .withValue(0.93)
             .toColor();
 
+    // Avoid pure white/black for on-accent labels.
     final onAccent = accent.computeLuminance() > 0.45
-        ? const Color(0xFF001B26)
-        : const Color(0xFFFFFFFF);
+        ? const Color(0xFF0A1F2C)
+        : const Color(0xFFF5F7FA);
 
     final focusRing = hsv
         .withSaturation((hsv.saturation * 0.95).clamp(0.0, 1.0))
@@ -598,16 +708,29 @@ abstract final class PulseTokens {
   static PulseThemeData get _t => PulseThemeScope.current;
 
   // Surfaces
+  static Brightness get brightness => _t.brightness;
+
   static Color get canvas => _t.canvas;
+  static Color get background => _t.background;
   static Color get canvasTint => _t.canvasTint;
   static Color get sidebar => _t.sidebar;
   static Color get sidebarSolid => _t.sidebarSolid;
+  static Color get header => _t.header;
   static Color get micaOverlay => _t.micaOverlay;
   static Color get surface => _t.surface;
+  static Color get surfaceVariant => _t.surfaceVariant;
+  static Color get card => _t.card;
   static Color get surfaceElevated => _t.surfaceElevated;
   static Color get surfaceHover => _t.surfaceHover;
+  static Color get hover => _t.hover;
   static Color get surfacePressed => _t.surfacePressed;
+  static Color get pressed => _t.pressed;
+  static Color get selected => _t.selected;
   static Color get acrylicFill => _t.acrylicFill;
+  static Color get border => _t.border;
+  static Color get divider => _t.divider;
+  static Color get primaryText => _t.primaryText;
+  static Color get secondaryText => _t.secondaryText;
 
   static Color get stroke => _t.stroke;
   static Color get strokeSubtle => _t.strokeSubtle;
@@ -822,14 +945,42 @@ class PulseTheme {
       brightness: brightness,
       fontFamily: _font,
       scaffoldBackgroundColor: tokens.canvas,
+      canvasColor: tokens.canvas,
+      cardColor: tokens.surface,
       colorScheme: colorScheme,
       textTheme: textTheme,
       dividerColor: tokens.strokeSubtle,
+      dividerTheme: DividerThemeData(
+        color: tokens.strokeSubtle,
+        thickness: 1,
+        space: 1,
+      ),
       splashFactory: InkSparkle.splashFactory,
       focusColor: tokens.accent.withValues(alpha: 0.14),
-      hoverColor: tokens.surfaceHover.withValues(alpha: 0.35),
+      hoverColor: tokens.surfaceHover.withValues(alpha: 0.55),
       highlightColor: tokens.accent.withValues(alpha: 0.06),
       extensions: [tokens],
+      popupMenuTheme: PopupMenuThemeData(
+        color: tokens.surfaceElevated,
+        surfaceTintColor: Colors.transparent,
+        textStyle: textTheme.bodyMedium?.copyWith(color: tokens.textPrimary),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(tokens.radiusMd),
+          side: BorderSide(color: tokens.stroke.withValues(alpha: 0.85)),
+        ),
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(tokens.surfaceElevated),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(tokens.radiusMd),
+              side: BorderSide(color: tokens.stroke.withValues(alpha: 0.85)),
+            ),
+          ),
+        ),
+      ),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
           color: tokens.surfaceElevated,
@@ -841,6 +992,24 @@ class PulseTheme {
             textTheme.bodySmall?.copyWith(color: tokens.textPrimary),
         waitDuration: const Duration(milliseconds: 360),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: tokens.surface,
+        hintStyle: textTheme.bodyMedium?.copyWith(color: tokens.textTertiary),
+        labelStyle: textTheme.labelMedium?.copyWith(color: tokens.textSecondary),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(tokens.radiusMd),
+          borderSide: BorderSide(color: tokens.stroke),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(tokens.radiusMd),
+          borderSide: BorderSide(color: tokens.stroke.withValues(alpha: 0.85)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(tokens.radiusMd),
+          borderSide: BorderSide(color: tokens.accent.withValues(alpha: 0.7)),
+        ),
       ),
       scrollbarTheme: ScrollbarThemeData(
         thickness: WidgetStateProperty.resolveWith((states) {
@@ -885,6 +1054,17 @@ class PulseTheme {
           borderRadius: BorderRadius.circular(tokens.radiusXl),
           side: BorderSide(color: tokens.stroke.withValues(alpha: 0.7)),
         ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: tokens.surfaceElevated,
+        contentTextStyle:
+            textTheme.bodyMedium?.copyWith(color: tokens.textPrimary),
+        actionTextColor: tokens.accent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(tokens.radiusMd),
+          side: BorderSide(color: tokens.stroke),
+        ),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

@@ -13,7 +13,7 @@ import '../../ipc/pulse_ipc_client.dart';
 import '../components/pulse_app_bar.dart';
 import '../components/pulse_button.dart';
 import '../components/pulse_card.dart';
-import '../components/pulse_section_header.dart';
+import '../components/pulse_segmented_control.dart';
 import '../utils/pulse_snack.dart';
 import '../utils/pulse_user_errors.dart';
 import 'report_exporter.dart';
@@ -139,9 +139,6 @@ class _ReportsPageState extends State<ReportsPage> {
     return (usb, pci);
   }
 
-  /// System Inventory report SSOT — six P2 domains (ADR-011). Never falls
-  /// back to `HealthStaticInfo`; a failed/unfetched domain stays `null` and
-  /// the exporter renders "no snapshot" for that section only.
   Future<
       (
         InventoryDomainSnapshot?,
@@ -183,8 +180,15 @@ class _ReportsPageState extends State<ReportsPage> {
     );
   }
 
+  String _destinationLabel(SettingsController settings) {
+    final custom = settings.exportDirectory.trim();
+    if (custom.isNotEmpty) return custom;
+    return 'Documents / Pulse / exports (default)';
+  }
+
   @override
   Widget build(BuildContext context) {
+    Theme.of(context);
     final connectionLabel = context.select<ConnectionController, String>(
       (c) => c.statusLabel,
     );
@@ -194,6 +198,8 @@ class _ReportsPageState extends State<ReportsPage> {
     final eventCount = context.select<TimelineSessionController, int>(
       (t) => t.events.length,
     );
+    final settings = context.watch<SettingsController>();
+    final destination = _destinationLabel(settings);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -204,193 +210,374 @@ class _ReportsPageState extends State<ReportsPage> {
           connectionLabel: connectionLabel,
         ),
         Expanded(
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              PulseTokens.pagePadX,
-              20,
-              PulseTokens.pagePadX,
-              PulseTokens.pagePadBottom,
-            ),
-            children: [
-              PulseSectionHeader(
-                title: 'Export report',
-                subtitle:
-                    'Save System Health, Timeline, Diagnostics, Inventory '
-                    '(services / drivers / software), or hardware and system '
-                    'summaries as JSON, CSV, HTML, or PDF.',
-              ),
-              if (state != IpcConnectionState.connected) ...[
-                const SizedBox(height: PulseTokens.spaceMd),
-                PulseCard(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        LucideIcons.unplug,
-                        size: 18,
-                        color: PulseTokens.textTertiary,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'PulseService is offline. Health, Diagnostics, and '
-                          'Inventory exports may be incomplete; Timeline uses '
-                          'events already loaded in this session.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: PulseTokens.textSecondary,
-                                height: 1.45,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: PulseTokens.spaceLg),
-              Text(
-                'Template',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: PulseTokens.textSecondary,
-                    ),
-              ),
-              const SizedBox(height: PulseTokens.spaceSm),
-              for (final template in ReportTemplate.values) ...[
-                PulseCard(
-                  selected: _template == template,
-                  onTap: () {
-                    setState(() {
-                      _template = template;
-                      if (_format == ReportFormat.csv &&
-                          !template.supportsCsv) {
-                        _format = ReportFormat.json;
-                      }
-                    });
-                  },
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        _templateIcon(template),
-                        size: 18,
-                        color: _template == template
-                            ? PulseTokens.accent
-                            : PulseTokens.textSecondary,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              template.title,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              template == ReportTemplate.timeline
-                                  ? '${template.description} ($eventCount loaded)'
-                                  : template.description,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: PulseTokens.textSecondary,
-                                    height: 1.4,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: PulseTokens.spaceSm),
-              ],
-              const SizedBox(height: PulseTokens.spaceMd),
-              Text(
-                'Format',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: PulseTokens.textSecondary,
-                    ),
-              ),
-              const SizedBox(height: PulseTokens.spaceSm),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final button = SegmentedButton<ReportFormat>(
-                    segments: [
-                      for (final format in ReportFormat.values)
-                        ButtonSegment(
-                          value: format,
-                          label: Text(format.label),
-                          enabled: format != ReportFormat.csv ||
-                              _template.supportsCsv,
-                        ),
-                    ],
-                    selected: {_format},
-                    onSelectionChanged: (selected) {
-                      setState(() => _format = selected.first);
-                    },
-                    style: const ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  );
-                  if (constraints.maxWidth >= 420) {
-                    return button;
-                  }
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: IntrinsicWidth(child: button),
-                  );
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 960;
+              final templates = _TemplateGrid(
+                selected: _template,
+                eventCount: eventCount,
+                onSelected: (template) {
+                  setState(() {
+                    _template = template;
+                    if (_format == ReportFormat.csv && !template.supportsCsv) {
+                      _format = ReportFormat.json;
+                    }
+                  });
                 },
-              ),
-              const SizedBox(height: PulseTokens.spaceLg),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: PulseButton(
-                  label: 'Export',
-                  icon: LucideIcons.download,
-                  loading: _exporting,
-                  onPressed: _exporting ? null : _export,
-                ),
-              ),
-              if (_lastExportPath != null) ...[
-                const SizedBox(height: PulseTokens.spaceMd),
-                Text(
-                  'Last export',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: PulseTokens.textSecondary,
+              );
+              final formatPicker = _FormatPicker(
+                template: _template,
+                format: _format,
+                onChanged: (format) => setState(() => _format = format),
+              );
+              Widget summary({required bool fillHeight}) => _ExportSummaryBar(
+                    template: _template,
+                    format: _format,
+                    destination: destination,
+                    lastExportPath: _lastExportPath,
+                    exporting: _exporting,
+                    offline: state != IpcConnectionState.connected,
+                    fillHeight: fillHeight,
+                    onExport: _exporting ? null : _export,
+                  );
+
+              if (!wide) {
+                return Column(
+                  children: [
+                    Expanded(
+                      child: ListView(
+                        padding: EdgeInsets.fromLTRB(
+                          PulseTokens.pagePadX,
+                          16,
+                          PulseTokens.pagePadX,
+                          16,
+                        ),
+                        children: [
+                          Text(
+                            'Choose a template',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(color: PulseTokens.textSecondary),
+                          ),
+                          const SizedBox(height: PulseTokens.spaceSm),
+                          templates,
+                          const SizedBox(height: PulseTokens.spaceLg),
+                          Text(
+                            'Format',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(color: PulseTokens.textSecondary),
+                          ),
+                          const SizedBox(height: PulseTokens.spaceSm),
+                          formatPicker,
+                        ],
                       ),
-                ),
-                const SizedBox(height: 6),
-                SelectableText(
-                  _lastExportPath!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: PulseTokens.textPrimary,
-                        height: 1.4,
+                    ),
+                    summary(fillHeight: false),
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.fromLTRB(
+                        PulseTokens.pagePadX,
+                        16,
+                        12,
+                        PulseTokens.pagePadBottom,
                       ),
-                ),
-              ],
-            ],
+                      children: [
+                        Text(
+                          'Choose a template',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(color: PulseTokens.textSecondary),
+                        ),
+                        const SizedBox(height: PulseTokens.spaceSm),
+                        templates,
+                        const SizedBox(height: PulseTokens.spaceLg),
+                        Text(
+                          'Format',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(color: PulseTokens.textSecondary),
+                        ),
+                        const SizedBox(height: PulseTokens.spaceSm),
+                        formatPicker,
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: 320,
+                    child: summary(fillHeight: true),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ],
     );
   }
+}
 
-  IconData _templateIcon(ReportTemplate template) {
-    return switch (template) {
-      ReportTemplate.healthSnapshot => LucideIcons.activity,
-      ReportTemplate.timeline => LucideIcons.list,
-      ReportTemplate.diagnostics => LucideIcons.stethoscope,
-      ReportTemplate.hardwareInventory => LucideIcons.cpu,
-      ReportTemplate.serviceInventory => LucideIcons.cog,
-      ReportTemplate.driverInventory => LucideIcons.circuitBoard,
-      ReportTemplate.softwareInventory => LucideIcons.package,
-      ReportTemplate.systemInventory => LucideIcons.server,
-    };
+class _TemplateGrid extends StatelessWidget {
+  const _TemplateGrid({
+    required this.selected,
+    required this.eventCount,
+    required this.onSelected,
+  });
+
+  final ReportTemplate selected;
+  final int eventCount;
+  final ValueChanged<ReportTemplate> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 900
+            ? 3
+            : constraints.maxWidth >= 560
+                ? 2
+                : 1;
+        final gap = PulseTokens.spaceSm;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final template in ReportTemplate.values)
+              SizedBox(
+                width: width,
+                height: 128,
+                child: PulseCard(
+                  selected: selected == template,
+                  onTap: () => onSelected(template),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: selected == template
+                              ? PulseTokens.accentSoft
+                              : PulseTokens.surfaceHover,
+                          borderRadius:
+                              BorderRadius.circular(PulseTokens.radiusSm),
+                        ),
+                        child: Icon(
+                          _templateIcon(template),
+                          size: 18,
+                          color: selected == template
+                              ? PulseTokens.accent
+                              : PulseTokens.textSecondary,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        template.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        template == ReportTemplate.timeline
+                            ? '${template.description} ($eventCount loaded)'
+                            : template.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: PulseTokens.textSecondary,
+                              height: 1.35,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
+}
+
+class _FormatPicker extends StatelessWidget {
+  const _FormatPicker({
+    required this.template,
+    required this.format,
+    required this.onChanged,
+  });
+
+  final ReportTemplate template;
+  final ReportFormat format;
+  final ValueChanged<ReportFormat> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    Theme.of(context);
+    return PulseSegmentedControl<ReportFormat>(
+      selected: format,
+      onChanged: onChanged,
+      segments: [
+        for (final value in ReportFormat.values)
+          PulseSegment(
+            value: value,
+            label: value.label,
+            enabled: value != ReportFormat.csv || template.supportsCsv,
+          ),
+      ],
+    );
+  }
+}
+
+class _ExportSummaryBar extends StatelessWidget {
+  const _ExportSummaryBar({
+    required this.template,
+    required this.format,
+    required this.destination,
+    required this.lastExportPath,
+    required this.exporting,
+    required this.offline,
+    required this.fillHeight,
+    required this.onExport,
+  });
+
+  final ReportTemplate template;
+  final ReportFormat format;
+  final String destination;
+  final String? lastExportPath;
+  final bool exporting;
+  final bool offline;
+  final bool fillHeight;
+  final VoidCallback? onExport;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = <Widget>[
+      Text(
+        'Export summary',
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+      const SizedBox(height: PulseTokens.spaceMd),
+      _SummaryRow(label: 'Template', value: template.title),
+      _SummaryRow(label: 'Format', value: format.label),
+      _SummaryRow(label: 'Destination', value: destination),
+      if (offline) ...[
+        const SizedBox(height: PulseTokens.spaceSm),
+        Text(
+          'PulseService is offline. Some templates may be incomplete; '
+          'Timeline uses events already loaded in this session.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: PulseTokens.textSecondary,
+                height: 1.4,
+              ),
+        ),
+      ],
+      if (fillHeight) const Spacer() else const SizedBox(height: 16),
+      PulseButton(
+        label: 'Export Report',
+        icon: LucideIcons.download,
+        expanded: true,
+        loading: exporting,
+        onPressed: onExport,
+      ),
+      if (lastExportPath != null) ...[
+        const SizedBox(height: PulseTokens.spaceMd),
+        Text(
+          'Last export',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: PulseTokens.textTertiary,
+              ),
+        ),
+        const SizedBox(height: 4),
+        SelectableText(
+          lastExportPath!,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: PulseTokens.textPrimary,
+                height: 1.35,
+              ),
+        ),
+      ],
+    ];
+
+    return Material(
+      color: PulseTokens.surface.withValues(alpha: 0.96),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            left: fillHeight
+                ? BorderSide(color: PulseTokens.strokeSubtle)
+                : BorderSide.none,
+            top: BorderSide(color: PulseTokens.strokeSubtle),
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Column(
+          mainAxisSize: fillHeight ? MainAxisSize.max : MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: body,
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: PulseTokens.textTertiary,
+                ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+IconData _templateIcon(ReportTemplate template) {
+  return switch (template) {
+    ReportTemplate.healthSnapshot => LucideIcons.activity,
+    ReportTemplate.timeline => LucideIcons.list,
+    ReportTemplate.diagnostics => LucideIcons.stethoscope,
+    ReportTemplate.hardwareInventory => LucideIcons.cpu,
+    ReportTemplate.serviceInventory => LucideIcons.cog,
+    ReportTemplate.driverInventory => LucideIcons.circuitBoard,
+    ReportTemplate.softwareInventory => LucideIcons.package,
+    ReportTemplate.systemInventory => LucideIcons.server,
+  };
 }
