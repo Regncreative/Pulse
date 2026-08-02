@@ -336,7 +336,26 @@ class _TimelinePageState extends State<TimelinePage> {
     });
   }
 
-  Future<void> _exportJson(List<TimelineEvent> visible) async {
+  Map<String, TimelineIncidentMeta> _incidentMetaFor(List<TimelineEvent> visible) {
+    final items = _incidentEngine.buildItems(visible);
+    final map = <String, TimelineIncidentMeta>{};
+    for (final item in items) {
+      if (item is! TimelineIncidentItem) continue;
+      final incident = item.incident;
+      for (final e in incident.events) {
+        map[e.eventId] = TimelineIncidentMeta(
+          incidentId: incident.id,
+          title: incident.title,
+          ruleId: incident.ruleId,
+        );
+      }
+    }
+    return map;
+  }
+
+  Future<void> _exportVisible({required bool asCsv}) async {
+    final events = context.read<TimelineSessionController>().events;
+    final visible = _visible(events);
     final selected = _selectedEvent(visible);
     final toExport = selected != null ? [selected] : visible;
     if (toExport.isEmpty) {
@@ -348,13 +367,23 @@ class _TimelinePageState extends State<TimelinePage> {
           ? 'selected_event'
           : (_filtersActive ? 'filtered_visible' : 'visible_all');
       final library = context.read<TimelineLibraryController>();
-      final json = TimelineExport.encodeEvents(
-        toExport,
-        note: note,
-        appliedFilters: _query,
-        bookmarkedEventIds: library.bookmarkedEventIds,
-        pinnedEventIds: library.pinnedEventIds,
-      );
+      final incidentMeta = _incidentMetaFor(visible);
+      final body = asCsv
+          ? TimelineExport.encodeCsv(
+              toExport,
+              appliedFilters: _query,
+              bookmarkedEventIds: library.bookmarkedEventIds,
+              pinnedEventIds: library.pinnedEventIds,
+              incidentByEventId: incidentMeta,
+            )
+          : TimelineExport.encodeEvents(
+              toExport,
+              note: note,
+              appliedFilters: _query,
+              bookmarkedEventIds: library.bookmarkedEventIds,
+              pinnedEventIds: library.pinnedEventIds,
+              incidentByEventId: incidentMeta,
+            );
       final docs = await getApplicationDocumentsDirectory();
       final dir = Directory('${docs.path}${Platform.pathSeparator}Pulse'
           '${Platform.pathSeparator}exports');
@@ -365,17 +394,18 @@ class _TimelinePageState extends State<TimelinePage> {
           .toIso8601String()
           .replaceAll(':', '-')
           .replaceAll('.', '-');
+      final ext = asCsv ? 'csv' : 'json';
       final file = File(
-        '${dir.path}${Platform.pathSeparator}timeline_$stamp.json',
+        '${dir.path}${Platform.pathSeparator}timeline_$stamp.$ext',
       );
-      await file.writeAsString(json);
-      await Clipboard.setData(ClipboardData(text: json));
+      await file.writeAsString(body);
+      await Clipboard.setData(ClipboardData(text: body));
       if (!mounted) return;
       PulseSnack.success(
         context,
         selected != null
-            ? 'Exported selected event (also copied).'
-            : 'Exported ${toExport.length} events (also copied).',
+            ? 'Exported selected event as $ext (also copied).'
+            : 'Exported ${toExport.length} events as $ext (also copied).',
       );
     } catch (e) {
       if (!mounted) return;
@@ -411,7 +441,7 @@ class _TimelinePageState extends State<TimelinePage> {
     final listItems = _incidentEngine.buildItems(visible);
     final selectedRca = selectedEvent == null
         ? null
-        : _incidentEngine.hintForEvent(selectedEvent, visible);
+        : _incidentEngine.hintFromItems(selectedEvent, listItems);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -473,6 +503,7 @@ class _TimelinePageState extends State<TimelinePage> {
                           selectedRca: selectedRca,
                           allVisibleEvents: visible,
                           listItems: listItems,
+                          liveActive: liveActive,
                           expandedIncidents: _expandedIncidents,
                           onToggleIncident: (id) {
                             setState(() {
@@ -511,7 +542,8 @@ class _TimelinePageState extends State<TimelinePage> {
                           onClear: _clearSelection,
                           onRefresh: session.reloadSnapshot,
                           onJumpToNewest: _jumpToNewest,
-                          onExport: () => _exportJson(visible),
+                          onExportJson: () => _exportVisible(asCsv: false),
+                          onExportCsv: () => _exportVisible(asCsv: true),
                         ),
         ),
       ],
@@ -560,6 +592,7 @@ class _TimelineBody extends StatelessWidget {
     required this.selectedRca,
     required this.allVisibleEvents,
     required this.listItems,
+    required this.liveActive,
     required this.expandedIncidents,
     required this.onToggleIncident,
     required this.query,
@@ -587,7 +620,8 @@ class _TimelineBody extends StatelessWidget {
     required this.onClear,
     required this.onRefresh,
     required this.onJumpToNewest,
-    required this.onExport,
+    required this.onExportJson,
+    required this.onExportCsv,
   });
 
   final String? selectedEventId;
@@ -595,6 +629,7 @@ class _TimelineBody extends StatelessWidget {
   final TimelineRcaHint? selectedRca;
   final List<TimelineEvent> allVisibleEvents;
   final List<TimelineListItem> listItems;
+  final bool liveActive;
   final Set<String> expandedIncidents;
   final ValueChanged<String> onToggleIncident;
   final TimelineQuery query;
@@ -622,7 +657,8 @@ class _TimelineBody extends StatelessWidget {
   final VoidCallback onClear;
   final VoidCallback onRefresh;
   final VoidCallback onJumpToNewest;
-  final VoidCallback onExport;
+  final VoidCallback onExportJson;
+  final VoidCallback onExportCsv;
 
   @override
   Widget build(BuildContext context) {
@@ -630,6 +666,12 @@ class _TimelineBody extends StatelessWidget {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 980;
         final showSideDetail = wide && selectedEvent != null;
+        final selectedIsLive = liveActive &&
+            selectedEvent != null &&
+            selectedEvent!.timestampUnixMs > 0 &&
+            DateTime.now().millisecondsSinceEpoch -
+                    selectedEvent!.timestampUnixMs <
+                120000;
 
         final list = Scrollbar(
           controller: scrollController,
@@ -658,15 +700,30 @@ class _TimelineBody extends StatelessWidget {
                               ),
                             ),
                           ),
-                          IconButton(
-                            tooltip: selectedEvent != null
-                                ? 'Export selected event as JSON'
-                                : 'Export visible events as JSON',
-                            onPressed: onExport,
-                            constraints: const BoxConstraints(
-                              minWidth: 40,
-                              minHeight: 40,
-                            ),
+                          PopupMenuButton<String>(
+                            tooltip: 'Export timeline',
+                            onSelected: (value) {
+                              if (value == 'json') onExportJson();
+                              if (value == 'csv') onExportCsv();
+                            },
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'json',
+                                child: Text(
+                                  selectedEvent != null
+                                      ? 'Export selected as JSON'
+                                      : 'Export visible as JSON',
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'csv',
+                                child: Text(
+                                  selectedEvent != null
+                                      ? 'Export selected as CSV'
+                                      : 'Export visible as CSV',
+                                ),
+                              ),
+                            ],
                             icon: const Icon(LucideIcons.download, size: 16),
                           ),
                           IconButton(
@@ -860,6 +917,7 @@ class _TimelineBody extends StatelessWidget {
                             final expanded =
                                 expandedIncidents.contains(incident.id);
                             return _IncidentGroupTile(
+                              key: ValueKey(incident.id),
                               incident: incident,
                               expanded: expanded,
                               selectedEventId: selectedEventId,
@@ -890,6 +948,7 @@ class _TimelineBody extends StatelessWidget {
                       rcaHint: selectedRca,
                       relatedEvents: allVisibleEvents,
                       onSelectRelated: onSelect,
+                      isLive: selectedIsLive,
                     ),
                   ),
               ],
@@ -926,6 +985,7 @@ class _TimelineBody extends StatelessWidget {
                         rcaHint: selectedRca,
                         relatedEvents: allVisibleEvents,
                         onSelectRelated: onSelect,
+                        isLive: selectedIsLive,
                       ),
                     ),
                   ],
@@ -940,6 +1000,7 @@ class _TimelineBody extends StatelessWidget {
 
 class _IncidentGroupTile extends StatelessWidget {
   const _IncidentGroupTile({
+    super.key,
     required this.incident,
     required this.expanded,
     required this.selectedEventId,
