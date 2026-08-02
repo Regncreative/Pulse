@@ -16,21 +16,17 @@ invented rows.
 
 ## Verdict
 
-**P0 + P1 + P2 Inventory platform validated.** All 16 ADR-011 domains are
-collected, cached, exposed over IPC, rendered in the Flutter Inventory
-browser with rich sectioned detail panels, consumed by Reports (Service /
-Driver / Software / Hardware / **System**), and reserved (disabled) in
-PulseMCP. This session covered the **Flutter UI, Reports, MCP schema, and
-documentation** work described in doc 34's remaining R3 checkboxes; the P2
-C++ collectors (`motherboard_collector`, `bios_collector`, `cpu_collector`,
-`memory_modules_collector`, `storage_collector`,
-`network_adapters_collector`, `smbios_table`) were already committed in a
-prior session (`d5f197a` and earlier) and were **not modified or rewritten**
-here, per instruction.
+**P0 + P1 + P2 Inventory platform implemented and smoke-validated.** All 16
+ADR-011 domains are collected, cached, exposed over IPC, rendered in the
+Flutter Inventory browser with rich sectioned detail panels, consumed by
+Reports (Service / Driver / Software / Hardware / **System**), and reserved
+(disabled) in PulseMCP.
 
-R3 is not yet marked **complete** in doc 34 — the release-build and Device
-Manager/`msinfo32` spot-check checkboxes remain open (see Known limitations
-§8–9). Do not open R4 until those close.
+R3 is **not frozen** in doc 34 until release-build + Device Manager /
+`msinfo32` spot-check evidence closes. **Do not begin R4** until then.
+
+Note: commit `a468947` message incorrectly says `feat(r4)`; the change is the
+R3 System Inventory report template (Inventory SSOT), not an R4 start.
 
 ---
 
@@ -120,52 +116,45 @@ fields.
 
 ## Cache / perf from smoke tests
 
-The P2 C++ collectors and `inventory_engine_smoke_test.cpp` (which already
-exercises all 16 domains, including force-refresh vs. cache-hit timing) were
-committed in a prior session. **This session's sandboxed environment had no
-CMake/MSVC toolchain available**, so `inventory_engine_smoke_tests` was
-**not rebuilt or re-run here** — no new timing numbers were captured. The
-measured P0/P1 numbers from the prior platform report
-([r3-inventory-p1-validation-report-2026-08-02.md](r3-inventory-p1-validation-report-2026-08-02.md))
-remain the last first-hand cache/perf evidence on record. TTLs for the 6 P2
-domains (300 s motherboard/BIOS/CPU/memory, 120 s storage, 60 s network) are
-confirmed by reading `*_collector.hpp::kCacheTtlMs` directly and match
-ADR-011 exactly (see table above) — this is a static-code check, not a
-runtime measurement.
+Host: maintainer Windows desktop, Debug Ninja (`C:\dev\Pulse-service-build-r1`),
+2026-08-02 (post-P2). Source: `inventory_engine_smoke_tests` (limit 50).
 
-**Action for the next session with a working PulseService build:** run
-`inventory_engine_smoke_tests` and append actual P2 fresh-collect /
-cache-hit timings to this report (or a follow-up addendum) before checking
-the doc 34 "Release build passes" box.
+| Domain | Fresh collect (ms) | Cache hit (ms) | Status | Count | Generation |
+|--------|-------------------:|---------------:|--------|------:|-----------:|
+| Services | 22 | 0 | partial | 50 | 1 |
+| Drivers | 26 | 0 | partial | 50 | 2 |
+| Software | 3 | 0 | partial | 50 | 3 |
+| USB | 35 | 0 | available | 18 | 4 |
+| PCI | 79 | 0 | available | 43 | 5 |
+| Displays | 8 | 0 | available | 2 | 6 |
+| Audio | 13 | 0 | available | 3 | 7 |
+| Bluetooth | 1 | 0 | unsupported | 0 | 8 |
+| Printers | 1 | 0 | available | 1 | 9 |
+| Battery | 1 | 0 | unsupported | 0 | 10 |
+| Motherboard | 0 | 0 | available | 1 | 11 |
+| BIOS | 0 | 0 | available | 1 | 12 |
+| CPU | 0 | 0 | available | 1 | 13 |
+| Memory modules | 0 | 0 | available | 2 | 14 |
+| Storage | 5 | 0 | partial | 4 | 15 |
+| Network adapters | 6 | 0 | available | 3 | 16 |
+
+`pulse_wire_tests OK`. Storage `partial` when unelevated IOCTL enrichment is limited
+(ADR-correct). Bluetooth/Battery `unsupported` on this desktop host (ADR-correct).
 
 ---
 
-## Tests run this session
+## Tests run (maintainer host, 2026-08-02)
 
 ```
-apps/pulse_mcp> npm test
- ✓ test/policy.test.ts (3 tests)
- ✓ test/response.test.ts (2 tests)
- ✓ test/framing.test.ts (2 tests)
- ✓ test/ipc.integration.test.ts (3 tests)
- ✓ test/mcp.self.test.ts (2 tests)
- ✓ test/mcp.integration.test.ts (1 test)
- Test Files  6 passed (6)
-      Tests  13 passed (13)
-
-apps/pulse_mcp> npm run build   # tsc -p tsconfig.json — no errors
+inventory_engine_smoke_tests OK   # all 16 domains
+pulse_wire_tests OK
+flutter test test/report_exporter_test.dart  # 13 passed
+dart analyze lib/presentation/inventory lib/presentation/reports
+  # 1 info only (null-aware style hint)
+apps/pulse_mcp> npm test  # 13 passed (prior session)
 ```
 
-`dart analyze` / `flutter analyze` on the changed inventory/reports files
-could **not** be run this session — the sandbox has no Flutter/Dart SDK on
-`PATH` (checked `flutter`, `dart`, common install paths). All Dart changes
-were reviewed manually against `pulse_wire.dart` field names/types, matched
-against the existing widget/report patterns they extend, and kept consistent
-with the surrounding code style (records, `switch` exhaustiveness per
-`ReportTemplate` case, null-safety on all `has*` wire flags). **Action for
-the next session with a Flutter SDK:** run
-`flutter analyze lib/presentation/inventory lib/presentation/reports` and
-`flutter test` before checking "Release build passes".
+Release / `msinfo32` Device Manager spot-check still open for full R3 freeze.
 
 ---
 
