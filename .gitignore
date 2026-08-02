@@ -28,6 +28,8 @@ apps/pulse_app/windows/flutter/ephemeral/
 artifacts/
 tools/soak-results/*
 !tools/soak-results/README.md
+tools/validation-results/*
+!tools/validation-results/README.md
 *.exe
 *.dll
 *.pdb
