@@ -610,25 +610,44 @@ v1 scope (**not** full SCM catalog):
 
 ```json
 {
+  "reportType": "health|timeline|diagnostics|hardware|combined",
   "template": "health|timeline|diagnostics|hardware|combined",
   "format": "json|html|pdf|markdown|csv",
-  "directory": "string?"
+  "outputPath": "string?",
+  "directory": "string?",
+  "filters": {
+    "limit": "number?",
+    "channel": "system|application|security|other?",
+    "severity": "string[]?",
+    "keyword": "string?",
+    "from": "string?",
+    "to": "string?"
+  }
 }
 ```
 
-**Data:**
+`reportType` and `template` are aliases (one required).
+
+**Data (metadata only — never report body):**
 
 ```json
 {
-  "path": "C:\\Users\\…\\Documents\\Pulse\\Reports\\…",
-  "format": "html",
+  "reportId": "uuid",
   "template": "health",
+  "format": "html",
+  "path": "C:\\Users\\…\\…",
   "bytes": 12345,
-  "createdAt": "ISO-8601"
+  "createdAt": "ISO-8601",
+  "temporary": false,
+  "sideEffects": ["write_user_export_dir"]
 }
 ```
 
-Generation runs **inside PulseMCP** (shared formatting module or invoked helper), using live IPC data — **not** model-authored content.
+If `outputPath` / `directory` omitted → write under `%TEMP%\\Pulse\\mcp-reports` (`temporary: true`) with TTL cleanup.
+
+**Errors:** `INVALID_REPORT_TYPE`, `INVALID_FORMAT`, `EXPORT_FAILED`, `ACCESS_DENIED`, `NOT_SUPPORTED` (e.g. diagnostics CSV).
+
+Generation runs **inside PulseMCP** TypeScript writers fed by live IPC snapshots (Flutter `ReportExporter` behavioral parity; R4 may consolidate later) — **not** model-authored content.
 
 ### 10.13 `mcp.self`
 
@@ -810,7 +829,7 @@ Dev:
 | **M3** | `process.list` / `search` / `details` | **Frozen** (2026-08-02) — [archives/mcp-m3-validation.md](archives/mcp-m3-validation.md) |
 | **M4** | `timeline.list` / `timeline.search` + `pulse://timeline/live` | **Frozen** (2026-08-02) — [archives/mcp-m4-validation.md](archives/mcp-m4-validation.md) |
 | **M5** | `diagnostics.snapshot`, `service.status` + `pulse://diagnostics/snapshot`, `pulse://mcp/status` | **Frozen** (2026-08-02) — [archives/mcp-m5-validation.md](archives/mcp-m5-validation.md) |
-| **M6** | `report.export` (json/html/pdf/md/csv) | Files on disk; tool returns path |
+| **M6** | `report.export` (json/html/pdf/md/csv) | **Frozen** (2026-08-02) — [archives/mcp-m6-validation.md](archives/mcp-m6-validation.md) |
 | **M7** | Flutter MCP Diagnostics UI + installer + pipe max 8 | Three versions visible in UI |
 | **M8** | Streamable HTTP loopback + bearer (optional) | Spec-compliant HTTP transport |
 | **Later** | Full service catalog; `process.kill`; Prompts | Separate ADRs |

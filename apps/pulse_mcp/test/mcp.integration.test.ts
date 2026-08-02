@@ -11,7 +11,7 @@ import { createPulseMcpServer } from "../src/server/createServer.js";
 import { getSharedTimelineCache } from "../src/timeline/cache.js";
 
 describe("MCP integration (in-memory)", () => {
-  it("lists M2–M5 tools and mcp.self", async () => {
+  it("lists M2–M6 tools and mcp.self", async () => {
     const session = getSharedIpcSession();
     const health = getSharedHealthCache(session);
     const timeline = getSharedTimelineCache(session);
@@ -46,6 +46,7 @@ describe("MCP integration (in-memory)", () => {
     expect(names).toContain("timeline.search");
     expect(names).toContain("diagnostics.snapshot");
     expect(names).toContain("service.status");
+    expect(names).toContain("report.export");
 
     const resources = await client.listResources();
     const uris = resources.resources.map((r) => r.uri);

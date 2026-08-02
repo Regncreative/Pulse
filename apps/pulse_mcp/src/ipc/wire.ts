@@ -17,6 +17,11 @@ import type {
   ProcessDetails,
 } from "../health/types.js";
 import {
+  decodeInventoryDomainSnapshot,
+  encodeGetInventoryDomain,
+  type InventoryDomainView,
+} from "./inventoryDecode.js";
+import {
   decodeTimelineEvent,
   decodeTimelineEventDetail,
   decodeTimelineSnapshot,
@@ -138,6 +143,17 @@ export interface DiagnosticsSnapshotMsg {
   snapshot: DiagnosticsSnapshot;
 }
 
+export interface GetInventoryDomainMsg {
+  type: "GetInventoryDomain";
+  domain: number;
+  limit: number;
+}
+
+export interface InventoryDomainSnapshotMsg {
+  type: "InventoryDomainSnapshot";
+  snapshot: InventoryDomainView;
+}
+
 export interface ErrorResponseMsg {
   type: "ErrorResponse";
   code: number;
@@ -167,6 +183,8 @@ export type Body =
   | TimelineEventDetailMsg
   | GetDiagnosticsSnapshotMsg
   | DiagnosticsSnapshotMsg
+  | GetInventoryDomainMsg
+  | InventoryDomainSnapshotMsg
   | ErrorResponseMsg;
 
 export interface Envelope {
@@ -253,6 +271,13 @@ export function encodeEnvelope(env: Envelope): Uint8Array {
       break;
     case "GetTimelineEventDetail":
       writeBytesField(35, encodeGetTimelineEventDetail(env.body), out);
+      break;
+    case "GetInventoryDomain":
+      writeBytesField(
+        37,
+        encodeGetInventoryDomain(env.body.domain, env.body.limit),
+        out,
+      );
       break;
     default:
       throw new Error(`encode not supported for ${env.body.type}`);
@@ -377,6 +402,12 @@ export function decodeEnvelope(data: Uint8Array): Envelope {
           body = {
             type: "TimelineEventDetail",
             detail: decodeTimelineEventDetail(sub),
+          };
+          break;
+        case 38:
+          body = {
+            type: "InventoryDomainSnapshot",
+            snapshot: decodeInventoryDomainSnapshot(sub),
           };
           break;
         case 99:

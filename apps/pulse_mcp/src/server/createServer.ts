@@ -43,6 +43,9 @@ import {
   filterTimelineEvents,
   type TimelineSearchFilters,
 } from "../timeline/query.js";
+import { runReportExport } from "../report/export.js";
+import { getSharedTempReportStore } from "../report/temp.js";
+import { REPORT_TYPES } from "../report/types.js";
 import { buildMcpStatus, runMcpSelf } from "../tools/mcp/self.js";
 import { runObservationTool, type ToolRuntime } from "../tools/runTool.js";
 import { MCP_SERVER_VERSION } from "../version.js";
@@ -616,6 +619,77 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
       );
       return mapServiceStatus(snap);
     },
+  );
+
+  server.registerTool(
+    "report.export",
+    {
+      title: "Export Pulse report",
+      description:
+        "Generate a Pulse report file via existing IPC snapshots + PulseMCP formatters (mirrors Flutter ReportExporter). Returns metadata only — never report body. Formats: json, csv, html, pdf, markdown. sideEffects: write_user_export_dir.",
+      inputSchema: z.object({
+        // Validated in handler for INVALID_REPORT_TYPE / INVALID_FORMAT codes.
+        reportType: z.string().optional(),
+        template: z.string().optional(),
+        format: z.string(),
+        outputPath: z.string().optional(),
+        directory: z.string().optional(),
+        filters: z
+          .object({
+            limit: z.number().int().min(1).max(2000).optional(),
+            channel: z
+              .enum(["system", "application", "security", "other"])
+              .optional(),
+            severity: z.array(z.string()).optional(),
+            keyword: z.string().optional(),
+            from: z.string().optional(),
+            to: z.string().optional(),
+          })
+          .optional(),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args) =>
+      runObservationTool(runtime, "report.export", async () => {
+        const a = (args ?? {}) as {
+          reportType?: string;
+          template?: string;
+          format?: string;
+          outputPath?: string;
+          directory?: string;
+          filters?: Record<string, unknown>;
+        };
+        if (!a.reportType && !a.template) {
+          const { ReportExportError } = await import("../report/errors.js");
+          throw new ReportExportError(
+            "INVALID_REPORT_TYPE",
+            "reportType or template is required",
+            { supported: [...REPORT_TYPES] },
+          );
+        }
+        return runReportExport(
+          {
+            session: opts.session,
+            health: opts.health,
+            timeline: opts.timeline,
+            diagnostics: opts.diagnostics,
+          },
+          {
+            reportType: a.reportType,
+            template: a.template,
+            format: a.format,
+            outputPath: a.outputPath,
+            directory: a.directory,
+            filters: a.filters as import("../report/types.js").ReportFilters,
+          },
+          getSharedTempReportStore(),
+        );
+      }),
   );
 
   opts.timeline.onLiveEvent((event) => {

@@ -3,6 +3,7 @@ import type { HealthCache } from "../health/cache.js";
 import type { PulseMcpLogger } from "../logging/logger.js";
 import type { MetricsRegistry } from "../metrics/metrics.js";
 import type { McpPolicy } from "../policy/policy.js";
+import { ReportExportError } from "../report/errors.js";
 import {
   failure,
   success,
@@ -96,6 +97,13 @@ function mapError(err: unknown): {
   message: string;
   details: Record<string, unknown>;
 } {
+  if (err instanceof ReportExportError) {
+    return {
+      code: err.code,
+      message: err.message,
+      details: err.details,
+    };
+  }
   if (err instanceof PulseIpcError) {
     const allowed: ToolErrorCode[] = [
       "SERVICE_UNAVAILABLE",

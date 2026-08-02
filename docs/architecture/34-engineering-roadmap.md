@@ -291,7 +291,7 @@ flowchart TD
 
 **Success metrics (all required):**
 
-- [ ] `report.export` writes json/html/pdf/markdown/csv and returns path metadata
+- [x] `report.export` writes json/html/pdf/markdown/csv and returns path metadata — **M6 frozen** ([mcp-m6-validation.md](archives/mcp-m6-validation.md))
 - [ ] Settings MCP toggle writes policy; disabled → `POLICY_DISABLED`
 - [ ] Diagnostics shows MCP version, policy, uptime, request metrics, log path
 - [ ] `PulseMCP.exe` (or equivalent) in installer payload
@@ -501,7 +501,7 @@ Distinct from **Plugin SDK (R13)** (in-process/out-of-process *extensions inside
 
 ## 6. Release plan (advisory)
 
-**Temporary priority (2026-08-02):** MCP M2–M7 (R5–R6) is prioritized ahead of remaining Wave B/C items. **M2–M5 frozen** ([mcp-m2-validation.md](archives/mcp-m2-validation.md), [mcp-m3-validation.md](archives/mcp-m3-validation.md), [mcp-m4-validation.md](archives/mcp-m4-validation.md), [mcp-m5-validation.md](archives/mcp-m5-validation.md)); M6 not started until explicit go-ahead. R4 shared report generators deferred — M6 will use TypeScript writers over IPC until consolidated.
+**Temporary priority (2026-08-02):** MCP M2–M7 (R5–R6) is prioritized ahead of remaining Wave B/C items. **M2–M6 frozen** ([mcp-m2-validation.md](archives/mcp-m2-validation.md), [mcp-m3-validation.md](archives/mcp-m3-validation.md), [mcp-m4-validation.md](archives/mcp-m4-validation.md), [mcp-m5-validation.md](archives/mcp-m5-validation.md), [mcp-m6-validation.md](archives/mcp-m6-validation.md)); M7 not started until explicit go-ahead. R4 shared report generators deferred — M6 uses TypeScript writers over IPC until consolidated.
 
 | Release | Content |
 |---------|---------|

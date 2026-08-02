@@ -34,6 +34,7 @@ export const V1_TOOLS = [
   "timeline.search",
   "diagnostics.snapshot",
   "service.status",
+  "report.export",
 ] as const;
 
 export const V1_TOOL_NAMESPACES = [
@@ -43,6 +44,7 @@ export const V1_TOOL_NAMESPACES = [
   "timeline",
   "diagnostics",
   "service",
+  "report",
 ] as const;
 
 export const V1_RESOURCES = [

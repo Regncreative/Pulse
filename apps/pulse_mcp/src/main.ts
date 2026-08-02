@@ -29,7 +29,7 @@ async function main(): Promise<void> {
     policyEnabled: policy.enabled,
     policyPath: policy.path,
     logPath: logger.logPath,
-    milestone: "M5",
+    milestone: "M6",
   });
 
   if (!policy.enabled) {

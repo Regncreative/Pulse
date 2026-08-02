@@ -1,5 +1,5 @@
 /** PulseMCP product version (independent of UI / service). */
-export const MCP_SERVER_VERSION = "0.5.0";
+export const MCP_SERVER_VERSION = "0.6.0";
 
 /** MCP protocol version advertised to clients (spec family). */
 export const MCP_PROTOCOL_VERSION = "2025-03-26";

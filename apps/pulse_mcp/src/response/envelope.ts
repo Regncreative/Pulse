@@ -6,6 +6,10 @@ export type ToolErrorCode =
   | "NOT_SUPPORTED"
   | "ACCESS_DENIED"
   | "INTERNAL_ERROR"
+  | "PROCESS_NOT_FOUND"
+  | "INVALID_REPORT_TYPE"
+  | "INVALID_FORMAT"
+  | "EXPORT_FAILED"
   /** @deprecated use INVALID_ARGUMENT */
   | "INVALID_ARGUMENTS"
   /** @deprecated use NOT_SUPPORTED */
@@ -13,8 +17,7 @@ export type ToolErrorCode =
   /** @deprecated use ACCESS_DENIED */
   | "PERMISSION_DENIED"
   /** @deprecated use INTERNAL_ERROR */
-  | "INTERNAL"
-  | "PROCESS_NOT_FOUND";
+  | "INTERNAL";
 
 export interface SuccessEnvelope<T> {
   ok: true;

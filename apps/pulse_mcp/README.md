@@ -13,7 +13,8 @@ Architecture: [docs/architecture/33-mcp-bridge.md](../../docs/architecture/33-mc
 | **M3** | **Frozen** — `process.list` / `process.search` / `process.details` ([validation](../../docs/architecture/archives/mcp-m3-validation.md)) |
 | **M4** | **Frozen** — `timeline.list` / `timeline.search` + `pulse://timeline/live` ([validation](../../docs/architecture/archives/mcp-m4-validation.md)) |
 | **M5** | **Frozen** — `diagnostics.snapshot`, `service.status`, diagnostics + mcp status resources ([validation](../../docs/architecture/archives/mcp-m5-validation.md)) |
-| M6–M7 | Not started (gated on M5 freeze) |
+| **M6** | **Frozen** — `report.export` (json/csv/html/pdf/markdown) ([validation](../../docs/architecture/archives/mcp-m6-validation.md)) |
+| M7 | Not started (gated on M6 freeze) |
 
 ## M2 tools
 
@@ -57,6 +58,14 @@ Stable id = `pid` + `createTime` when known. Inventory fields absent on the wire
 
 - `pulse://diagnostics/snapshot` — poll ≤5 s while subscribed; publish on meaningful change
 - `pulse://mcp/status` — local MCP status (`mcp.self` payload); publish on metric/capability change
+
+## M6 tools
+
+| Tool | Source |
+|------|--------|
+| `report.export` | IPC snapshots (`GetHealthSnapshot` / `GetTimelineSnapshot` / `GetDiagnosticsSnapshot` / `GetInventoryDomain`) + TypeScript writers (Flutter ReportExporter parity) |
+
+Returns **metadata only** (`reportId`, `format`, `path`, `bytes`, `createdAt`, `temporary`). Never streams report contents over MCP. Omit `outputPath`/`directory` to write under `%TEMP%\Pulse\mcp-reports` (TTL cleanup).
 
 ## M4 resources (subscribable)
 

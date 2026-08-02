@@ -42,6 +42,7 @@ describe("mcp.self", () => {
           tools: string[];
           resources: string[];
           subscriptions: string[];
+          reportFormats: string[];
           protocolFeatures: string[];
           inventoryToolsRegistered: string[];
           inventoryToolsEnabled: boolean;
@@ -52,7 +53,7 @@ describe("mcp.self", () => {
       generatedAt: string;
     };
     expect(body.ok).toBe(true);
-    expect(body.data.versions.mcpServer).toBe("0.5.0");
+    expect(body.data.versions.mcpServer).toBe("0.6.0");
     expect(body.data.versions.pulseApp).toBe("0.2.1-beta");
     expect(body.data.versions.ipcProtocol).toBe(1);
     expect(body.data.namespaces).toContain("system");
@@ -60,6 +61,7 @@ describe("mcp.self", () => {
     expect(body.data.namespaces).toContain("timeline");
     expect(body.data.namespaces).toContain("diagnostics");
     expect(body.data.namespaces).toContain("service");
+    expect(body.data.namespaces).toContain("report");
     expect(body.data.capabilities.tools).toContain("mcp.self");
     expect(body.data.capabilities.tools).toContain("system.cpu");
     expect(body.data.capabilities.tools).toContain("process.list");
@@ -69,7 +71,15 @@ describe("mcp.self", () => {
     expect(body.data.capabilities.tools).toContain("timeline.search");
     expect(body.data.capabilities.tools).toContain("diagnostics.snapshot");
     expect(body.data.capabilities.tools).toContain("service.status");
+    expect(body.data.capabilities.tools).toContain("report.export");
     expect(body.data.capabilities.tools).not.toContain("inventory.services");
+    expect(body.data.capabilities.reportFormats).toEqual([
+      "json",
+      "html",
+      "pdf",
+      "markdown",
+      "csv",
+    ]);
     expect(body.data.capabilities.resources).toContain("pulse://system/cpu");
     expect(body.data.capabilities.resources).toContain("pulse://timeline/live");
     expect(body.data.capabilities.resources).toContain(
