@@ -163,7 +163,7 @@ Wire codecs hand-maintained (`pulse.proto` + C++/Dart `pulse_wire`).
 ## 6. UI
 
 - New **Inventory** shell destination.
-- Tabs by domain (P0 first; P1/P2 as shipped).
+- Hierarchical inventory browser (System / Devices / Software); P2 leaves reserved until collectors ship.
 - Virtualized lists; search client-side; refresh control; last-updated + generation.
 - Status banners for unsupported / denied / truncated.
 
