@@ -8,12 +8,15 @@
 
 ## Portable payload
 
-Advanced users can use the `dist\Pulse\` folder from packaging:
+Advanced users can use the `dist\Pulse\` folder (or ZIP of that tree) from packaging:
 
 - `Pulse.exe` — UI
-- `service\PulseService.exe --install-start` (elevated)
+- `service\PulseService.exe --install-start` (elevated) — **required**; unzip alone is not enough
 - `PulseMCP.exe` — MCP server (bundled private Node runtime; no system Node.js)
 - `PulseMCP.cmd` — compatibility launcher (same private runtime)
+
+This is **not** a true portable edition. PulseService must be registered with Windows (SCM). Prefer the Setup installer for beta/post-beta. Details: [40 — Portable ZIP vs Windows Service](../architecture/40-portable-vs-service.md).
+
 ## Uninstall
 
 Use Windows Apps & features / the Start menu Uninstall entry. Uninstall:

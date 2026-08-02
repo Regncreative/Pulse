@@ -29,7 +29,7 @@ Prerequisites: Flutter, VS C++ Build Tools, [Inno Setup 6](https://jrsoftware.or
 |--------|------|
 | `dist/Pulse-Setup-0.2.0-beta-windows-x64.exe` | **End-user installer** |
 | `dist/Pulse/` | Payload used by Inno |
-| `dist/Pulse-0.2.0-beta-windows-x64.zip` | Optional payload archive |
+| `dist/Pulse-0.2.0-beta-windows-x64.zip` | Optional payload archive (**not** a true portable SKU — see [40](40-portable-vs-service.md)) |
 
 ## Fresh machine checklist
 
