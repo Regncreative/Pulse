@@ -52,6 +52,7 @@ class _ReportsPageState extends State<ReportsPage> {
       final dark = Theme.of(context).brightness == Brightness.dark;
 
       final health = await _fetchHealthIfNeeded(ipc);
+      final inventory = await _fetchInventoryIfNeeded(ipc);
       if (_template == ReportTemplate.diagnostics && diag.snapshot == null) {
         try {
           await diag.refresh();
@@ -62,6 +63,7 @@ class _ReportsPageState extends State<ReportsPage> {
         template: _template,
         format: _format,
         health: health,
+        inventory: inventory,
         events: List.of(timeline.events),
         diagnostics: diag.snapshot,
         ipcStatus: ipc.status,
@@ -91,6 +93,19 @@ class _ReportsPageState extends State<ReportsPage> {
     if (ipc.status.state != IpcConnectionState.connected) return null;
     try {
       return await ipc.getHealthSnapshot();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<InventoryDomainSnapshot?> _fetchInventoryIfNeeded(
+    PulseIpcClient ipc,
+  ) async {
+    final domain = _template.inventoryDomain;
+    if (domain == null) return null;
+    if (ipc.status.state != IpcConnectionState.connected) return null;
+    try {
+      return await ipc.getInventoryDomain(domain: domain);
     } catch (_) {
       return null;
     }
@@ -128,8 +143,9 @@ class _ReportsPageState extends State<ReportsPage> {
               PulseSectionHeader(
                 title: 'Export report',
                 subtitle:
-                    'Save System Health, Timeline, Diagnostics, or hardware '
-                    'inventory as JSON, CSV, HTML, or PDF.',
+                    'Save System Health, Timeline, Diagnostics, Inventory '
+                    '(services / drivers / software), or hardware summary as '
+                    'JSON, CSV, HTML, or PDF.',
               ),
               if (state != IpcConnectionState.connected) ...[
                 const SizedBox(height: PulseTokens.spaceMd),
@@ -145,9 +161,9 @@ class _ReportsPageState extends State<ReportsPage> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'PulseService is offline. Health and Diagnostics '
-                          'exports may be incomplete; Timeline uses events '
-                          'already loaded in this session.',
+                          'PulseService is offline. Health, Diagnostics, and '
+                          'Inventory exports may be incomplete; Timeline uses '
+                          'events already loaded in this session.',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: PulseTokens.textSecondary,
                                 height: 1.45,
@@ -299,6 +315,9 @@ class _ReportsPageState extends State<ReportsPage> {
       ReportTemplate.timeline => LucideIcons.list,
       ReportTemplate.diagnostics => LucideIcons.stethoscope,
       ReportTemplate.hardwareInventory => LucideIcons.cpu,
+      ReportTemplate.serviceInventory => LucideIcons.cog,
+      ReportTemplate.driverInventory => LucideIcons.circuitBoard,
+      ReportTemplate.softwareInventory => LucideIcons.package,
     };
   }
 }

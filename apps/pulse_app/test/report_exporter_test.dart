@@ -178,6 +178,32 @@ void main() {
       expect(csv, contains('cpu_cores,8'));
     });
 
+    test('service inventory CSV uses Inventory Engine rows', () {
+      final csv = ReportExporter.buildCsv(
+        ReportExportInput(
+          template: ReportTemplate.serviceInventory,
+          format: ReportFormat.csv,
+          inventory: InventoryDomainSnapshot(
+            domain: InventoryDomainId.services,
+            status: InventoryStatus.available,
+            generation: 3,
+            services: [
+              InventoryServiceEntry(
+                id: 'EventLog',
+                displayName: 'Windows Event Log',
+                state: 'running',
+                startType: 'automatic',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(csv, contains('status,status_detail,generation,truncated,count'));
+      expect(csv, contains('EventLog'));
+      expect(csv, contains('Windows Event Log'));
+    });
+
     test('diagnostics rejects CSV', () {
       expect(
         () => ReportExporter.buildCsv(

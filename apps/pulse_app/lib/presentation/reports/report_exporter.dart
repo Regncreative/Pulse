@@ -21,6 +21,7 @@ class ReportExportInput {
     required this.template,
     required this.format,
     this.health,
+    this.inventory,
     this.events = const [],
     this.diagnostics,
     this.ipcStatus,
@@ -32,6 +33,8 @@ class ReportExportInput {
   final ReportTemplate template;
   final ReportFormat format;
   final HealthSnapshot? health;
+  /// Inventory Engine snapshot for service / driver / software templates.
+  final InventoryDomainSnapshot? inventory;
   final List<TimelineEvent> events;
   final DiagnosticsSnapshot? diagnostics;
   final IpcStatus? ipcStatus;
@@ -114,6 +117,10 @@ class ReportExporter {
         return _keyValueCsv(healthMetricsRows(input.health));
       case ReportTemplate.hardwareInventory:
         return _keyValueCsv(hardwareInventoryRows(input.health?.info));
+      case ReportTemplate.serviceInventory:
+      case ReportTemplate.driverInventory:
+      case ReportTemplate.softwareInventory:
+        return inventoryDomainCsv(input.inventory);
       case ReportTemplate.diagnostics:
         throw ArgumentError('CSV is not supported for diagnostics reports.');
     }
@@ -304,6 +311,150 @@ class ReportExporter {
     ];
   }
 
+  /// Tabular CSV for Inventory Engine catalogs (ADR-011 SSOT).
+  static String inventoryDomainCsv(InventoryDomainSnapshot? snap) {
+    if (snap == null) {
+      return 'status,status_detail\nerror,No inventory snapshot\n';
+    }
+    final meta = StringBuffer()
+      ..writeln('status,status_detail,generation,truncated,count')
+      ..writeln(
+        '${_csvCell(snap.status.name)},${_csvCell(snap.statusDetail)},'
+        '${snap.generation},${snap.truncated},'
+        '${_inventoryItemCount(snap)}',
+      )
+      ..writeln();
+
+    switch (snap.domain) {
+      case InventoryDomainId.services:
+        meta.writeln(
+          'id,display_name,state,start_type,account,binary_path,description',
+        );
+        for (final e in snap.services) {
+          meta.writeln(
+            '${_csvCell(e.id)},${_csvCell(e.displayName)},${_csvCell(e.state)},'
+            '${_csvCell(e.startType)},${_csvCell(e.account)},'
+            '${_csvCell(e.binaryPath)},${_csvCell(e.description)}',
+          );
+        }
+      case InventoryDomainId.drivers:
+        meta.writeln(
+          'id,display_name,state,start_type,driver_type,binary_path,description',
+        );
+        for (final e in snap.drivers) {
+          meta.writeln(
+            '${_csvCell(e.id)},${_csvCell(e.displayName)},${_csvCell(e.state)},'
+            '${_csvCell(e.startType)},${_csvCell(e.driverType)},'
+            '${_csvCell(e.binaryPath)},${_csvCell(e.description)}',
+          );
+        }
+      case InventoryDomainId.software:
+        meta.writeln(
+          'id,display_name,version,publisher,install_date,architecture,'
+          'system_component,estimated_size_bytes',
+        );
+        for (final e in snap.software) {
+          meta.writeln(
+            '${_csvCell(e.id)},${_csvCell(e.displayName)},${_csvCell(e.version)},'
+            '${_csvCell(e.publisher)},${_csvCell(e.installDate)},'
+            '${_csvCell(e.architecture)},${e.systemComponent},'
+            '${e.hasEstimatedSize ? e.estimatedSizeBytes : ''}',
+          );
+        }
+      default:
+        meta.writeln('note');
+        meta.writeln(
+          _csvCell('Unsupported inventory domain for this template'),
+        );
+    }
+    return meta.toString();
+  }
+
+  static int _inventoryItemCount(InventoryDomainSnapshot snap) =>
+      switch (snap.domain) {
+        InventoryDomainId.services => snap.services.length,
+        InventoryDomainId.drivers => snap.drivers.length,
+        InventoryDomainId.software => snap.software.length,
+        _ => 0,
+      };
+
+  static Map<String, dynamic> inventoryDomainJson(
+    InventoryDomainSnapshot? snap,
+  ) {
+    if (snap == null) {
+      return {
+        'status': 'error',
+        'status_detail': 'No inventory snapshot',
+      };
+    }
+    return {
+      'domain': snap.domain.name,
+      'status': snap.status.name,
+      'status_detail': snap.statusDetail,
+      'truncated': snap.truncated,
+      'generation': snap.generation,
+      'generated_at_unix_ms': snap.generatedAtUnixMs,
+      'full_resync': snap.fullResync,
+      'cache_ttl_ms': snap.cacheTtlMs,
+      'count': _inventoryItemCount(snap),
+      'services': [
+        for (final e in snap.services)
+          {
+            'id': e.id,
+            'display_name': e.displayName,
+            'state': e.state,
+            'start_type': e.startType,
+            'account': e.account,
+            'binary_path': e.binaryPath,
+            'description': e.description,
+          },
+      ],
+      'drivers': [
+        for (final e in snap.drivers)
+          {
+            'id': e.id,
+            'display_name': e.displayName,
+            'state': e.state,
+            'start_type': e.startType,
+            'driver_type': e.driverType,
+            'binary_path': e.binaryPath,
+            'description': e.description,
+          },
+      ],
+      'software': [
+        for (final e in snap.software)
+          {
+            'id': e.id,
+            'display_name': e.displayName,
+            'version': e.version,
+            'publisher': e.publisher,
+            'install_date': e.installDate,
+            'install_location': e.installLocation,
+            if (e.hasEstimatedSize)
+              'estimated_size_bytes': e.estimatedSizeBytes,
+            'system_component': e.systemComponent,
+            'architecture': e.architecture,
+          },
+      ],
+    };
+  }
+
+  static List<(String, String)> inventorySummaryRows(
+    InventoryDomainSnapshot? snap,
+  ) {
+    if (snap == null) {
+      return const [('status', 'No inventory snapshot')];
+    }
+    return [
+      ('domain', snap.domain.name),
+      ('status', snap.status.name),
+      ('status_detail', snap.statusDetail),
+      ('truncated', '${snap.truncated}'),
+      ('generation', '${snap.generation}'),
+      ('count', '${_inventoryItemCount(snap)}'),
+    ];
+  }
+
   static List<(String, String)> diagnosticsRows({
     DiagnosticsSnapshot? snap,
     IpcStatus? status,
@@ -420,6 +571,10 @@ class ReportExporter {
           for (final row in hardwareInventoryRows(input.health?.info))
             row.$1: row.$2,
         };
+      case ReportTemplate.serviceInventory:
+      case ReportTemplate.driverInventory:
+      case ReportTemplate.softwareInventory:
+        base['inventory'] = inventoryDomainJson(input.inventory);
     }
     return base;
   }
@@ -589,6 +744,71 @@ class ReportExporter {
       case ReportTemplate.hardwareInventory:
         return '<section><h2>Hardware</h2>'
             '${_kvTableHtml(hardwareInventoryRows(input.health?.info))}</section>';
+      case ReportTemplate.serviceInventory:
+      case ReportTemplate.driverInventory:
+      case ReportTemplate.softwareInventory:
+        final snap = input.inventory;
+        final summary = inventorySummaryRows(snap);
+        final count = snap == null ? 0 : _inventoryItemCount(snap);
+        final buf = StringBuffer()
+          ..writeln('<section><h2>Inventory summary</h2>')
+          ..writeln(_kvTableHtml(summary))
+          ..writeln('</section>')
+          ..writeln('<section><h2>Items ($count)</h2>');
+        if (snap == null) {
+          buf.writeln('<p>No inventory snapshot.</p></section>');
+          return buf.toString();
+        }
+        buf.writeln('<table><tr>');
+        switch (snap.domain) {
+          case InventoryDomainId.services:
+            buf.writeln(
+              '<th>Id</th><th>Display name</th><th>State</th>'
+              '<th>Start type</th><th>Account</th></tr>',
+            );
+            for (final e in snap.services) {
+              buf.writeln(
+                '<tr><td>${_escapeHtml(e.id)}</td>'
+                '<td>${_escapeHtml(e.displayName)}</td>'
+                '<td>${_escapeHtml(e.state)}</td>'
+                '<td>${_escapeHtml(e.startType)}</td>'
+                '<td>${_escapeHtml(e.account)}</td></tr>',
+              );
+            }
+          case InventoryDomainId.drivers:
+            buf.writeln(
+              '<th>Id</th><th>Display name</th><th>State</th>'
+              '<th>Type</th><th>Start type</th></tr>',
+            );
+            for (final e in snap.drivers) {
+              buf.writeln(
+                '<tr><td>${_escapeHtml(e.id)}</td>'
+                '<td>${_escapeHtml(e.displayName)}</td>'
+                '<td>${_escapeHtml(e.state)}</td>'
+                '<td>${_escapeHtml(e.driverType)}</td>'
+                '<td>${_escapeHtml(e.startType)}</td></tr>',
+              );
+            }
+          case InventoryDomainId.software:
+            buf.writeln(
+              '<th>Id</th><th>Name</th><th>Version</th>'
+              '<th>Publisher</th><th>Arch</th></tr>',
+            );
+            for (final e in snap.software) {
+              buf.writeln(
+                '<tr><td>${_escapeHtml(e.id)}</td>'
+                '<td>${_escapeHtml(e.displayName)}</td>'
+                '<td>${_escapeHtml(e.version)}</td>'
+                '<td>${_escapeHtml(e.publisher)}</td>'
+                '<td>${_escapeHtml(e.architecture)}</td></tr>',
+              );
+            }
+          default:
+            buf.writeln('<th>Note</th></tr>');
+            buf.writeln('<tr><td>Unsupported domain</td></tr>');
+        }
+        buf.writeln('</table></section>');
+        return buf.toString();
       case ReportTemplate.diagnostics:
         return '<section><h2>Diagnostics</h2>${_kvTableHtml(diagnosticsRows(
           snap: input.diagnostics,
@@ -648,6 +868,17 @@ class ReportExporter {
           ),
           pw.SizedBox(height: 6),
           _pdfKeyValueTable(hardwareInventoryRows(input.health?.info)),
+        ];
+      case ReportTemplate.serviceInventory:
+      case ReportTemplate.driverInventory:
+      case ReportTemplate.softwareInventory:
+        return [
+          pw.Text(
+            'Inventory summary',
+            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 6),
+          _pdfKeyValueTable(inventorySummaryRows(input.inventory)),
         ];
       case ReportTemplate.diagnostics:
         return [

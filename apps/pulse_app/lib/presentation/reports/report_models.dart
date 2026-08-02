@@ -1,9 +1,14 @@
-/// Report kinds available on the Reports page (existing Pulse data only).
+import 'package:pulse_protocol/pulse_wire.dart' show InventoryDomainId;
+
+/// Report kinds available on the Reports page.
 enum ReportTemplate {
   healthSnapshot,
   timeline,
   diagnostics,
   hardwareInventory,
+  serviceInventory,
+  driverInventory,
+  softwareInventory,
 }
 
 /// On-disk export encodings.
@@ -20,6 +25,9 @@ extension ReportTemplateX on ReportTemplate {
         ReportTemplate.timeline => 'Timeline events',
         ReportTemplate.diagnostics => 'Diagnostics',
         ReportTemplate.hardwareInventory => 'Hardware inventory',
+        ReportTemplate.serviceInventory => 'Service inventory',
+        ReportTemplate.driverInventory => 'Driver inventory',
+        ReportTemplate.softwareInventory => 'Software inventory',
       };
 
   String get description => switch (this) {
@@ -30,7 +38,13 @@ extension ReportTemplateX on ReportTemplate {
         ReportTemplate.diagnostics =>
           'Service identity, IPC stats, pipeline stages, and client metrics.',
         ReportTemplate.hardwareInventory =>
-          'Static hardware inventory from the last health snapshot.',
+          'Static hardware summary from Health (PCI/USB Inventory domains land later).',
+        ReportTemplate.serviceInventory =>
+          'Windows services from the Inventory Engine (SCM SERVICE_WIN32).',
+        ReportTemplate.driverInventory =>
+          'Driver services from the Inventory Engine (SCM SERVICE_DRIVER subset).',
+        ReportTemplate.softwareInventory =>
+          'Installed software from Inventory (machine-wide Uninstall registry).',
       };
 
   String get fileStem => switch (this) {
@@ -38,12 +52,30 @@ extension ReportTemplateX on ReportTemplate {
         ReportTemplate.timeline => 'pulse-timeline',
         ReportTemplate.diagnostics => 'pulse-diagnostics',
         ReportTemplate.hardwareInventory => 'pulse-hardware',
+        ReportTemplate.serviceInventory => 'pulse-services',
+        ReportTemplate.driverInventory => 'pulse-drivers',
+        ReportTemplate.softwareInventory => 'pulse-software',
       };
 
   /// CSV fits tabular templates; diagnostics is structured JSON/HTML/PDF only.
   bool get supportsCsv => switch (this) {
         ReportTemplate.diagnostics => false,
         _ => true,
+      };
+
+  bool get usesInventoryEngine => switch (this) {
+        ReportTemplate.serviceInventory ||
+        ReportTemplate.driverInventory ||
+        ReportTemplate.softwareInventory =>
+          true,
+        _ => false,
+      };
+
+  InventoryDomainId? get inventoryDomain => switch (this) {
+        ReportTemplate.serviceInventory => InventoryDomainId.services,
+        ReportTemplate.driverInventory => InventoryDomainId.drivers,
+        ReportTemplate.softwareInventory => InventoryDomainId.software,
+        _ => null,
       };
 }
 
