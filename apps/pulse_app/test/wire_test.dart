@@ -216,6 +216,31 @@ void main() {
     expect(snap.drivers.first.driverType, 'kernel');
   });
 
+  test('InventoryDomainSnapshot R3 software roundtrip', () {
+    final env = Envelope(
+      requestId: 40,
+      body: InventoryDomainSnapshot(
+        domain: InventoryDomainId.software,
+        status: InventoryStatus.available,
+        generation: 4,
+        software: [
+          InventorySoftwareEntry(
+            id: '{ABCDEF12-3456-7890-ABCD-EF1234567890}',
+            displayName: 'Pulse Test App',
+            version: '1.0.0',
+            publisher: 'Pulse',
+            architecture: 'x64',
+          ),
+        ],
+      ),
+    );
+    final decoded = decodeEnvelope(encodeEnvelope(env));
+    final snap = decoded.body! as InventoryDomainSnapshot;
+    expect(snap.software, hasLength(1));
+    expect(snap.software.first.displayName, 'Pulse Test App');
+    expect(snap.software.first.architecture, 'x64');
+  });
+
   test('GetInventoryDomain request roundtrip', () {
     final env = Envelope(
       requestId: 37,

@@ -221,6 +221,31 @@ class InventoryDriverEntry {
   String driverType;
 }
 
+class InventorySoftwareEntry {
+  InventorySoftwareEntry({
+    this.id = '',
+    this.displayName = '',
+    this.version = '',
+    this.publisher = '',
+    this.installDate = '',
+    this.installLocation = '',
+    this.estimatedSizeBytes = 0,
+    this.hasEstimatedSize = false,
+    this.systemComponent = false,
+    this.architecture = '',
+  });
+  String id;
+  String displayName;
+  String version;
+  String publisher;
+  String installDate;
+  String installLocation;
+  int estimatedSizeBytes;
+  bool hasEstimatedSize;
+  bool systemComponent;
+  String architecture;
+}
+
 class GetInventoryDomain {
   GetInventoryDomain({
     this.domain = InventoryDomainId.unspecified,
@@ -246,8 +271,10 @@ class InventoryDomainSnapshot {
     this.cacheTtlMs = 0,
     List<InventoryServiceEntry>? services,
     List<InventoryDriverEntry>? drivers,
+    List<InventorySoftwareEntry>? software,
   })  : services = services ?? <InventoryServiceEntry>[],
-        drivers = drivers ?? <InventoryDriverEntry>[];
+        drivers = drivers ?? <InventoryDriverEntry>[],
+        software = software ?? <InventorySoftwareEntry>[];
   InventoryDomainId domain;
   InventoryStatus status;
   String statusDetail;
@@ -258,6 +285,7 @@ class InventoryDomainSnapshot {
   int cacheTtlMs;
   List<InventoryServiceEntry> services;
   List<InventoryDriverEntry> drivers;
+  List<InventorySoftwareEntry> software;
 }
 
 class GetTimelineSnapshot {
@@ -1254,6 +1282,21 @@ Uint8List _encodeInventoryDriverEntry(InventoryDriverEntry m) {
   return out.toBytes();
 }
 
+Uint8List _encodeInventorySoftwareEntry(InventorySoftwareEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.displayName, out);
+  _writeString(3, m.version, out);
+  _writeString(4, m.publisher, out);
+  _writeString(5, m.installDate, out);
+  _writeString(6, m.installLocation, out);
+  _writeU64(7, m.estimatedSizeBytes, out);
+  _writeBool(8, m.hasEstimatedSize, out);
+  _writeBool(9, m.systemComponent, out);
+  _writeString(10, m.architecture, out);
+  return out.toBytes();
+}
+
 Uint8List _encodeGetInventoryDomain(GetInventoryDomain m) {
   final out = BytesBuilder();
   _writeU64(1, m.domain.index, out);
@@ -1278,6 +1321,9 @@ Uint8List _encodeInventoryDomainSnapshot(InventoryDomainSnapshot m) {
   }
   for (final e in m.drivers) {
     _writeBytesField(11, _encodeInventoryDriverEntry(e), out);
+  }
+  for (final e in m.software) {
+    _writeBytesField(12, _encodeInventorySoftwareEntry(e), out);
   }
   return out.toBytes();
 }
@@ -2199,6 +2245,40 @@ InventoryDriverEntry _decodeInventoryDriverEntry(Uint8List data) {
   return m;
 }
 
+InventorySoftwareEntry _decodeInventorySoftwareEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventorySoftwareEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.displayName = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.version = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.publisher = r.readString();
+    } else if (field == 5 && wire == 2) {
+      m.installDate = r.readString();
+    } else if (field == 6 && wire == 2) {
+      m.installLocation = r.readString();
+    } else if (field == 7 && wire == 0) {
+      m.estimatedSizeBytes = r.readVarint();
+    } else if (field == 8 && wire == 0) {
+      m.hasEstimatedSize = r.readVarint() != 0;
+    } else if (field == 9 && wire == 0) {
+      m.systemComponent = r.readVarint() != 0;
+    } else if (field == 10 && wire == 2) {
+      m.architecture = r.readString();
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
 GetInventoryDomain _decodeGetInventoryDomain(Uint8List data) {
   final r = _Reader(data);
   final m = GetInventoryDomain();
@@ -2248,6 +2328,8 @@ InventoryDomainSnapshot _decodeInventoryDomainSnapshot(Uint8List data) {
       m.services.add(_decodeInventoryServiceEntry(r.readBytes()));
     } else if (field == 11 && wire == 2) {
       m.drivers.add(_decodeInventoryDriverEntry(r.readBytes()));
+    } else if (field == 12 && wire == 2) {
+      m.software.add(_decodeInventorySoftwareEntry(r.readBytes()));
     } else {
       r.skip(wire);
     }

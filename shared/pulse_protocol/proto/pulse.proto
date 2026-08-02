@@ -638,6 +638,19 @@ message InventoryDriverEntry {
   string driver_type = 7;     // kernel | file_system | adapter | recognizer | other
 }
 
+message InventorySoftwareEntry {
+  string id = 1;              // stable: ProductCode GUID or uninstall:{arch}:{key}
+  string display_name = 2;
+  string version = 3;
+  string publisher = 4;
+  string install_date = 5;    // registry YYYYMMDD when present
+  string install_location = 6;
+  uint64 estimated_size_bytes = 7;
+  bool has_estimated_size = 8;
+  bool system_component = 9;
+  string architecture = 10;   // x64 | x86 (hive that owned the key)
+}
+
 message GetInventoryDomain {
   InventoryDomainId domain = 1;
   bool force_refresh = 2;
@@ -656,6 +669,7 @@ message InventoryDomainSnapshot {
   uint32 cache_ttl_ms = 8;
   repeated InventoryServiceEntry services = 10;
   repeated InventoryDriverEntry drivers = 11;
+  repeated InventorySoftwareEntry software = 12;
 }
 
 message Envelope {

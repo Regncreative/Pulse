@@ -38,6 +38,7 @@ class InventoryEngine {
   ipc::InventoryDomainSnapshot CollectFresh(const CollectRequest& request);
   ipc::InventoryDomainSnapshot CollectServices(std::uint32_t limit);
   ipc::InventoryDomainSnapshot CollectDrivers(std::uint32_t limit);
+  ipc::InventoryDomainSnapshot CollectSoftware(std::uint32_t limit);
   ipc::InventoryDomainSnapshot MakeUnsupported(
       ipc::InventoryDomainId domain, std::uint32_t ttl_ms) const;
   ipc::InventoryDomainSnapshot ServeCachedOrCollect(
@@ -46,6 +47,7 @@ class InventoryEngine {
   std::mutex mutex_;
   CachedDomain services_;
   CachedDomain drivers_;
+  CachedDomain software_;
   std::uint64_t next_generation_ = 1;
 };
 

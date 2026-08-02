@@ -2,6 +2,7 @@
 
 #include "inventory/drivers_collector.hpp"
 #include "inventory/services_collector.hpp"
+#include "inventory/software_collector.hpp"
 
 #include <chrono>
 
@@ -66,6 +67,21 @@ ipc::InventoryDomainSnapshot InventoryEngine::CollectDrivers(
   return snap;
 }
 
+ipc::InventoryDomainSnapshot InventoryEngine::CollectSoftware(
+    std::uint32_t limit) {
+  const auto collected = SoftwareCollector::Collect(limit);
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Software;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.software = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = SoftwareCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
 ipc::InventoryDomainSnapshot InventoryEngine::CollectFresh(
     const CollectRequest& request) {
   switch (request.domain) {
@@ -74,6 +90,7 @@ ipc::InventoryDomainSnapshot InventoryEngine::CollectFresh(
     case ipc::InventoryDomainId::Drivers:
       return CollectDrivers(request.limit);
     case ipc::InventoryDomainId::Software:
+      return CollectSoftware(request.limit);
     case ipc::InventoryDomainId::Usb:
     case ipc::InventoryDomainId::Pci:
     case ipc::InventoryDomainId::Displays:
@@ -136,6 +153,9 @@ ipc::InventoryDomainSnapshot InventoryEngine::GetDomain(
   }
   if (request.domain == ipc::InventoryDomainId::Drivers) {
     return ServeCachedOrCollect(&drivers_, request);
+  }
+  if (request.domain == ipc::InventoryDomainId::Software) {
+    return ServeCachedOrCollect(&software_, request);
   }
 
   // Unimplemented domains: no cache fill of unsupported beyond response.

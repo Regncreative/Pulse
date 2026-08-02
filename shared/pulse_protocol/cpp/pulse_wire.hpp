@@ -593,6 +593,19 @@ struct InventoryDriverEntry {
   std::string driver_type;
 };
 
+struct InventorySoftwareEntry {
+  std::string id;
+  std::string display_name;
+  std::string version;
+  std::string publisher;
+  std::string install_date;
+  std::string install_location;
+  uint64_t estimated_size_bytes = 0;
+  bool has_estimated_size = false;
+  bool system_component = false;
+  std::string architecture;
+};
+
 struct GetInventoryDomain {
   InventoryDomainId domain = InventoryDomainId::Unspecified;
   bool force_refresh = false;
@@ -611,6 +624,7 @@ struct InventoryDomainSnapshot {
   uint32_t cache_ttl_ms = 0;
   std::vector<InventoryServiceEntry> services;
   std::vector<InventoryDriverEntry> drivers;
+  std::vector<InventorySoftwareEntry> software;
 };
 
 struct Envelope {

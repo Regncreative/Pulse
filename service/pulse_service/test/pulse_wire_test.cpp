@@ -542,6 +542,41 @@ int main() {
     return 39;
   }
 
+  InventoryDomainSnapshot software_snap;
+  software_snap.domain = InventoryDomainId::Software;
+  software_snap.status = InventoryStatus::Available;
+  software_snap.generation = 4;
+  InventorySoftwareEntry soft;
+  soft.id = "{ABCDEF12-3456-7890-ABCD-EF1234567890}";
+  soft.display_name = "Pulse Test App";
+  soft.version = "1.0.0";
+  soft.publisher = "Pulse";
+  soft.architecture = "x64";
+  software_snap.software.push_back(soft);
+  Envelope software_env;
+  software_env.request_id = 40;
+  software_env.body = software_snap;
+  std::vector<uint8_t> software_payload;
+  if (!EncodeEnvelope(software_env, &software_payload)) {
+    std::cerr << "InventoryDomainSnapshot software encode failed\n";
+    return 40;
+  }
+  Envelope software_decoded;
+  if (!DecodeEnvelope(software_payload.data(), software_payload.size(),
+                      &software_decoded) ||
+      !std::holds_alternative<InventoryDomainSnapshot>(software_decoded.body)) {
+    std::cerr << "InventoryDomainSnapshot software decode failed\n";
+    return 40;
+  }
+  const auto& software_out =
+      std::get<InventoryDomainSnapshot>(software_decoded.body);
+  if (software_out.software.size() != 1 ||
+      software_out.software[0].id != soft.id ||
+      software_out.software[0].display_name != "Pulse Test App") {
+    std::cerr << "InventoryDomainSnapshot software payload mismatch\n";
+    return 40;
+  }
+
   std::cout << "pulse_wire_tests OK\n";
   return 0;
 }
