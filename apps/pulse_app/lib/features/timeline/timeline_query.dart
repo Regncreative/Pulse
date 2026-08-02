@@ -22,7 +22,13 @@ enum TimelineCategoryFilter {
 }
 
 /// Date-range preset for Timeline (R2). Absolute bounds use event timestamps.
-enum TimelineDateRangeFilter { all, lastHour, last24Hours, last7Days }
+enum TimelineDateRangeFilter {
+  all,
+  last15Minutes,
+  lastHour,
+  last24Hours,
+  last7Days,
+}
 
 /// Client-side Timeline filter + search criteria.
 ///
@@ -165,6 +171,7 @@ class TimelineQuery {
     final now = nowUnixMs ?? DateTime.now().toUtc().millisecondsSinceEpoch;
     final windowMs = switch (dateRange) {
       TimelineDateRangeFilter.all => 0,
+      TimelineDateRangeFilter.last15Minutes => 15 * 60 * 1000,
       TimelineDateRangeFilter.lastHour => 60 * 60 * 1000,
       TimelineDateRangeFilter.last24Hours => 24 * 60 * 60 * 1000,
       TimelineDateRangeFilter.last7Days => 7 * 24 * 60 * 60 * 1000,

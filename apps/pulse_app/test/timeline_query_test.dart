@@ -105,6 +105,23 @@ void main() {
       expect(q.matches(_ev(computer: 'LAPTOP')), isFalse);
     });
 
+    test('date range last 15 minutes', () {
+      const now = 1_700_000_360_000;
+      final q = TimelineQuery(
+        dateRange: TimelineDateRangeFilter.last15Minutes,
+        nowUnixMs: now,
+      );
+      expect(
+        q.matches(_ev(timestampUnixMs: now - 10 * 60 * 1000)),
+        isTrue,
+      );
+      expect(
+        q.matches(_ev(timestampUnixMs: now - 20 * 60 * 1000)),
+        isFalse,
+      );
+      expect(q.matches(_ev(timestampUnixMs: 0)), isFalse);
+    });
+
     test('date range last hour', () {
       const now = 1_700_000_360_000;
       final q = TimelineQuery(

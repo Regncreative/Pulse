@@ -992,6 +992,7 @@ class _CompactFilterToolbar extends StatelessWidget {
 
   static String _dateLabel(TimelineDateRangeFilter v) => switch (v) {
         TimelineDateRangeFilter.all => 'All time',
+        TimelineDateRangeFilter.last15Minutes => '15 minutes',
         TimelineDateRangeFilter.lastHour => '1 hour',
         TimelineDateRangeFilter.last24Hours => '24 hours',
         TimelineDateRangeFilter.last7Days => '7 days',
