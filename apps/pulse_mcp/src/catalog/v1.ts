@@ -27,11 +27,15 @@ export const V1_TOOLS = [
   "system.gpu",
   "system.storage",
   "system.network",
+  "process.list",
+  "process.search",
+  "process.details",
 ] as const;
 
 export const V1_TOOL_NAMESPACES = [
   "mcp",
   "system",
+  "process",
 ] as const;
 
 export const V1_RESOURCES = [

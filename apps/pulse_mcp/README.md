@@ -9,8 +9,9 @@ Architecture: [docs/architecture/33-mcp-bridge.md](../../docs/architecture/33-mc
 | Milestone | State |
 |-----------|--------|
 | **M1** | Shipped — `mcp.self`, policy, hello/ping |
-| **M2** | **Frozen** — `system.*` tools + `pulse://system/*` resources/subscriptions ([validation](../../docs/architecture/archives/mcp-m2-validation.md)) |
-| M3–M7 | M3 next — `process.list` / `search` / `details` |
+| **M2** | **Frozen** — `system.*` tools + `pulse://system/*` ([validation](../../docs/architecture/archives/mcp-m2-validation.md)) |
+| **M3** | **Frozen** — `process.list` / `process.search` / `process.details` ([validation](../../docs/architecture/archives/mcp-m3-validation.md)) |
+| M4–M7 | Not started (gated on M3 freeze) |
 
 ## M2 tools
 
@@ -23,6 +24,16 @@ Architecture: [docs/architecture/33-mcp-bridge.md](../../docs/architecture/33-mc
 | `system.gpu` | Cached Health sample (primary adapter) |
 | `system.storage` | Volumes + disks from Health |
 | `system.network` | Cached Health sample |
+
+## M3 tools
+
+| Tool | Source |
+|------|--------|
+| `process.list` | Health process inventory (filter/sort/paginate) |
+| `process.search` | Same + required `query` |
+| `process.details` | `GetProcessDetails` (cmdline redacted) |
+
+Stable id = `pid` + `createTime` when known. Inventory fields absent on the wire (`signed`, `hasWindow`, …) return `null` + `unavailable`.
 
 ## M2 resources (subscribable)
 

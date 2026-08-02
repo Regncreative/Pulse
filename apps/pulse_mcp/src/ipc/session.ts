@@ -17,7 +17,9 @@ import {
 export type IpcErrorCode =
   | "SERVICE_UNAVAILABLE"
   | "TIMEOUT"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "PROCESS_NOT_FOUND"
+  | "INVALID_ARGUMENT";
 
 export class PulseIpcError extends Error {
   constructor(

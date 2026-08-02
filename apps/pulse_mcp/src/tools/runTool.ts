@@ -98,7 +98,11 @@ function mapError(err: unknown): {
         ? "SERVICE_UNAVAILABLE"
         : err.code === "TIMEOUT"
           ? "TIMEOUT"
-          : "INTERNAL_ERROR";
+          : err.code === "PROCESS_NOT_FOUND"
+            ? "PROCESS_NOT_FOUND"
+            : err.code === "INVALID_ARGUMENT"
+              ? "INVALID_ARGUMENT"
+              : "INTERNAL_ERROR";
     return { code, message: err.message, details: {} };
   }
   return {

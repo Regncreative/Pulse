@@ -24,9 +24,14 @@ import type { PulseMcpLogger } from "../logging/logger.js";
 import type { MetricsRegistry } from "../metrics/metrics.js";
 import type { McpPolicy } from "../policy/policy.js";
 import type { IpcSession } from "../ipc/session.js";
+import {
+  filterSortProcesses,
+  mapProcessDetails,
+} from "../process/mappers.js";
 import { runMcpSelf } from "../tools/mcp/self.js";
 import { runObservationTool, type ToolRuntime } from "../tools/runTool.js";
 import { MCP_SERVER_VERSION } from "../version.js";
+import { PulseIpcError } from "../ipc/session.js";
 
 export interface CreateServerOptions {
   metrics: MetricsRegistry;
@@ -276,6 +281,96 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
         args.forceRefresh === true,
       );
       return mapNetwork(snap.sample, snap.info);
+    },
+  );
+
+  const processFilterSchema = z.object({
+    cpuAbove: z.number().optional(),
+    memoryAboveBytes: z.number().optional(),
+    company: z.string().optional(),
+    signed: z.boolean().optional(),
+    running: z.boolean().optional(),
+    applicationOnly: z.boolean().optional(),
+    backgroundOnly: z.boolean().optional(),
+    systemOnly: z.boolean().optional(),
+    nameContains: z.string().optional(),
+    limit: z.number().int().min(1).max(500).optional(),
+    offset: z.number().int().min(0).optional(),
+    sortBy: z.enum(["cpu", "memory", "name", "pid"]).optional(),
+    sortDir: z.enum(["asc", "desc"]).optional(),
+  });
+
+  systemTool(
+    "process.list",
+    "Process inventory",
+    "Filtered process inventory from Pulse Health Engine process stream. Structured JSON only.",
+    processFilterSchema,
+    async (args) => {
+      return opts.health.withInventory(async () => {
+        const observedAt = new Date().toISOString();
+        const result = filterSortProcesses(
+          opts.health.listProcesses(),
+          args as Parameters<typeof filterSortProcesses>[1],
+        );
+        return {
+          observedAt,
+          ...result,
+        };
+      });
+    },
+  );
+
+  systemTool(
+    "process.search",
+    "Process search",
+    "Search process inventory by name/path (required query). Same filters as process.list. Structured JSON only.",
+    processFilterSchema.extend({
+      query: z.string().min(1),
+    }),
+    async (args) => {
+      const query = String((args as { query?: string }).query ?? "").trim();
+      if (!query) {
+        throw new PulseIpcError("query is required", "INVALID_ARGUMENT");
+      }
+      return opts.health.withInventory(async () => {
+        const observedAt = new Date().toISOString();
+        const result = filterSortProcesses(opts.health.listProcesses(), {
+          ...(args as Parameters<typeof filterSortProcesses>[1]),
+          query,
+        });
+        return {
+          observedAt,
+          query,
+          ...result,
+        };
+      });
+    },
+  );
+
+  systemTool(
+    "process.details",
+    "Process details",
+    "Detailed process metadata via GetProcessDetails (cmdline redacted). Structured JSON only.",
+    z.object({
+      pid: z.number().int().positive(),
+    }),
+    async (args) => {
+      const pid = Number((args as { pid: number }).pid);
+      if (!Number.isInteger(pid) || pid <= 0) {
+        throw new PulseIpcError(
+          "pid must be a positive integer",
+          "INVALID_ARGUMENT",
+        );
+      }
+      return opts.health.withInventory(async () => {
+        const details = await opts.health.getProcessDetails(pid);
+        const live = opts.health.getProcess(pid);
+        const mapped = mapProcessDetails(details, live);
+        return {
+          observedAt: new Date().toISOString(),
+          ...mapped,
+        };
+      });
     },
   );
 

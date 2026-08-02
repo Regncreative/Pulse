@@ -1,12 +1,18 @@
 import { Reader } from "../ipc/pb.js";
 import {
+  emptyProcessDetails,
+  emptyProcessEntry,
   emptySample,
   emptyStaticInfo,
   type HealthPhysicalDisk,
+  type HealthProcessEntry,
+  type HealthProcessInventoryUpdate,
   type HealthSample,
   type HealthSnapshot,
   type HealthStaticInfo,
+  type HealthUpdateDecoded,
   type HealthVolume,
+  type ProcessDetails,
 } from "./types.js";
 
 function decodeVolume(data: Uint8Array): HealthVolume {
@@ -194,15 +200,144 @@ export function decodeHealthSnapshot(data: Uint8Array): HealthSnapshot {
   return snap;
 }
 
-export function decodeHealthUpdateSample(data: Uint8Array): HealthSample {
+export function decodeHealthProcessEntry(data: Uint8Array): HealthProcessEntry {
+  const r = new Reader(data);
+  const m = emptyProcessEntry();
+  while (r.hasMore) {
+    const tag = r.readVarint();
+    const field = tag >>> 3;
+    const wire = tag & 7;
+    const setBool = () => r.readVarint() !== 0;
+    const setU64 = () => Number(r.readVarintBig());
+    if (field === 1 && wire === 0) m.pid = r.readVarint();
+    else if (field === 2 && wire === 2) m.name = r.readString();
+    else if (field === 3 && wire === 0) m.hasCpuPercent = setBool();
+    else if (field === 4 && wire === 1) m.cpuPercent = r.readDouble();
+    else if (field === 5 && wire === 0) m.hasMemoryBytes = setBool();
+    else if (field === 6 && wire === 0) m.memoryBytes = setU64();
+    else if (field === 7 && wire === 0) m.hasGpuPercent = setBool();
+    else if (field === 8 && wire === 1) m.gpuPercent = r.readDouble();
+    else if (field === 9 && wire === 0) m.hasDiskBps = setBool();
+    else if (field === 10 && wire === 1) m.diskBps = r.readDouble();
+    else if (field === 11 && wire === 0) m.hasNetBps = setBool();
+    else if (field === 12 && wire === 1) m.netBps = r.readDouble();
+    else if (field === 13 && wire === 2) m.path = r.readString();
+    else if (field === 14 && wire === 0) m.threadCount = r.readVarint();
+    else if (field === 15 && wire === 0) m.handleCount = r.readVarint();
+    else if (field === 16 && wire === 0) m.hasCreateTime = setBool();
+    else if (field === 17 && wire === 0) m.createTimeUnixMs = setU64();
+    else if (field === 18 && wire === 0) m.hasIsCritical = setBool();
+    else if (field === 19 && wire === 0) m.isCritical = setBool();
+    else if (field === 20 && wire === 0) m.hasWorkingSetBytes = setBool();
+    else if (field === 21 && wire === 0) m.workingSetBytes = setU64();
+    else if (field === 22 && wire === 0) m.hasCommitBytes = setBool();
+    else if (field === 23 && wire === 0) m.commitBytes = setU64();
+    else if (field === 24 && wire === 0) m.hasPagedPoolBytes = setBool();
+    else if (field === 25 && wire === 0) m.pagedPoolBytes = setU64();
+    else if (field === 26 && wire === 0) m.hasNonpagedPoolBytes = setBool();
+    else if (field === 27 && wire === 0) m.nonpagedPoolBytes = setU64();
+    else if (field === 28 && wire === 0) m.hasGpuDedicatedBytes = setBool();
+    else if (field === 29 && wire === 0) m.gpuDedicatedBytes = setU64();
+    else if (field === 30 && wire === 0) m.hasGpuSharedBytes = setBool();
+    else if (field === 31 && wire === 0) m.gpuSharedBytes = setU64();
+    else if (field === 32 && wire === 2) m.gpuEngine = r.readString();
+    else if (field === 33 && wire === 0) m.hasNetUploadBps = setBool();
+    else if (field === 34 && wire === 1) m.netUploadBps = r.readDouble();
+    else if (field === 35 && wire === 0) m.hasNetDownloadBps = setBool();
+    else if (field === 36 && wire === 1) m.netDownloadBps = r.readDouble();
+    else if (field === 37 && wire === 0) m.hasNetBytesTotal = setBool();
+    else if (field === 38 && wire === 0) m.netBytesTotal = setU64();
+    else r.skip(wire);
+  }
+  return m;
+}
+
+export function decodeHealthProcessInventory(
+  data: Uint8Array,
+): HealthProcessInventoryUpdate {
+  const r = new Reader(data);
+  const m: HealthProcessInventoryUpdate = {
+    seq: 0,
+    fullResync: false,
+    upserts: [],
+    removedPids: [],
+  };
+  while (r.hasMore) {
+    const tag = r.readVarint();
+    const field = tag >>> 3;
+    const wire = tag & 7;
+    if (field === 1 && wire === 0) m.seq = Number(r.readVarintBig());
+    else if (field === 2 && wire === 0) m.fullResync = r.readVarint() !== 0;
+    else if (field === 3 && wire === 2)
+      m.upserts.push(decodeHealthProcessEntry(r.readBytes()));
+    else if (field === 4 && wire === 0) m.removedPids.push(r.readVarint());
+    else if (field === 4 && wire === 2) {
+      // packed repeated uint32
+      const packed = r.readBytes();
+      const pr = new Reader(packed);
+      while (pr.hasMore) m.removedPids.push(pr.readVarint());
+    } else r.skip(wire);
+  }
+  return m;
+}
+
+export function decodeHealthUpdate(data: Uint8Array): HealthUpdateDecoded {
   const r = new Reader(data);
   let sample = emptySample();
+  let inventory: HealthProcessInventoryUpdate | null = null;
   while (r.hasMore) {
     const tag = r.readVarint();
     const field = tag >>> 3;
     const wire = tag & 7;
     if (field === 1 && wire === 2) sample = decodeHealthSample(r.readBytes());
-    else r.skip(wire); // process_inventory ignored in M2
+    else if (field === 2 && wire === 2)
+      inventory = decodeHealthProcessInventory(r.readBytes());
+    else r.skip(wire);
   }
-  return sample;
+  return { sample, inventory };
+}
+
+/** @deprecated use decodeHealthUpdate */
+export function decodeHealthUpdateSample(data: Uint8Array): HealthSample {
+  return decodeHealthUpdate(data).sample;
+}
+
+export function decodeProcessDetails(data: Uint8Array): ProcessDetails {
+  const r = new Reader(data);
+  const m = emptyProcessDetails();
+  while (r.hasMore) {
+    const tag = r.readVarint();
+    const field = tag >>> 3;
+    const wire = tag & 7;
+    const setBool = () => r.readVarint() !== 0;
+    const setU64 = () => Number(r.readVarintBig());
+    if (field === 1 && wire === 0) m.pid = r.readVarint();
+    else if (field === 2 && wire === 2) m.name = r.readString();
+    else if (field === 3 && wire === 2) m.path = r.readString();
+    else if (field === 4 && wire === 2) m.company = r.readString();
+    else if (field === 5 && wire === 2) m.commandLine = r.readString();
+    else if (field === 6 && wire === 0) m.hasCreateTime = setBool();
+    else if (field === 7 && wire === 0) m.createTimeUnixMs = setU64();
+    else if (field === 8 && wire === 0) m.threadCount = r.readVarint();
+    else if (field === 9 && wire === 0) m.handleCount = r.readVarint();
+    else if (field === 10 && wire === 0) m.hasPath = setBool();
+    else if (field === 11 && wire === 0) m.hasCompany = setBool();
+    else if (field === 12 && wire === 0) m.hasCommandLine = setBool();
+    else if (field === 13 && wire === 0) m.parentPid = r.readVarint();
+    else if (field === 14 && wire === 0) m.hasParentPid = setBool();
+    else if (field === 15 && wire === 2) m.parentName = r.readString();
+    else if (field === 16 && wire === 0) m.hasParentName = setBool();
+    else if (field === 17 && wire === 2) m.user = r.readString();
+    else if (field === 18 && wire === 0) m.hasUser = setBool();
+    else if (field === 19 && wire === 2) m.integrityLevel = r.readString();
+    else if (field === 20 && wire === 0) m.hasIntegrityLevel = setBool();
+    else if (field === 21 && wire === 0) m.elevated = setBool();
+    else if (field === 22 && wire === 0) m.hasElevated = setBool();
+    else if (field === 23 && wire === 2) m.architecture = r.readString();
+    else if (field === 24 && wire === 0) m.hasArchitecture = setBool();
+    else if (field === 25 && wire === 2) m.productName = r.readString();
+    else if (field === 26 && wire === 0) m.hasProductName = setBool();
+    else r.skip(wire);
+  }
+  return m;
 }

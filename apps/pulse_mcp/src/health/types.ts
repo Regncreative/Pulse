@@ -110,6 +110,164 @@ export interface HealthSnapshot {
   sample: HealthSample;
 }
 
+/** Wire: HealthProcessEntry — process inventory row. */
+export interface HealthProcessEntry {
+  pid: number;
+  name: string;
+  hasCpuPercent: boolean;
+  cpuPercent: number;
+  hasMemoryBytes: boolean;
+  memoryBytes: number;
+  hasGpuPercent: boolean;
+  gpuPercent: number;
+  hasDiskBps: boolean;
+  diskBps: number;
+  hasNetBps: boolean;
+  netBps: number;
+  path: string;
+  threadCount: number;
+  handleCount: number;
+  hasCreateTime: boolean;
+  createTimeUnixMs: number;
+  hasIsCritical: boolean;
+  isCritical: boolean;
+  hasWorkingSetBytes: boolean;
+  workingSetBytes: number;
+  hasCommitBytes: boolean;
+  commitBytes: number;
+  hasPagedPoolBytes: boolean;
+  pagedPoolBytes: number;
+  hasNonpagedPoolBytes: boolean;
+  nonpagedPoolBytes: number;
+  hasGpuDedicatedBytes: boolean;
+  gpuDedicatedBytes: number;
+  hasGpuSharedBytes: boolean;
+  gpuSharedBytes: number;
+  gpuEngine: string;
+  hasNetUploadBps: boolean;
+  netUploadBps: number;
+  hasNetDownloadBps: boolean;
+  netDownloadBps: number;
+  hasNetBytesTotal: boolean;
+  netBytesTotal: number;
+}
+
+export interface HealthProcessInventoryUpdate {
+  seq: number;
+  fullResync: boolean;
+  upserts: HealthProcessEntry[];
+  removedPids: number[];
+}
+
+export interface HealthUpdateDecoded {
+  sample: HealthSample;
+  inventory: HealthProcessInventoryUpdate | null;
+}
+
+/** Wire: ProcessDetails — GetProcessDetails response. */
+export interface ProcessDetails {
+  pid: number;
+  name: string;
+  path: string;
+  company: string;
+  commandLine: string;
+  hasCreateTime: boolean;
+  createTimeUnixMs: number;
+  threadCount: number;
+  handleCount: number;
+  hasPath: boolean;
+  hasCompany: boolean;
+  hasCommandLine: boolean;
+  parentPid: number;
+  hasParentPid: boolean;
+  parentName: string;
+  hasParentName: boolean;
+  user: string;
+  hasUser: boolean;
+  integrityLevel: string;
+  hasIntegrityLevel: boolean;
+  elevated: boolean;
+  hasElevated: boolean;
+  architecture: string;
+  hasArchitecture: boolean;
+  productName: string;
+  hasProductName: boolean;
+}
+
+export function emptyProcessEntry(): HealthProcessEntry {
+  return {
+    pid: 0,
+    name: "",
+    hasCpuPercent: false,
+    cpuPercent: 0,
+    hasMemoryBytes: false,
+    memoryBytes: 0,
+    hasGpuPercent: false,
+    gpuPercent: 0,
+    hasDiskBps: false,
+    diskBps: 0,
+    hasNetBps: false,
+    netBps: 0,
+    path: "",
+    threadCount: 0,
+    handleCount: 0,
+    hasCreateTime: false,
+    createTimeUnixMs: 0,
+    hasIsCritical: false,
+    isCritical: false,
+    hasWorkingSetBytes: false,
+    workingSetBytes: 0,
+    hasCommitBytes: false,
+    commitBytes: 0,
+    hasPagedPoolBytes: false,
+    pagedPoolBytes: 0,
+    hasNonpagedPoolBytes: false,
+    nonpagedPoolBytes: 0,
+    hasGpuDedicatedBytes: false,
+    gpuDedicatedBytes: 0,
+    hasGpuSharedBytes: false,
+    gpuSharedBytes: 0,
+    gpuEngine: "",
+    hasNetUploadBps: false,
+    netUploadBps: 0,
+    hasNetDownloadBps: false,
+    netDownloadBps: 0,
+    hasNetBytesTotal: false,
+    netBytesTotal: 0,
+  };
+}
+
+export function emptyProcessDetails(): ProcessDetails {
+  return {
+    pid: 0,
+    name: "",
+    path: "",
+    company: "",
+    commandLine: "",
+    hasCreateTime: false,
+    createTimeUnixMs: 0,
+    threadCount: 0,
+    handleCount: 0,
+    hasPath: false,
+    hasCompany: false,
+    hasCommandLine: false,
+    parentPid: 0,
+    hasParentPid: false,
+    parentName: "",
+    hasParentName: false,
+    user: "",
+    hasUser: false,
+    integrityLevel: "",
+    hasIntegrityLevel: false,
+    elevated: false,
+    hasElevated: false,
+    architecture: "",
+    hasArchitecture: false,
+    productName: "",
+    hasProductName: false,
+  };
+}
+
 export function emptyStaticInfo(): HealthStaticInfo {
   return {
     windowsEdition: "",

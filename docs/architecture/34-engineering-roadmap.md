@@ -276,7 +276,7 @@ flowchart TD
 **Success metrics (all required):**
 
 - [x] Tools live: `system.health`, `system.cpu`, `system.memory`, `system.gpu`, `system.storage`, `system.network` *(M2 frozen 2026-08-02)*
-- [ ] Tools live: `process.list`, `process.search`, `process.details` with filters + pagination + stable ids
+- [x] Tools live: `process.list`, `process.search`, `process.details` with filters + pagination + stable ids *(M3 frozen 2026-08-02)*
 - [ ] Tools live: `timeline.list`, `timeline.search` with documented filters
 - [ ] Tools live: `diagnostics.snapshot`, `service.status` (PulseService-only until inventory MCP follow-up)
 - [ ] Resources + subscriptions for CPU/Memory/GPU/Network/Health/Timeline; unchanged payloads not published
@@ -501,7 +501,7 @@ Distinct from **Plugin SDK (R13)** (in-process/out-of-process *extensions inside
 
 ## 6. Release plan (advisory)
 
-**Temporary priority (2026-08-02):** MCP M2–M7 (R5–R6) is prioritized ahead of remaining Wave B/C items. **M2 frozen** ([mcp-m2-validation.md](archives/mcp-m2-validation.md)); M3 in progress. R4 shared report generators deferred — M6 will use TypeScript writers over IPC until consolidated.
+**Temporary priority (2026-08-02):** MCP M2–M7 (R5–R6) is prioritized ahead of remaining Wave B/C items. **M2 frozen** ([mcp-m2-validation.md](archives/mcp-m2-validation.md)); **M3 frozen** ([mcp-m3-validation.md](archives/mcp-m3-validation.md)); M4 not started. R4 shared report generators deferred — M6 will use TypeScript writers over IPC until consolidated.
 
 | Release | Content |
 |---------|---------|

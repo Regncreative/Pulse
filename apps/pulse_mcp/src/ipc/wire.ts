@@ -1,13 +1,19 @@
 /**
- * Pulse IPC protobuf codec (hello/ping + Health Engine messages for M2).
+ * Pulse IPC protobuf codec (hello/ping + Health + process details).
  * Field numbers match shared/pulse_protocol/proto/pulse.proto.
  */
 
 import {
   decodeHealthSnapshot,
-  decodeHealthUpdateSample,
+  decodeHealthUpdate,
+  decodeProcessDetails,
 } from "../health/decode.js";
-import type { HealthSample, HealthSnapshot } from "../health/types.js";
+import type {
+  HealthProcessInventoryUpdate,
+  HealthSample,
+  HealthSnapshot,
+  ProcessDetails,
+} from "../health/types.js";
 import {
   Reader,
   writeBytesField,
@@ -54,6 +60,7 @@ export interface HealthSnapshotMsg {
 export interface HealthUpdateMsg {
   type: "HealthUpdate";
   sample: HealthSample;
+  inventory: HealthProcessInventoryUpdate | null;
 }
 
 export interface StartHealthMonitoringMsg {
@@ -62,6 +69,16 @@ export interface StartHealthMonitoringMsg {
 
 export interface StopHealthMonitoringMsg {
   type: "StopHealthMonitoring";
+}
+
+export interface GetProcessDetailsMsg {
+  type: "GetProcessDetails";
+  pid: number;
+}
+
+export interface ProcessDetailsMsg {
+  type: "ProcessDetails";
+  details: ProcessDetails;
 }
 
 export interface ErrorResponseMsg {
@@ -82,6 +99,8 @@ export type Body =
   | HealthUpdateMsg
   | StartHealthMonitoringMsg
   | StopHealthMonitoringMsg
+  | GetProcessDetailsMsg
+  | ProcessDetailsMsg
   | ErrorResponseMsg;
 
 export interface Envelope {
@@ -104,6 +123,12 @@ function encodePing(m: Ping): Uint8Array {
   return Uint8Array.from(out);
 }
 
+function encodeGetProcessDetails(m: GetProcessDetailsMsg): Uint8Array {
+  const out: number[] = [];
+  writeU64(1, m.pid, out);
+  return Uint8Array.from(out);
+}
+
 export function encodeEnvelope(env: Envelope): Uint8Array {
   const out: number[] = [];
   writeU64(1, env.requestId, out);
@@ -122,6 +147,9 @@ export function encodeEnvelope(env: Envelope): Uint8Array {
       break;
     case "StopHealthMonitoring":
       writeEmptyMessage(29, out);
+      break;
+    case "GetProcessDetails":
+      writeBytesField(33, encodeGetProcessDetails(env.body), out);
       break;
     default:
       throw new Error(`encode not supported for ${env.body.type}`);
@@ -209,10 +237,19 @@ export function decodeEnvelope(data: Uint8Array): Envelope {
             snapshot: decodeHealthSnapshot(sub),
           };
           break;
-        case 27:
+        case 27: {
+          const update = decodeHealthUpdate(sub);
           body = {
             type: "HealthUpdate",
-            sample: decodeHealthUpdateSample(sub),
+            sample: update.sample,
+            inventory: update.inventory,
+          };
+          break;
+        }
+        case 34:
+          body = {
+            type: "ProcessDetails",
+            details: decodeProcessDetails(sub),
           };
           break;
         case 99:

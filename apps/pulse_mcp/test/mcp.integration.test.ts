@@ -9,7 +9,7 @@ import { MetricsRegistry } from "../src/metrics/metrics.js";
 import { createPulseMcpServer } from "../src/server/createServer.js";
 
 describe("MCP integration (in-memory)", () => {
-  it("lists M2 tools and mcp.self", async () => {
+  it("lists M2/M3 tools and mcp.self", async () => {
     const session = getSharedIpcSession();
     const health = getSharedHealthCache(session);
     const mcp = createPulseMcpServer({
@@ -33,6 +33,9 @@ describe("MCP integration (in-memory)", () => {
     expect(names).toContain("system.cpu");
     expect(names).toContain("system.health");
     expect(names).toContain("system.network");
+    expect(names).toContain("process.list");
+    expect(names).toContain("process.search");
+    expect(names).toContain("process.details");
 
     const resources = await client.listResources();
     const uris = resources.resources.map((r) => r.uri);
