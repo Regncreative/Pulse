@@ -118,6 +118,23 @@ Proposed modules under `service/pulse_service/src/collectors/inventory/`:
 - SCM open patterns: `service_identity.cpp`, `service_core.cpp` (PulseService only today).
 - SetupAPI / PCI property reads: `gpu_adapter_info.cpp`.
 - Process inventory upsert model: `HealthProcessInventoryUpdate` (pattern for incremental updates if ADR allows).
+- IPC dispatch: `IpcServer::HandleEnvelope` request/reply + `ErrorResponse` (mirror Timeline/Health).
+- Flutter: `PulseIpcClient` + session controller pattern (`TimelineSessionController`); shell has **no Inventory page** yet (`app_shell.dart`).
+- MCP: keep `catalog.available: false` (or equivalent) until collectors ship — see doc 33 / ADR-010 `service.status` stub.
+
+### Wire regen (repo practice)
+
+`tools/codegen/generate_proto.ps1` is a placeholder. Codecs are **hand-maintained** in lockstep:
+
+- `shared/pulse_protocol/proto/pulse.proto`
+- `shared/pulse_protocol/cpp/pulse_wire.{hpp,cpp}`
+- `shared/pulse_protocol/dart/lib/pulse_wire.dart`
+
+Next free Envelope `oneof` field numbers start at **37+** (Timeline detail uses 35/36). Extend `pulse_wire_tests` + Flutter `wire_test.dart` with any new messages.
+
+### ADR-011 status
+
+**No draft exists yet** (`decisions/` ends at ADR-010). Authoring ADR-011 is the first R3 deliverable.
 
 ---
 
