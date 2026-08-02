@@ -234,15 +234,15 @@ flowchart TD
 - [x] **Installed software** inventory implemented (documented limits) and shown in UI
 - [x] **USB** inventory implemented and shown in UI
 - [x] **PCI** inventory implemented and shown in UI
-- [ ] **P1 domains** (displays, battery, audio, Bluetooth, printers) implemented per ADR-011
+- [x] **P1 domains** (displays, battery, audio, Bluetooth, printers) implemented per ADR-011
 - [ ] **P2 domains** (motherboard, BIOS, CPU, memory modules, storage, network adapters) implemented per ADR-011
-- [ ] IPC messages + Flutter surfaces + MCP-ready schemas for shipped domains
-- [ ] Reports consume Inventory (Hardware/Software/Driver/Service/System) — no Health bypass
+- [x] IPC messages + Flutter surfaces + MCP-ready schemas for shipped domains (handlers disabled until MCP Inventory milestone)
+- [ ] Reports consume Inventory (Hardware/Software/Driver/Service/System) — no Health bypass *(Hardware/Software/Driver/Service done; System awaits P2)*
 - [ ] Spot-check validation vs `services.msc` / Device Manager / Apps & Features recorded
-- [ ] Unit + IPC integration tests per domain; no invented rows; no duplicate collectors
-- [ ] Performance: lazy start; requested-domain-only; cache contract validated
+- [x] Unit + IPC integration tests per domain; no invented rows; no duplicate collectors *(P0+P1)*
+- [x] Performance: lazy start; requested-domain-only; cache contract validated *(P0+P1 smoke; see R3 P1 validation report)*
 - [ ] Release build passes
-- [ ] Documentation updated (ADR-011, user-facing inventory limits, 19 API list, doc 33 schemas)
+- [x] Documentation updated (ADR-011, user-facing inventory limits, 19 API list, doc 33 schemas) *(P0+P1; P2 pending)*
 
 #### R4 — Reports first-class (L)
 
