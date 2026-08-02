@@ -57,22 +57,36 @@ Designed to feel like a built-in Windows 11 utility (Fluent Design, Mica, dark-f
 - **Human-readable events** — Level 1 plain language first; technical summary and raw XML on demand
 - **Live monitoring** — Windows Event Log via `EvtSubscribe`, pushed over named-pipe IPC
 - **Historical snapshot** — recent events on connect, then live prepend as Windows works
+- **Search & filters** — severity, source, category, provider, process, and date presets (including last 15 minutes)
 - **Detail panel** — metadata, process context, and expandable raw event payload
-- **Auto-scroll & filters** — stay on the live edge or browse calmly
+- **Incidents & export** — correlated groups plus JSON/CSV export of the session
 
 ### System Health
-- **CPU, Memory, GPU, Disk, Network** — live cards aligned with Task Manager methodology where APIs allow
+- **CPU, Memory, GPU, Disk, Network** — live cards and 60-second sparklines
 - **PDH Processor Utility** — frequency-aware CPU % (not just classic Processor Time)
-- **Process list** — memory, CPU, disk I/O, and network per process with app icons
+- **Hardware summary** — OS, CPU, GPU, memory, uptime at a glance
 - **Graceful offline mode** — clear empty states when PulseService is not running
 
+### Inventory
+- **System** — motherboard, BIOS, CPU, memory, storage, network, battery (SMBIOS / SetupAPI where available)
+- **Devices** — USB, PCI, displays, audio, Bluetooth, printers
+- **Software** — installed programs, drivers, and Windows services
+- **Copy & export** — field-level copy plus inventory reports
+
+### Reports
+- **Templates** — System Health, Timeline, Diagnostics, and inventory catalogs
+- **Formats** — JSON, CSV, HTML, PDF
+- **Local export** — writes under Documents / Pulse / exports by default
+
 ### Diagnostics
-- **Service snapshot** — uptime, queue depth, IPC stats, pipeline health
-- **Inject test event** — verify the full collector → IPC → Timeline path
-- **Export report** — zip diagnostics for support without leaving the machine
+- **Service snapshot** — SCM state, uptime, identity, binary path, connected clients
+- **IPC & pipeline** — named-pipe health, collectors, performance budgets
+- **MCP status** — PulseMCP bridge metrics when AI Integration is enabled
+- **Copy diagnostics** — support bundle without leaving the machine
 
 ### Settings
-- Live monitoring, auto-scroll, compact density, animations
+- General, Appearance, System Health, Timeline, Diagnostics, Performance, Privacy
+- **AI Integration** — opt-in PulseMCP registration for Cursor / Claude Desktop
 - Preferences persist locally (`SharedPreferences`) — no account, no sync
 
 ### Product principles
@@ -98,6 +112,17 @@ Designed to feel like a built-in Windows 11 utility (Fluent Design, Mica, dark-f
 </p>
 
 <p align="center">
+  <img src="docs/readme/inventory.png" alt="Inventory" width="48%" />
+  &nbsp;
+  <img src="docs/readme/reports.png" alt="Reports" width="48%" />
+</p>
+
+<p align="center">
+  <strong>Inventory</strong> — hardware & software catalog &nbsp;·&nbsp;
+  <strong>Reports</strong> — local JSON / CSV / HTML / PDF export
+</p>
+
+<p align="center">
   <img src="docs/readme/diagnostics.png" alt="Diagnostics" width="48%" />
   &nbsp;
   <img src="docs/readme/settings.png" alt="Settings" width="48%" />
@@ -105,7 +130,7 @@ Designed to feel like a built-in Windows 11 utility (Fluent Design, Mica, dark-f
 
 <p align="center">
   <strong>Diagnostics</strong> — service, IPC, pipeline &nbsp;·&nbsp;
-  <strong>Settings</strong> — local preferences, no cloud
+  <strong>Settings</strong> — local preferences &amp; AI Integration
 </p>
 
 ---
@@ -120,13 +145,13 @@ Designed to feel like a built-in Windows 11 utility (Fluent Design, Mica, dark-f
                              │ read-only APIs
 ┌────────────────────────────▼─────────────────────────────┐
 │                      PulseService                        │
-│  Collector · Humanizer · Health metrics · IPC server     │
+│  Collector · Humanizer · Health · Inventory · IPC server │
 │              (native C++ Windows service)                │
 └────────────────────────────┬─────────────────────────────┘
                              │ named pipe (framed binary)
 ┌────────────────────────────▼─────────────────────────────┐
 │                       Pulse App                          │
-│         Flutter Desktop · Timeline · Health UI           │
+│   Flutter · Timeline · Health · Inventory · Reports      │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -135,6 +160,8 @@ Designed to feel like a built-in Windows 11 utility (Fluent Design, Mica, dark-f
 ```
 Windows Event Log → Collector → Humanizer → IPC → Timeline UI
 ```
+
+PulseService is required (installer or elevated `--install-start`). A ZIP payload is not a true portable edition — see [portable vs service](docs/architecture/40-portable-vs-service.md).
 
 ETW, WMI, and plugins are intentional future milestones — see [docs/architecture](docs/architecture/README.md).
 
@@ -200,6 +227,7 @@ Pulse ships **PulseMCP** — a read-only Model Context Protocol server for Curso
 
 - Enable in **Settings → AI Integration** (opt-in policy file)
 - One-click **Register** for Cursor (global `~\.cursor\mcp.json`) with backup + safe merge
+- Bundled private Node runtime — no system Node.js required
 - Diagnostics → **MCP** for live status metrics
 - Guides: [AI Integration](docs/guides/ai-integration.md) · [Installation](docs/guides/installation.md) · [Troubleshooting](docs/guides/troubleshooting.md) · [Security](docs/guides/security.md)
 
@@ -215,7 +243,7 @@ Pulse ships **PulseMCP** — a read-only Model Context Protocol server for Curso
 | `.\build\service\pulse_wire_tests.exe` | Wire codec unit tests |
 | `.\tools\scripts\run_ipc_ping.ps1` | IPC Ping/Pong smoke |
 | `.\tools\scripts\run_diagnostics_ping.ps1` | Diagnostics + inject-event smoke |
-| `.\tools\scripts\package_beta.ps1` | Build portable beta zip (Flutter Release + PulseService) |
+| `.\tools\scripts\package_beta.ps1` | Build beta installer + payload (`dist\`) |
 | `cd apps\pulse_app; flutter test` | Flutter unit / widget tests |
 
 ---
@@ -225,10 +253,11 @@ Pulse ships **PulseMCP** — a read-only Model Context Protocol server for Curso
 | Layer | Stack |
 |---|---|
 | **UI** | Flutter Desktop · Provider · window_manager · flutter_acrylic · Lucide icons |
-| **Service** | C++20 · CMake · Win32 · Wevtapi · PDH · DXGI · IP Helper |
+| **Service** | C++20 · CMake · Win32 · Wevtapi · PDH · DXGI · IP Helper · SetupAPI / SMBIOS |
 | **IPC** | Named pipes · framed binary protocol (`pulse_wire`) · shared Dart/C++ codec |
-| **Protocol** | `shared/pulse_protocol` (C++ + Dart) · Protobuf schema for future evolution |
-| **Persistence (app)** | SharedPreferences for settings · local diagnostics export (zip) |
+| **Protocol** | `shared/pulse_protocol` (C++ + Dart) · Protobuf schema for FastMCP tools |
+| **AI** | PulseMCP (Node) — read-only tools/resources over the same named pipe |
+| **Persistence (app)** | SharedPreferences for settings · local reports & diagnostics export |
 | **CI** | GitHub Actions — Windows service build/tests + Flutter analyze/test |
 
 ---
@@ -237,15 +266,17 @@ Pulse ships **PulseMCP** — a read-only Model Context Protocol server for Curso
 
 ```
 Pulse/
-├── apps/pulse_app/          Flutter Desktop UI (Timeline, Health, Diagnostics, Settings)
+├── apps/pulse_app/          Flutter Desktop UI (Timeline, Health, Inventory, Reports, …)
 ├── service/pulse_service/   Native Windows service (collector, humanizer, health, IPC)
+├── apps/pulse_mcp/          PulseMCP bridge (private Node runtime)
 ├── shared/
 │   ├── pulse_common/        Version, errors, constants
 │   └── pulse_protocol/      Wire codec (C++ + Dart) + proto
 ├── tools/
 │   ├── ipc_ping/            Smoke clients (IPC / health / diagnostics)
-│   └── scripts/             Dev launch helpers
+│   └── scripts/             Dev launch + packaging helpers
 ├── docs/architecture/       ADRs + system design (source of truth)
+├── docs/readme/             README screenshots
 ├── branding/                Logo source (Telemetry Peak)
 ├── tests/                   Fixtures / integration (expanding)
 ├── AGENTS.md                Product constitution
@@ -260,14 +291,16 @@ Pulse/
 - [x] Event Log collector → humanized Timeline
 - [x] Live monitoring with page-visibility pause
 - [x] System Health (Task Manager–aligned metrics)
-- [x] Diagnostics page + export report
-- [x] Settings persistence
+- [x] Inventory (system, devices, software)
+- [x] Reports (JSON / CSV / HTML / PDF)
+- [x] Diagnostics page + local export
+- [x] Settings persistence + AI Integration (PulseMCP)
 - [x] Fluent dark-first UI polish
 - [x] Official screenshots in README
 - [x] First-launch welcome (skippable)
-- [x] Timeline search, severity/source filters, JSON export
-- [x] Portable beta package script (`package_beta.ps1`)
-- [ ] Packaged MSI/Inno installer + GitHub Releases auto-update
+- [x] Timeline search, filters, date presets, session export
+- [x] Beta installer (`package_beta.ps1` → Inno Setup)
+- [ ] GitHub Releases auto-update
 - [ ] Crash / WER timeline
 - [ ] ETW engine (future milestone)
 - [ ] Plugin system (future milestone)
@@ -281,7 +314,7 @@ Every feature should answer one question: **"What is Windows doing right now?"**
 
 - **No cloud, no login, no account**
 - **No telemetry, analytics, or tracking**
-- Data never leaves the machine unless **you** export a diagnostics zip
+- Data never leaves the machine unless **you** export a report or diagnostics zip
 - Uses **official Windows APIs** only
 - Never injects into processes, never hooks, never bypasses security
 - Elevation only when **you** explicitly install the service
@@ -295,6 +328,7 @@ Every feature should answer one question: **"What is Windows doing right now?"**
 | [AGENTS.md](AGENTS.md) | Product vision, principles, AI / development rules |
 | [docs/architecture/README.md](docs/architecture/README.md) | Full architecture package + ADRs |
 | [docs/architecture/24-health-metrics-task-manager.md](docs/architecture/24-health-metrics-task-manager.md) | Health metrics vs Task Manager |
+| [docs/guides/ai-integration.md](docs/guides/ai-integration.md) | PulseMCP setup |
 | [BUILD.md](BUILD.md) | Prerequisites & build |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Local workflow |
 | [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) | Implementation notes |
