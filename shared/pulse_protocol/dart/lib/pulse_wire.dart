@@ -381,6 +381,257 @@ class InventoryBatteryEntry {
   bool fromSystemPowerFallback;
 }
 
+class InventoryMotherboardEntry {
+  InventoryMotherboardEntry({
+    this.id = '',
+    this.manufacturer = '',
+    this.product = '',
+    this.version = '',
+    this.serialNumber = '',
+    this.assetTag = '',
+    this.locationInChassis = '',
+    this.boardType = '',
+  });
+  String id;
+  String manufacturer;
+  String product;
+  String version;
+  String serialNumber;
+  String assetTag;
+  String locationInChassis;
+  String boardType;
+}
+
+class InventoryBiosEntry {
+  InventoryBiosEntry({
+    this.id = '',
+    this.vendor = '',
+    this.version = '',
+    this.releaseDate = '',
+    this.majorRelease = 0,
+    this.hasMajorRelease = false,
+    this.minorRelease = 0,
+    this.hasMinorRelease = false,
+    this.romSizeBytes = 0,
+    this.hasRomSizeBytes = false,
+    this.uefiCapable = false,
+    this.hasUefiCapable = false,
+  });
+  String id;
+  String vendor;
+  String version;
+  String releaseDate;
+  int majorRelease;
+  bool hasMajorRelease;
+  int minorRelease;
+  bool hasMinorRelease;
+  int romSizeBytes;
+  bool hasRomSizeBytes;
+  bool uefiCapable;
+  bool hasUefiCapable;
+}
+
+class InventoryCpuEntry {
+  InventoryCpuEntry({
+    this.id = '',
+    this.name = '',
+    this.manufacturer = '',
+    this.architecture = '',
+    this.sockets = 0,
+    this.hasSockets = false,
+    this.physicalCores = 0,
+    this.hasPhysicalCores = false,
+    this.logicalProcessors = 0,
+    this.hasLogicalProcessors = false,
+    this.baseClockMhz = 0,
+    this.hasBaseClockMhz = false,
+    this.numaNodes = 0,
+    this.hasNumaNodes = false,
+    this.l1CacheBytes = 0,
+    this.hasL1CacheBytes = false,
+    this.l2CacheBytes = 0,
+    this.hasL2CacheBytes = false,
+    this.l3CacheBytes = 0,
+    this.hasL3CacheBytes = false,
+    this.instructionSet = '',
+    this.smtEnabled = false,
+    this.hasSmtEnabled = false,
+    this.virtualizationVendor = '',
+  });
+  String id;
+  String name;
+  String manufacturer;
+  String architecture;
+  int sockets;
+  bool hasSockets;
+  int physicalCores;
+  bool hasPhysicalCores;
+  int logicalProcessors;
+  bool hasLogicalProcessors;
+  int baseClockMhz;
+  bool hasBaseClockMhz;
+  int numaNodes;
+  bool hasNumaNodes;
+  int l1CacheBytes;
+  bool hasL1CacheBytes;
+  int l2CacheBytes;
+  bool hasL2CacheBytes;
+  int l3CacheBytes;
+  bool hasL3CacheBytes;
+  String instructionSet;
+  bool smtEnabled;
+  bool hasSmtEnabled;
+  String virtualizationVendor;
+}
+
+class InventoryMemoryModuleEntry {
+  InventoryMemoryModuleEntry({
+    this.id = '',
+    this.bankLocator = '',
+    this.manufacturer = '',
+    this.partNumber = '',
+    this.serialNumber = '',
+    this.sizeBytes = 0,
+    this.hasSizeBytes = false,
+    this.speedMts = 0,
+    this.hasSpeedMts = false,
+    this.configuredSpeedMts = 0,
+    this.hasConfiguredSpeedMts = false,
+    this.formFactor = '',
+    this.memoryType = '',
+    this.isEcc = false,
+    this.hasIsEcc = false,
+    this.totalWidthBits = 0,
+    this.hasTotalWidthBits = false,
+    this.dataWidthBits = 0,
+    this.hasDataWidthBits = false,
+    this.configuredVoltageMv = 0,
+    this.hasConfiguredVoltageMv = false,
+    this.populated = false,
+  });
+  String id;
+  String bankLocator;
+  String manufacturer;
+  String partNumber;
+  String serialNumber;
+  int sizeBytes;
+  bool hasSizeBytes;
+  int speedMts;
+  bool hasSpeedMts;
+  int configuredSpeedMts;
+  bool hasConfiguredSpeedMts;
+  String formFactor;
+  String memoryType;
+  bool isEcc;
+  bool hasIsEcc;
+  int totalWidthBits;
+  bool hasTotalWidthBits;
+  int dataWidthBits;
+  bool hasDataWidthBits;
+  int configuredVoltageMv;
+  bool hasConfiguredVoltageMv;
+  bool populated;
+}
+
+class InventoryStorageEntry {
+  InventoryStorageEntry({
+    this.id = '',
+    this.devicePath = '',
+    this.physicalDriveNumber = 0,
+    this.hasPhysicalDriveNumber = false,
+    this.model = '',
+    this.vendor = '',
+    this.serialNumber = '',
+    this.firmwareRevision = '',
+    this.busType = '',
+    this.mediaType = '',
+    this.sizeBytes = 0,
+    this.hasSizeBytes = false,
+    this.sectorSizeBytes = 0,
+    this.hasSectorSizeBytes = false,
+    this.partitionStyle = '',
+    this.isRemovable = false,
+    this.hasIsRemovable = false,
+    this.trimSupported = false,
+    this.hasTrimSupported = false,
+    this.manufacturer = '',
+    this.description = '',
+  });
+  String id;
+  String devicePath;
+  int physicalDriveNumber;
+  bool hasPhysicalDriveNumber;
+  String model;
+  String vendor;
+  String serialNumber;
+  String firmwareRevision;
+  String busType;
+  String mediaType;
+  int sizeBytes;
+  bool hasSizeBytes;
+  int sectorSizeBytes;
+  bool hasSectorSizeBytes;
+  String partitionStyle;
+  bool isRemovable;
+  bool hasIsRemovable;
+  bool trimSupported;
+  bool hasTrimSupported;
+  String manufacturer;
+  String description;
+}
+
+class InventoryNetworkAdapterEntry {
+  InventoryNetworkAdapterEntry({
+    this.id = '',
+    this.description = '',
+    this.friendlyName = '',
+    this.macAddress = '',
+    this.connectionType = '',
+    this.ifIndex = 0,
+    this.hasIfIndex = false,
+    this.mtu = 0,
+    this.hasMtu = false,
+    this.operationalStatus = '',
+    this.dhcpEnabled = false,
+    this.hasDhcpEnabled = false,
+    this.linkSpeedBps = 0,
+    this.hasLinkSpeedBps = false,
+    this.isLoopback = false,
+    List<String>? ipv4Addresses,
+    List<String>? ipv6Addresses,
+    List<String>? gatewayAddresses,
+    List<String>? dnsAddresses,
+    this.driverProvider = '',
+    this.driverVersion = '',
+    this.driverDate = '',
+  })  : ipv4Addresses = ipv4Addresses ?? <String>[],
+        ipv6Addresses = ipv6Addresses ?? <String>[],
+        gatewayAddresses = gatewayAddresses ?? <String>[],
+        dnsAddresses = dnsAddresses ?? <String>[];
+  String id;
+  String description;
+  String friendlyName;
+  String macAddress;
+  String connectionType;
+  int ifIndex;
+  bool hasIfIndex;
+  int mtu;
+  bool hasMtu;
+  String operationalStatus;
+  bool dhcpEnabled;
+  bool hasDhcpEnabled;
+  int linkSpeedBps;
+  bool hasLinkSpeedBps;
+  bool isLoopback;
+  List<String> ipv4Addresses;
+  List<String> ipv6Addresses;
+  List<String> gatewayAddresses;
+  List<String> dnsAddresses;
+  String driverProvider;
+  String driverVersion;
+  String driverDate;
+}
+
 class GetInventoryDomain {
   GetInventoryDomain({
     this.domain = InventoryDomainId.unspecified,
@@ -414,6 +665,12 @@ class InventoryDomainSnapshot {
     List<InventoryPnPDeviceEntry>? bluetooth,
     List<InventoryPrinterEntry>? printers,
     List<InventoryBatteryEntry>? batteries,
+    List<InventoryMotherboardEntry>? motherboard,
+    List<InventoryBiosEntry>? bios,
+    List<InventoryCpuEntry>? cpu,
+    List<InventoryMemoryModuleEntry>? memoryModules,
+    List<InventoryStorageEntry>? storage,
+    List<InventoryNetworkAdapterEntry>? networkAdapters,
   })  : services = services ?? <InventoryServiceEntry>[],
         drivers = drivers ?? <InventoryDriverEntry>[],
         software = software ?? <InventorySoftwareEntry>[],
@@ -423,7 +680,14 @@ class InventoryDomainSnapshot {
         audio = audio ?? <InventoryPnPDeviceEntry>[],
         bluetooth = bluetooth ?? <InventoryPnPDeviceEntry>[],
         printers = printers ?? <InventoryPrinterEntry>[],
-        batteries = batteries ?? <InventoryBatteryEntry>[];
+        batteries = batteries ?? <InventoryBatteryEntry>[],
+        motherboard = motherboard ?? <InventoryMotherboardEntry>[],
+        bios = bios ?? <InventoryBiosEntry>[],
+        cpu = cpu ?? <InventoryCpuEntry>[],
+        memoryModules = memoryModules ?? <InventoryMemoryModuleEntry>[],
+        storage = storage ?? <InventoryStorageEntry>[],
+        networkAdapters =
+            networkAdapters ?? <InventoryNetworkAdapterEntry>[];
   InventoryDomainId domain;
   InventoryStatus status;
   String statusDetail;
@@ -442,6 +706,12 @@ class InventoryDomainSnapshot {
   List<InventoryPnPDeviceEntry> bluetooth;
   List<InventoryPrinterEntry> printers;
   List<InventoryBatteryEntry> batteries;
+  List<InventoryMotherboardEntry> motherboard;
+  List<InventoryBiosEntry> bios;
+  List<InventoryCpuEntry> cpu;
+  List<InventoryMemoryModuleEntry> memoryModules;
+  List<InventoryStorageEntry> storage;
+  List<InventoryNetworkAdapterEntry> networkAdapters;
 }
 
 class GetTimelineSnapshot {
@@ -1533,6 +1803,153 @@ Uint8List _encodeInventoryBatteryEntry(InventoryBatteryEntry m) {
   return out.toBytes();
 }
 
+Uint8List _encodeInventoryMotherboardEntry(InventoryMotherboardEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.manufacturer, out);
+  _writeString(3, m.product, out);
+  _writeString(4, m.version, out);
+  _writeString(5, m.serialNumber, out);
+  _writeString(6, m.assetTag, out);
+  _writeString(7, m.locationInChassis, out);
+  _writeString(8, m.boardType, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeInventoryBiosEntry(InventoryBiosEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.vendor, out);
+  _writeString(3, m.version, out);
+  _writeString(4, m.releaseDate, out);
+  _writeU64(5, m.majorRelease, out);
+  _writeBool(6, m.hasMajorRelease, out);
+  _writeU64(7, m.minorRelease, out);
+  _writeBool(8, m.hasMinorRelease, out);
+  _writeU64(9, m.romSizeBytes, out);
+  _writeBool(10, m.hasRomSizeBytes, out);
+  _writeBool(11, m.uefiCapable, out);
+  _writeBool(12, m.hasUefiCapable, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeInventoryCpuEntry(InventoryCpuEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.name, out);
+  _writeString(3, m.manufacturer, out);
+  _writeString(4, m.architecture, out);
+  _writeU64(5, m.sockets, out);
+  _writeBool(6, m.hasSockets, out);
+  _writeU64(7, m.physicalCores, out);
+  _writeBool(8, m.hasPhysicalCores, out);
+  _writeU64(9, m.logicalProcessors, out);
+  _writeBool(10, m.hasLogicalProcessors, out);
+  _writeU64(11, m.baseClockMhz, out);
+  _writeBool(12, m.hasBaseClockMhz, out);
+  _writeU64(13, m.numaNodes, out);
+  _writeBool(14, m.hasNumaNodes, out);
+  _writeU64(15, m.l1CacheBytes, out);
+  _writeBool(16, m.hasL1CacheBytes, out);
+  _writeU64(17, m.l2CacheBytes, out);
+  _writeBool(18, m.hasL2CacheBytes, out);
+  _writeU64(19, m.l3CacheBytes, out);
+  _writeBool(20, m.hasL3CacheBytes, out);
+  _writeString(21, m.instructionSet, out);
+  _writeBool(22, m.smtEnabled, out);
+  _writeBool(23, m.hasSmtEnabled, out);
+  _writeString(24, m.virtualizationVendor, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeInventoryMemoryModuleEntry(InventoryMemoryModuleEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.bankLocator, out);
+  _writeString(3, m.manufacturer, out);
+  _writeString(4, m.partNumber, out);
+  _writeString(5, m.serialNumber, out);
+  _writeU64(6, m.sizeBytes, out);
+  _writeBool(7, m.hasSizeBytes, out);
+  _writeU64(8, m.speedMts, out);
+  _writeBool(9, m.hasSpeedMts, out);
+  _writeU64(10, m.configuredSpeedMts, out);
+  _writeBool(11, m.hasConfiguredSpeedMts, out);
+  _writeString(12, m.formFactor, out);
+  _writeString(13, m.memoryType, out);
+  _writeBool(14, m.isEcc, out);
+  _writeBool(15, m.hasIsEcc, out);
+  _writeU64(16, m.totalWidthBits, out);
+  _writeBool(17, m.hasTotalWidthBits, out);
+  _writeU64(18, m.dataWidthBits, out);
+  _writeBool(19, m.hasDataWidthBits, out);
+  _writeU64(20, m.configuredVoltageMv, out);
+  _writeBool(21, m.hasConfiguredVoltageMv, out);
+  _writeBool(22, m.populated, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeInventoryStorageEntry(InventoryStorageEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.devicePath, out);
+  _writeU64(3, m.physicalDriveNumber, out);
+  _writeBool(4, m.hasPhysicalDriveNumber, out);
+  _writeString(5, m.model, out);
+  _writeString(6, m.vendor, out);
+  _writeString(7, m.serialNumber, out);
+  _writeString(8, m.firmwareRevision, out);
+  _writeString(9, m.busType, out);
+  _writeString(10, m.mediaType, out);
+  _writeU64(11, m.sizeBytes, out);
+  _writeBool(12, m.hasSizeBytes, out);
+  _writeU64(13, m.sectorSizeBytes, out);
+  _writeBool(14, m.hasSectorSizeBytes, out);
+  _writeString(15, m.partitionStyle, out);
+  _writeBool(16, m.isRemovable, out);
+  _writeBool(17, m.hasIsRemovable, out);
+  _writeBool(18, m.trimSupported, out);
+  _writeBool(19, m.hasTrimSupported, out);
+  _writeString(20, m.manufacturer, out);
+  _writeString(21, m.description, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeInventoryNetworkAdapterEntry(InventoryNetworkAdapterEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.description, out);
+  _writeString(3, m.friendlyName, out);
+  _writeString(4, m.macAddress, out);
+  _writeString(5, m.connectionType, out);
+  _writeU64(6, m.ifIndex, out);
+  _writeBool(7, m.hasIfIndex, out);
+  _writeU64(8, m.mtu, out);
+  _writeBool(9, m.hasMtu, out);
+  _writeString(10, m.operationalStatus, out);
+  _writeBool(11, m.dhcpEnabled, out);
+  _writeBool(12, m.hasDhcpEnabled, out);
+  _writeU64(13, m.linkSpeedBps, out);
+  _writeBool(14, m.hasLinkSpeedBps, out);
+  _writeBool(15, m.isLoopback, out);
+  for (final addr in m.ipv4Addresses) {
+    _writeString(16, addr, out);
+  }
+  for (final addr in m.ipv6Addresses) {
+    _writeString(17, addr, out);
+  }
+  for (final addr in m.gatewayAddresses) {
+    _writeString(18, addr, out);
+  }
+  for (final addr in m.dnsAddresses) {
+    _writeString(19, addr, out);
+  }
+  _writeString(20, m.driverProvider, out);
+  _writeString(21, m.driverVersion, out);
+  _writeString(22, m.driverDate, out);
+  return out.toBytes();
+}
+
 Uint8List _encodeGetInventoryDomain(GetInventoryDomain m) {
   final out = BytesBuilder();
   _writeU64(1, m.domain.index, out);
@@ -1581,6 +1998,24 @@ Uint8List _encodeInventoryDomainSnapshot(InventoryDomainSnapshot m) {
   }
   for (final e in m.batteries) {
     _writeBytesField(19, _encodeInventoryBatteryEntry(e), out);
+  }
+  for (final e in m.motherboard) {
+    _writeBytesField(20, _encodeInventoryMotherboardEntry(e), out);
+  }
+  for (final e in m.bios) {
+    _writeBytesField(21, _encodeInventoryBiosEntry(e), out);
+  }
+  for (final e in m.cpu) {
+    _writeBytesField(22, _encodeInventoryCpuEntry(e), out);
+  }
+  for (final e in m.memoryModules) {
+    _writeBytesField(23, _encodeInventoryMemoryModuleEntry(e), out);
+  }
+  for (final e in m.storage) {
+    _writeBytesField(24, _encodeInventoryStorageEntry(e), out);
+  }
+  for (final e in m.networkAdapters) {
+    _writeBytesField(25, _encodeInventoryNetworkAdapterEntry(e), out);
   }
   return out.toBytes();
 }
@@ -2717,6 +3152,309 @@ InventoryBatteryEntry _decodeInventoryBatteryEntry(Uint8List data) {
   return m;
 }
 
+InventoryMotherboardEntry _decodeInventoryMotherboardEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryMotherboardEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.manufacturer = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.product = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.version = r.readString();
+    } else if (field == 5 && wire == 2) {
+      m.serialNumber = r.readString();
+    } else if (field == 6 && wire == 2) {
+      m.assetTag = r.readString();
+    } else if (field == 7 && wire == 2) {
+      m.locationInChassis = r.readString();
+    } else if (field == 8 && wire == 2) {
+      m.boardType = r.readString();
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+InventoryBiosEntry _decodeInventoryBiosEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryBiosEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.vendor = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.version = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.releaseDate = r.readString();
+    } else if (field == 5 && wire == 0) {
+      m.majorRelease = r.readVarint();
+    } else if (field == 6 && wire == 0) {
+      m.hasMajorRelease = r.readVarint() != 0;
+    } else if (field == 7 && wire == 0) {
+      m.minorRelease = r.readVarint();
+    } else if (field == 8 && wire == 0) {
+      m.hasMinorRelease = r.readVarint() != 0;
+    } else if (field == 9 && wire == 0) {
+      m.romSizeBytes = r.readVarint();
+    } else if (field == 10 && wire == 0) {
+      m.hasRomSizeBytes = r.readVarint() != 0;
+    } else if (field == 11 && wire == 0) {
+      m.uefiCapable = r.readVarint() != 0;
+    } else if (field == 12 && wire == 0) {
+      m.hasUefiCapable = r.readVarint() != 0;
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+InventoryCpuEntry _decodeInventoryCpuEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryCpuEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.name = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.manufacturer = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.architecture = r.readString();
+    } else if (field == 5 && wire == 0) {
+      m.sockets = r.readVarint();
+    } else if (field == 6 && wire == 0) {
+      m.hasSockets = r.readVarint() != 0;
+    } else if (field == 7 && wire == 0) {
+      m.physicalCores = r.readVarint();
+    } else if (field == 8 && wire == 0) {
+      m.hasPhysicalCores = r.readVarint() != 0;
+    } else if (field == 9 && wire == 0) {
+      m.logicalProcessors = r.readVarint();
+    } else if (field == 10 && wire == 0) {
+      m.hasLogicalProcessors = r.readVarint() != 0;
+    } else if (field == 11 && wire == 0) {
+      m.baseClockMhz = r.readVarint();
+    } else if (field == 12 && wire == 0) {
+      m.hasBaseClockMhz = r.readVarint() != 0;
+    } else if (field == 13 && wire == 0) {
+      m.numaNodes = r.readVarint();
+    } else if (field == 14 && wire == 0) {
+      m.hasNumaNodes = r.readVarint() != 0;
+    } else if (field == 15 && wire == 0) {
+      m.l1CacheBytes = r.readVarint();
+    } else if (field == 16 && wire == 0) {
+      m.hasL1CacheBytes = r.readVarint() != 0;
+    } else if (field == 17 && wire == 0) {
+      m.l2CacheBytes = r.readVarint();
+    } else if (field == 18 && wire == 0) {
+      m.hasL2CacheBytes = r.readVarint() != 0;
+    } else if (field == 19 && wire == 0) {
+      m.l3CacheBytes = r.readVarint();
+    } else if (field == 20 && wire == 0) {
+      m.hasL3CacheBytes = r.readVarint() != 0;
+    } else if (field == 21 && wire == 2) {
+      m.instructionSet = r.readString();
+    } else if (field == 22 && wire == 0) {
+      m.smtEnabled = r.readVarint() != 0;
+    } else if (field == 23 && wire == 0) {
+      m.hasSmtEnabled = r.readVarint() != 0;
+    } else if (field == 24 && wire == 2) {
+      m.virtualizationVendor = r.readString();
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+InventoryMemoryModuleEntry _decodeInventoryMemoryModuleEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryMemoryModuleEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.bankLocator = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.manufacturer = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.partNumber = r.readString();
+    } else if (field == 5 && wire == 2) {
+      m.serialNumber = r.readString();
+    } else if (field == 6 && wire == 0) {
+      m.sizeBytes = r.readVarint();
+    } else if (field == 7 && wire == 0) {
+      m.hasSizeBytes = r.readVarint() != 0;
+    } else if (field == 8 && wire == 0) {
+      m.speedMts = r.readVarint();
+    } else if (field == 9 && wire == 0) {
+      m.hasSpeedMts = r.readVarint() != 0;
+    } else if (field == 10 && wire == 0) {
+      m.configuredSpeedMts = r.readVarint();
+    } else if (field == 11 && wire == 0) {
+      m.hasConfiguredSpeedMts = r.readVarint() != 0;
+    } else if (field == 12 && wire == 2) {
+      m.formFactor = r.readString();
+    } else if (field == 13 && wire == 2) {
+      m.memoryType = r.readString();
+    } else if (field == 14 && wire == 0) {
+      m.isEcc = r.readVarint() != 0;
+    } else if (field == 15 && wire == 0) {
+      m.hasIsEcc = r.readVarint() != 0;
+    } else if (field == 16 && wire == 0) {
+      m.totalWidthBits = r.readVarint();
+    } else if (field == 17 && wire == 0) {
+      m.hasTotalWidthBits = r.readVarint() != 0;
+    } else if (field == 18 && wire == 0) {
+      m.dataWidthBits = r.readVarint();
+    } else if (field == 19 && wire == 0) {
+      m.hasDataWidthBits = r.readVarint() != 0;
+    } else if (field == 20 && wire == 0) {
+      m.configuredVoltageMv = r.readVarint();
+    } else if (field == 21 && wire == 0) {
+      m.hasConfiguredVoltageMv = r.readVarint() != 0;
+    } else if (field == 22 && wire == 0) {
+      m.populated = r.readVarint() != 0;
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+InventoryStorageEntry _decodeInventoryStorageEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryStorageEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.devicePath = r.readString();
+    } else if (field == 3 && wire == 0) {
+      m.physicalDriveNumber = r.readVarint();
+    } else if (field == 4 && wire == 0) {
+      m.hasPhysicalDriveNumber = r.readVarint() != 0;
+    } else if (field == 5 && wire == 2) {
+      m.model = r.readString();
+    } else if (field == 6 && wire == 2) {
+      m.vendor = r.readString();
+    } else if (field == 7 && wire == 2) {
+      m.serialNumber = r.readString();
+    } else if (field == 8 && wire == 2) {
+      m.firmwareRevision = r.readString();
+    } else if (field == 9 && wire == 2) {
+      m.busType = r.readString();
+    } else if (field == 10 && wire == 2) {
+      m.mediaType = r.readString();
+    } else if (field == 11 && wire == 0) {
+      m.sizeBytes = r.readVarint();
+    } else if (field == 12 && wire == 0) {
+      m.hasSizeBytes = r.readVarint() != 0;
+    } else if (field == 13 && wire == 0) {
+      m.sectorSizeBytes = r.readVarint();
+    } else if (field == 14 && wire == 0) {
+      m.hasSectorSizeBytes = r.readVarint() != 0;
+    } else if (field == 15 && wire == 2) {
+      m.partitionStyle = r.readString();
+    } else if (field == 16 && wire == 0) {
+      m.isRemovable = r.readVarint() != 0;
+    } else if (field == 17 && wire == 0) {
+      m.hasIsRemovable = r.readVarint() != 0;
+    } else if (field == 18 && wire == 0) {
+      m.trimSupported = r.readVarint() != 0;
+    } else if (field == 19 && wire == 0) {
+      m.hasTrimSupported = r.readVarint() != 0;
+    } else if (field == 20 && wire == 2) {
+      m.manufacturer = r.readString();
+    } else if (field == 21 && wire == 2) {
+      m.description = r.readString();
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+InventoryNetworkAdapterEntry _decodeInventoryNetworkAdapterEntry(
+    Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryNetworkAdapterEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.description = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.friendlyName = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.macAddress = r.readString();
+    } else if (field == 5 && wire == 2) {
+      m.connectionType = r.readString();
+    } else if (field == 6 && wire == 0) {
+      m.ifIndex = r.readVarint();
+    } else if (field == 7 && wire == 0) {
+      m.hasIfIndex = r.readVarint() != 0;
+    } else if (field == 8 && wire == 0) {
+      m.mtu = r.readVarint();
+    } else if (field == 9 && wire == 0) {
+      m.hasMtu = r.readVarint() != 0;
+    } else if (field == 10 && wire == 2) {
+      m.operationalStatus = r.readString();
+    } else if (field == 11 && wire == 0) {
+      m.dhcpEnabled = r.readVarint() != 0;
+    } else if (field == 12 && wire == 0) {
+      m.hasDhcpEnabled = r.readVarint() != 0;
+    } else if (field == 13 && wire == 0) {
+      m.linkSpeedBps = r.readVarint();
+    } else if (field == 14 && wire == 0) {
+      m.hasLinkSpeedBps = r.readVarint() != 0;
+    } else if (field == 15 && wire == 0) {
+      m.isLoopback = r.readVarint() != 0;
+    } else if (field == 16 && wire == 2) {
+      m.ipv4Addresses.add(r.readString());
+    } else if (field == 17 && wire == 2) {
+      m.ipv6Addresses.add(r.readString());
+    } else if (field == 18 && wire == 2) {
+      m.gatewayAddresses.add(r.readString());
+    } else if (field == 19 && wire == 2) {
+      m.dnsAddresses.add(r.readString());
+    } else if (field == 20 && wire == 2) {
+      m.driverProvider = r.readString();
+    } else if (field == 21 && wire == 2) {
+      m.driverVersion = r.readString();
+    } else if (field == 22 && wire == 2) {
+      m.driverDate = r.readString();
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
 GetInventoryDomain _decodeGetInventoryDomain(Uint8List data) {
   final r = _Reader(data);
   final m = GetInventoryDomain();
@@ -2782,6 +3520,19 @@ InventoryDomainSnapshot _decodeInventoryDomainSnapshot(Uint8List data) {
       m.printers.add(_decodeInventoryPrinterEntry(r.readBytes()));
     } else if (field == 19 && wire == 2) {
       m.batteries.add(_decodeInventoryBatteryEntry(r.readBytes()));
+    } else if (field == 20 && wire == 2) {
+      m.motherboard.add(_decodeInventoryMotherboardEntry(r.readBytes()));
+    } else if (field == 21 && wire == 2) {
+      m.bios.add(_decodeInventoryBiosEntry(r.readBytes()));
+    } else if (field == 22 && wire == 2) {
+      m.cpu.add(_decodeInventoryCpuEntry(r.readBytes()));
+    } else if (field == 23 && wire == 2) {
+      m.memoryModules.add(_decodeInventoryMemoryModuleEntry(r.readBytes()));
+    } else if (field == 24 && wire == 2) {
+      m.storage.add(_decodeInventoryStorageEntry(r.readBytes()));
+    } else if (field == 25 && wire == 2) {
+      m.networkAdapters
+          .add(_decodeInventoryNetworkAdapterEntry(r.readBytes()));
     } else {
       r.skip(wire);
     }

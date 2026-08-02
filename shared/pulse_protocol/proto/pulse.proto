@@ -722,6 +722,144 @@ message InventoryBatteryEntry {
   bool from_system_power_fallback = 14;
 }
 
+// Motherboard — SMBIOS Type 2 (Baseboard Information) via shared RSMB helper.
+message InventoryMotherboardEntry {
+  string id = 1;               // stable singleton: "motherboard"
+  string manufacturer = 2;
+  string product = 3;
+  string version = 4;
+  string serial_number = 5;
+  string asset_tag = 6;
+  string location_in_chassis = 7;
+  string board_type = 8;       // decoded SMBIOS Type 2 Board Type (Table 15)
+}
+
+// BIOS — SMBIOS Type 0 (BIOS Information) via shared RSMB helper.
+message InventoryBiosEntry {
+  string id = 1;                // stable singleton: "bios"
+  string vendor = 2;
+  string version = 3;
+  string release_date = 4;
+  uint32 major_release = 5;
+  bool has_major_release = 6;
+  uint32 minor_release = 7;
+  bool has_minor_release = 8;
+  uint64 rom_size_bytes = 9;
+  bool has_rom_size_bytes = 10;
+  bool uefi_capable = 11;        // BIOS Characteristics Extension Byte 2 bit 3
+  bool has_uefi_capable = 12;
+}
+
+// CPU — registry ProcessorNameString + GetLogicalProcessorInformationEx +
+// CPUID (same identity patterns as system_overview_info EnrichCpuOverview).
+message InventoryCpuEntry {
+  string id = 1;                 // stable singleton: "cpu"
+  string name = 2;                // ProcessorNameString
+  string manufacturer = 3;        // CPUID vendor string
+  string architecture = 4;        // x64 | ARM64 | x86
+  uint32 sockets = 5;
+  bool has_sockets = 6;
+  uint32 physical_cores = 7;
+  bool has_physical_cores = 8;
+  uint32 logical_processors = 9;
+  bool has_logical_processors = 10;
+  uint32 base_clock_mhz = 11;
+  bool has_base_clock_mhz = 12;
+  uint32 numa_nodes = 13;
+  bool has_numa_nodes = 14;
+  uint64 l1_cache_bytes = 15;
+  bool has_l1_cache_bytes = 16;
+  uint64 l2_cache_bytes = 17;
+  bool has_l2_cache_bytes = 18;
+  uint64 l3_cache_bytes = 19;
+  bool has_l3_cache_bytes = 20;
+  string instruction_set = 21;
+  bool smt_enabled = 22;
+  bool has_smt_enabled = 23;
+  string virtualization_vendor = 24;
+}
+
+// Memory module — SMBIOS Type 17 (Memory Device) list, one row per SMBIOS
+// slot (including unpopulated slots reported by firmware; populated flag
+// distinguishes them).
+message InventoryMemoryModuleEntry {
+  string id = 1;                 // stable: Device Locator string
+  string bank_locator = 2;
+  string manufacturer = 3;
+  string part_number = 4;
+  string serial_number = 5;
+  uint64 size_bytes = 6;
+  bool has_size_bytes = 7;
+  uint32 speed_mts = 8;
+  bool has_speed_mts = 9;
+  uint32 configured_speed_mts = 10;
+  bool has_configured_speed_mts = 11;
+  string form_factor = 12;
+  string memory_type = 13;       // DDR4 | DDR5 | ...
+  bool is_ecc = 14;
+  bool has_is_ecc = 15;
+  uint32 total_width_bits = 16;
+  bool has_total_width_bits = 17;
+  uint32 data_width_bits = 18;
+  bool has_data_width_bits = 19;
+  uint32 configured_voltage_mv = 20;
+  bool has_configured_voltage_mv = 21;
+  bool populated = 22;
+}
+
+// Storage — physical disk identity via SetupAPI DiskDrive interfaces +
+// IOCTL_STORAGE_QUERY_PROPERTY. Not live SMART telemetry.
+message InventoryStorageEntry {
+  string id = 1;                  // stable: SetupAPI device instance id
+  string device_path = 2;         // \\.\PhysicalDriveN when resolved
+  uint32 physical_drive_number = 3;
+  bool has_physical_drive_number = 4;
+  string model = 5;
+  string vendor = 6;
+  string serial_number = 7;
+  string firmware_revision = 8;
+  string bus_type = 9;
+  string media_type = 10;         // SSD | HDD | Removable | Unknown
+  uint64 size_bytes = 11;
+  bool has_size_bytes = 12;
+  uint32 sector_size_bytes = 13;
+  bool has_sector_size_bytes = 14;
+  string partition_style = 15;    // GPT | MBR | RAW
+  bool is_removable = 16;
+  bool has_is_removable = 17;
+  bool trim_supported = 18;
+  bool has_trim_supported = 19;
+  string manufacturer = 20;       // SetupAPI SPDRP_MFG when present
+  string description = 21;        // SetupAPI friendly/device description
+}
+
+// Network adapter — GetAdaptersAddresses primary; SetupAPI/net class
+// registry enrichment for driver fields only (not membership).
+message InventoryNetworkAdapterEntry {
+  string id = 1;                  // stable: AdapterName GUID string
+  string description = 2;
+  string friendly_name = 3;
+  string mac_address = 4;
+  string connection_type = 5;     // Ethernet | Wi-Fi | Loopback | ...
+  uint32 if_index = 6;
+  bool has_if_index = 7;
+  uint32 mtu = 8;
+  bool has_mtu = 9;
+  string operational_status = 10; // Up | Down | Testing | Unknown | ...
+  bool dhcp_enabled = 11;
+  bool has_dhcp_enabled = 12;
+  uint64 link_speed_bps = 13;
+  bool has_link_speed_bps = 14;
+  bool is_loopback = 15;
+  repeated string ipv4_addresses = 16;
+  repeated string ipv6_addresses = 17;
+  repeated string gateway_addresses = 18;
+  repeated string dns_addresses = 19;
+  string driver_provider = 20;
+  string driver_version = 21;
+  string driver_date = 22;
+}
+
 message GetInventoryDomain {
   InventoryDomainId domain = 1;
   bool force_refresh = 2;
@@ -748,6 +886,12 @@ message InventoryDomainSnapshot {
   repeated InventoryPnPDeviceEntry bluetooth = 17;
   repeated InventoryPrinterEntry printers = 18;
   repeated InventoryBatteryEntry batteries = 19;
+  repeated InventoryMotherboardEntry motherboard = 20;
+  repeated InventoryBiosEntry bios = 21;
+  repeated InventoryCpuEntry cpu = 22;
+  repeated InventoryMemoryModuleEntry memory_modules = 23;
+  repeated InventoryStorageEntry storage = 24;
+  repeated InventoryNetworkAdapterEntry network_adapters = 25;
 }
 
 message Envelope {

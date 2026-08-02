@@ -676,6 +676,133 @@ struct InventoryBatteryEntry {
   bool from_system_power_fallback = false;
 };
 
+struct InventoryMotherboardEntry {
+  std::string id;
+  std::string manufacturer;
+  std::string product;
+  std::string version;
+  std::string serial_number;
+  std::string asset_tag;
+  std::string location_in_chassis;
+  std::string board_type;
+};
+
+struct InventoryBiosEntry {
+  std::string id;
+  std::string vendor;
+  std::string version;
+  std::string release_date;
+  uint32_t major_release = 0;
+  bool has_major_release = false;
+  uint32_t minor_release = 0;
+  bool has_minor_release = false;
+  uint64_t rom_size_bytes = 0;
+  bool has_rom_size_bytes = false;
+  bool uefi_capable = false;
+  bool has_uefi_capable = false;
+};
+
+struct InventoryCpuEntry {
+  std::string id;
+  std::string name;
+  std::string manufacturer;
+  std::string architecture;
+  uint32_t sockets = 0;
+  bool has_sockets = false;
+  uint32_t physical_cores = 0;
+  bool has_physical_cores = false;
+  uint32_t logical_processors = 0;
+  bool has_logical_processors = false;
+  uint32_t base_clock_mhz = 0;
+  bool has_base_clock_mhz = false;
+  uint32_t numa_nodes = 0;
+  bool has_numa_nodes = false;
+  uint64_t l1_cache_bytes = 0;
+  bool has_l1_cache_bytes = false;
+  uint64_t l2_cache_bytes = 0;
+  bool has_l2_cache_bytes = false;
+  uint64_t l3_cache_bytes = 0;
+  bool has_l3_cache_bytes = false;
+  std::string instruction_set;
+  bool smt_enabled = false;
+  bool has_smt_enabled = false;
+  std::string virtualization_vendor;
+};
+
+struct InventoryMemoryModuleEntry {
+  std::string id;
+  std::string bank_locator;
+  std::string manufacturer;
+  std::string part_number;
+  std::string serial_number;
+  uint64_t size_bytes = 0;
+  bool has_size_bytes = false;
+  uint32_t speed_mts = 0;
+  bool has_speed_mts = false;
+  uint32_t configured_speed_mts = 0;
+  bool has_configured_speed_mts = false;
+  std::string form_factor;
+  std::string memory_type;
+  bool is_ecc = false;
+  bool has_is_ecc = false;
+  uint32_t total_width_bits = 0;
+  bool has_total_width_bits = false;
+  uint32_t data_width_bits = 0;
+  bool has_data_width_bits = false;
+  uint32_t configured_voltage_mv = 0;
+  bool has_configured_voltage_mv = false;
+  bool populated = false;
+};
+
+struct InventoryStorageEntry {
+  std::string id;
+  std::string device_path;
+  uint32_t physical_drive_number = 0;
+  bool has_physical_drive_number = false;
+  std::string model;
+  std::string vendor;
+  std::string serial_number;
+  std::string firmware_revision;
+  std::string bus_type;
+  std::string media_type;
+  uint64_t size_bytes = 0;
+  bool has_size_bytes = false;
+  uint32_t sector_size_bytes = 0;
+  bool has_sector_size_bytes = false;
+  std::string partition_style;
+  bool is_removable = false;
+  bool has_is_removable = false;
+  bool trim_supported = false;
+  bool has_trim_supported = false;
+  std::string manufacturer;
+  std::string description;
+};
+
+struct InventoryNetworkAdapterEntry {
+  std::string id;
+  std::string description;
+  std::string friendly_name;
+  std::string mac_address;
+  std::string connection_type;
+  uint32_t if_index = 0;
+  bool has_if_index = false;
+  uint32_t mtu = 0;
+  bool has_mtu = false;
+  std::string operational_status;
+  bool dhcp_enabled = false;
+  bool has_dhcp_enabled = false;
+  uint64_t link_speed_bps = 0;
+  bool has_link_speed_bps = false;
+  bool is_loopback = false;
+  std::vector<std::string> ipv4_addresses;
+  std::vector<std::string> ipv6_addresses;
+  std::vector<std::string> gateway_addresses;
+  std::vector<std::string> dns_addresses;
+  std::string driver_provider;
+  std::string driver_version;
+  std::string driver_date;
+};
+
 struct GetInventoryDomain {
   InventoryDomainId domain = InventoryDomainId::Unspecified;
   bool force_refresh = false;
@@ -702,6 +829,12 @@ struct InventoryDomainSnapshot {
   std::vector<InventoryPnPDeviceEntry> bluetooth;
   std::vector<InventoryPrinterEntry> printers;
   std::vector<InventoryBatteryEntry> batteries;
+  std::vector<InventoryMotherboardEntry> motherboard;
+  std::vector<InventoryBiosEntry> bios;
+  std::vector<InventoryCpuEntry> cpu;
+  std::vector<InventoryMemoryModuleEntry> memory_modules;
+  std::vector<InventoryStorageEntry> storage;
+  std::vector<InventoryNetworkAdapterEntry> network_adapters;
 };
 
 struct Envelope {

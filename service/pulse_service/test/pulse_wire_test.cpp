@@ -701,6 +701,115 @@ int main() {
     return 43;
   }
 
+  InventoryDomainSnapshot p2_snap;
+  p2_snap.domain = InventoryDomainId::Motherboard;
+  p2_snap.status = InventoryStatus::Available;
+  p2_snap.generation = 8;
+  InventoryMotherboardEntry motherboard;
+  motherboard.id = "motherboard";
+  motherboard.manufacturer = "ASUSTeK COMPUTER INC.";
+  motherboard.product = "ROG STRIX Z790-E GAMING";
+  motherboard.board_type = "Motherboard";
+  p2_snap.motherboard.push_back(motherboard);
+  InventoryBiosEntry bios;
+  bios.id = "bios";
+  bios.vendor = "American Megatrends International, LLC.";
+  bios.version = "1901";
+  bios.release_date = "03/14/2026";
+  bios.major_release = 19;
+  bios.has_major_release = true;
+  bios.uefi_capable = true;
+  bios.has_uefi_capable = true;
+  p2_snap.bios.push_back(bios);
+  InventoryCpuEntry cpu;
+  cpu.id = "cpu";
+  cpu.name = "13th Gen Intel(R) Core(TM) i9-13900K";
+  cpu.manufacturer = "GenuineIntel";
+  cpu.architecture = "x64";
+  cpu.sockets = 1;
+  cpu.has_sockets = true;
+  cpu.physical_cores = 24;
+  cpu.has_physical_cores = true;
+  cpu.logical_processors = 32;
+  cpu.has_logical_processors = true;
+  cpu.instruction_set = "SSE2 SSE3 SSE4.2 AVX AVX2";
+  p2_snap.cpu.push_back(cpu);
+  InventoryMemoryModuleEntry mem;
+  mem.id = "DIMM_A1";
+  mem.bank_locator = "BANK 0";
+  mem.manufacturer = "Corsair";
+  mem.size_bytes = 17179869184ULL;
+  mem.has_size_bytes = true;
+  mem.speed_mts = 6000;
+  mem.has_speed_mts = true;
+  mem.memory_type = "DDR5";
+  mem.populated = true;
+  p2_snap.memory_modules.push_back(mem);
+  InventoryMemoryModuleEntry mem_empty;
+  mem_empty.id = "DIMM_A2";
+  mem_empty.bank_locator = "BANK 1";
+  mem_empty.populated = false;
+  p2_snap.memory_modules.push_back(mem_empty);
+  InventoryStorageEntry storage;
+  storage.id = R"(SCSI\DISK&VEN_NVME&PROD_SAMSUNG_SSD\4&1234ABCD&0&000000)";
+  storage.device_path = R"(\\.\PhysicalDrive0)";
+  storage.physical_drive_number = 0;
+  storage.has_physical_drive_number = true;
+  storage.model = "Samsung SSD 990 PRO 2TB";
+  storage.bus_type = "NVMe";
+  storage.media_type = "SSD";
+  storage.size_bytes = 2000398934016ULL;
+  storage.has_size_bytes = true;
+  storage.partition_style = "GPT";
+  p2_snap.storage.push_back(storage);
+  InventoryNetworkAdapterEntry net;
+  net.id = "{4D36E96E-E325-11CE-BFC1-08002BE10318}";
+  net.description = "Intel(R) Ethernet Controller";
+  net.mac_address = "00:1a:2b:3c:4d:5e";
+  net.connection_type = "Ethernet";
+  net.if_index = 12;
+  net.has_if_index = true;
+  net.dhcp_enabled = true;
+  net.has_dhcp_enabled = true;
+  net.ipv4_addresses.push_back("192.168.1.50");
+  net.gateway_addresses.push_back("192.168.1.1");
+  net.dns_addresses.push_back("192.168.1.1");
+  net.dns_addresses.push_back("1.1.1.1");
+  p2_snap.network_adapters.push_back(net);
+  Envelope p2_env;
+  p2_env.request_id = 44;
+  p2_env.body = p2_snap;
+  std::vector<uint8_t> p2_payload;
+  if (!EncodeEnvelope(p2_env, &p2_payload)) {
+    std::cerr << "InventoryDomainSnapshot p2 encode failed\n";
+    return 44;
+  }
+  Envelope p2_decoded;
+  if (!DecodeEnvelope(p2_payload.data(), p2_payload.size(), &p2_decoded) ||
+      !std::holds_alternative<InventoryDomainSnapshot>(p2_decoded.body)) {
+    std::cerr << "InventoryDomainSnapshot p2 decode failed\n";
+    return 44;
+  }
+  const auto& p2_out = std::get<InventoryDomainSnapshot>(p2_decoded.body);
+  if (p2_out.motherboard.size() != 1 ||
+      p2_out.motherboard[0].product != "ROG STRIX Z790-E GAMING" ||
+      p2_out.bios.size() != 1 || p2_out.bios[0].major_release != 19 ||
+      !p2_out.bios[0].has_uefi_capable || !p2_out.bios[0].uefi_capable ||
+      p2_out.cpu.size() != 1 || p2_out.cpu[0].logical_processors != 32 ||
+      p2_out.memory_modules.size() != 2 ||
+      p2_out.memory_modules[0].id != "DIMM_A1" ||
+      !p2_out.memory_modules[0].populated ||
+      p2_out.memory_modules[1].populated ||
+      p2_out.storage.size() != 1 ||
+      p2_out.storage[0].physical_drive_number != 0 ||
+      p2_out.network_adapters.size() != 1 ||
+      p2_out.network_adapters[0].ipv4_addresses.size() != 1 ||
+      p2_out.network_adapters[0].dns_addresses.size() != 2 ||
+      p2_out.network_adapters[0].dns_addresses[1] != "1.1.1.1") {
+    std::cerr << "InventoryDomainSnapshot p2 payload mismatch\n";
+    return 44;
+  }
+
   std::cout << "pulse_wire_tests OK\n";
   return 0;
 }

@@ -309,6 +309,157 @@ std::vector<uint8_t> EncodeInventoryBatteryEntry(
   return out;
 }
 
+std::vector<uint8_t> EncodeInventoryMotherboardEntry(
+    const InventoryMotherboardEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.manufacturer, &out);
+  WriteString(3, m.product, &out);
+  WriteString(4, m.version, &out);
+  WriteString(5, m.serial_number, &out);
+  WriteString(6, m.asset_tag, &out);
+  WriteString(7, m.location_in_chassis, &out);
+  WriteString(8, m.board_type, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeInventoryBiosEntry(const InventoryBiosEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.vendor, &out);
+  WriteString(3, m.version, &out);
+  WriteString(4, m.release_date, &out);
+  WriteU32(5, m.major_release, &out);
+  WriteBool(6, m.has_major_release, &out);
+  WriteU32(7, m.minor_release, &out);
+  WriteBool(8, m.has_minor_release, &out);
+  WriteU64(9, m.rom_size_bytes, &out);
+  WriteBool(10, m.has_rom_size_bytes, &out);
+  WriteBool(11, m.uefi_capable, &out);
+  WriteBool(12, m.has_uefi_capable, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeInventoryCpuEntry(const InventoryCpuEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.name, &out);
+  WriteString(3, m.manufacturer, &out);
+  WriteString(4, m.architecture, &out);
+  WriteU32(5, m.sockets, &out);
+  WriteBool(6, m.has_sockets, &out);
+  WriteU32(7, m.physical_cores, &out);
+  WriteBool(8, m.has_physical_cores, &out);
+  WriteU32(9, m.logical_processors, &out);
+  WriteBool(10, m.has_logical_processors, &out);
+  WriteU32(11, m.base_clock_mhz, &out);
+  WriteBool(12, m.has_base_clock_mhz, &out);
+  WriteU32(13, m.numa_nodes, &out);
+  WriteBool(14, m.has_numa_nodes, &out);
+  WriteU64(15, m.l1_cache_bytes, &out);
+  WriteBool(16, m.has_l1_cache_bytes, &out);
+  WriteU64(17, m.l2_cache_bytes, &out);
+  WriteBool(18, m.has_l2_cache_bytes, &out);
+  WriteU64(19, m.l3_cache_bytes, &out);
+  WriteBool(20, m.has_l3_cache_bytes, &out);
+  WriteString(21, m.instruction_set, &out);
+  WriteBool(22, m.smt_enabled, &out);
+  WriteBool(23, m.has_smt_enabled, &out);
+  WriteString(24, m.virtualization_vendor, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeInventoryMemoryModuleEntry(
+    const InventoryMemoryModuleEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.bank_locator, &out);
+  WriteString(3, m.manufacturer, &out);
+  WriteString(4, m.part_number, &out);
+  WriteString(5, m.serial_number, &out);
+  WriteU64(6, m.size_bytes, &out);
+  WriteBool(7, m.has_size_bytes, &out);
+  WriteU32(8, m.speed_mts, &out);
+  WriteBool(9, m.has_speed_mts, &out);
+  WriteU32(10, m.configured_speed_mts, &out);
+  WriteBool(11, m.has_configured_speed_mts, &out);
+  WriteString(12, m.form_factor, &out);
+  WriteString(13, m.memory_type, &out);
+  WriteBool(14, m.is_ecc, &out);
+  WriteBool(15, m.has_is_ecc, &out);
+  WriteU32(16, m.total_width_bits, &out);
+  WriteBool(17, m.has_total_width_bits, &out);
+  WriteU32(18, m.data_width_bits, &out);
+  WriteBool(19, m.has_data_width_bits, &out);
+  WriteU32(20, m.configured_voltage_mv, &out);
+  WriteBool(21, m.has_configured_voltage_mv, &out);
+  WriteBool(22, m.populated, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeInventoryStorageEntry(
+    const InventoryStorageEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.device_path, &out);
+  WriteU32(3, m.physical_drive_number, &out);
+  WriteBool(4, m.has_physical_drive_number, &out);
+  WriteString(5, m.model, &out);
+  WriteString(6, m.vendor, &out);
+  WriteString(7, m.serial_number, &out);
+  WriteString(8, m.firmware_revision, &out);
+  WriteString(9, m.bus_type, &out);
+  WriteString(10, m.media_type, &out);
+  WriteU64(11, m.size_bytes, &out);
+  WriteBool(12, m.has_size_bytes, &out);
+  WriteU32(13, m.sector_size_bytes, &out);
+  WriteBool(14, m.has_sector_size_bytes, &out);
+  WriteString(15, m.partition_style, &out);
+  WriteBool(16, m.is_removable, &out);
+  WriteBool(17, m.has_is_removable, &out);
+  WriteBool(18, m.trim_supported, &out);
+  WriteBool(19, m.has_trim_supported, &out);
+  WriteString(20, m.manufacturer, &out);
+  WriteString(21, m.description, &out);
+  return out;
+}
+
+std::vector<uint8_t> EncodeInventoryNetworkAdapterEntry(
+    const InventoryNetworkAdapterEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.description, &out);
+  WriteString(3, m.friendly_name, &out);
+  WriteString(4, m.mac_address, &out);
+  WriteString(5, m.connection_type, &out);
+  WriteU32(6, m.if_index, &out);
+  WriteBool(7, m.has_if_index, &out);
+  WriteU32(8, m.mtu, &out);
+  WriteBool(9, m.has_mtu, &out);
+  WriteString(10, m.operational_status, &out);
+  WriteBool(11, m.dhcp_enabled, &out);
+  WriteBool(12, m.has_dhcp_enabled, &out);
+  WriteU64(13, m.link_speed_bps, &out);
+  WriteBool(14, m.has_link_speed_bps, &out);
+  WriteBool(15, m.is_loopback, &out);
+  for (const auto& addr : m.ipv4_addresses) {
+    WriteString(16, addr, &out);
+  }
+  for (const auto& addr : m.ipv6_addresses) {
+    WriteString(17, addr, &out);
+  }
+  for (const auto& addr : m.gateway_addresses) {
+    WriteString(18, addr, &out);
+  }
+  for (const auto& addr : m.dns_addresses) {
+    WriteString(19, addr, &out);
+  }
+  WriteString(20, m.driver_provider, &out);
+  WriteString(21, m.driver_version, &out);
+  WriteString(22, m.driver_date, &out);
+  return out;
+}
+
 std::vector<uint8_t> EncodeGetInventoryDomain(const GetInventoryDomain& m) {
   std::vector<uint8_t> out;
   WriteU32(1, static_cast<uint32_t>(m.domain), &out);
@@ -358,6 +509,24 @@ std::vector<uint8_t> EncodeInventoryDomainSnapshot(
   }
   for (const auto& e : m.batteries) {
     WriteBytesField(19, EncodeInventoryBatteryEntry(e), &out);
+  }
+  for (const auto& e : m.motherboard) {
+    WriteBytesField(20, EncodeInventoryMotherboardEntry(e), &out);
+  }
+  for (const auto& e : m.bios) {
+    WriteBytesField(21, EncodeInventoryBiosEntry(e), &out);
+  }
+  for (const auto& e : m.cpu) {
+    WriteBytesField(22, EncodeInventoryCpuEntry(e), &out);
+  }
+  for (const auto& e : m.memory_modules) {
+    WriteBytesField(23, EncodeInventoryMemoryModuleEntry(e), &out);
+  }
+  for (const auto& e : m.storage) {
+    WriteBytesField(24, EncodeInventoryStorageEntry(e), &out);
+  }
+  for (const auto& e : m.network_adapters) {
+    WriteBytesField(25, EncodeInventoryNetworkAdapterEntry(e), &out);
   }
   return out;
 }
@@ -1508,6 +1677,448 @@ bool DecodeInventoryBatteryEntry(const uint8_t* data, size_t len,
   return true;
 }
 
+bool DecodeInventoryMotherboardEntry(const uint8_t* data, size_t len,
+                                     InventoryMotherboardEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->manufacturer)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->product)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->version)) return false;
+    } else if (field == 5 && wire == 2) {
+      if (!DecodeString(p, end, &m->serial_number)) return false;
+    } else if (field == 6 && wire == 2) {
+      if (!DecodeString(p, end, &m->asset_tag)) return false;
+    } else if (field == 7 && wire == 2) {
+      if (!DecodeString(p, end, &m->location_in_chassis)) return false;
+    } else if (field == 8 && wire == 2) {
+      if (!DecodeString(p, end, &m->board_type)) return false;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeInventoryBiosEntry(const uint8_t* data, size_t len,
+                              InventoryBiosEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->vendor)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->version)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->release_date)) return false;
+    } else if (field == 5 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->major_release = static_cast<uint32_t>(v);
+    } else if (field == 6 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_major_release = v != 0;
+    } else if (field == 7 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->minor_release = static_cast<uint32_t>(v);
+    } else if (field == 8 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_minor_release = v != 0;
+    } else if (field == 9 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->rom_size_bytes = v;
+    } else if (field == 10 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_rom_size_bytes = v != 0;
+    } else if (field == 11 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->uefi_capable = v != 0;
+    } else if (field == 12 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_uefi_capable = v != 0;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeInventoryCpuEntry(const uint8_t* data, size_t len,
+                             InventoryCpuEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->name)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->manufacturer)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->architecture)) return false;
+    } else if (field == 5 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->sockets = static_cast<uint32_t>(v);
+    } else if (field == 6 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_sockets = v != 0;
+    } else if (field == 7 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->physical_cores = static_cast<uint32_t>(v);
+    } else if (field == 8 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_physical_cores = v != 0;
+    } else if (field == 9 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->logical_processors = static_cast<uint32_t>(v);
+    } else if (field == 10 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_logical_processors = v != 0;
+    } else if (field == 11 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->base_clock_mhz = static_cast<uint32_t>(v);
+    } else if (field == 12 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_base_clock_mhz = v != 0;
+    } else if (field == 13 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->numa_nodes = static_cast<uint32_t>(v);
+    } else if (field == 14 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_numa_nodes = v != 0;
+    } else if (field == 15 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->l1_cache_bytes = v;
+    } else if (field == 16 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_l1_cache_bytes = v != 0;
+    } else if (field == 17 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->l2_cache_bytes = v;
+    } else if (field == 18 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_l2_cache_bytes = v != 0;
+    } else if (field == 19 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->l3_cache_bytes = v;
+    } else if (field == 20 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_l3_cache_bytes = v != 0;
+    } else if (field == 21 && wire == 2) {
+      if (!DecodeString(p, end, &m->instruction_set)) return false;
+    } else if (field == 22 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->smt_enabled = v != 0;
+    } else if (field == 23 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_smt_enabled = v != 0;
+    } else if (field == 24 && wire == 2) {
+      if (!DecodeString(p, end, &m->virtualization_vendor)) return false;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeInventoryMemoryModuleEntry(const uint8_t* data, size_t len,
+                                      InventoryMemoryModuleEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->bank_locator)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->manufacturer)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->part_number)) return false;
+    } else if (field == 5 && wire == 2) {
+      if (!DecodeString(p, end, &m->serial_number)) return false;
+    } else if (field == 6 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->size_bytes = v;
+    } else if (field == 7 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_size_bytes = v != 0;
+    } else if (field == 8 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->speed_mts = static_cast<uint32_t>(v);
+    } else if (field == 9 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_speed_mts = v != 0;
+    } else if (field == 10 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->configured_speed_mts = static_cast<uint32_t>(v);
+    } else if (field == 11 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_configured_speed_mts = v != 0;
+    } else if (field == 12 && wire == 2) {
+      if (!DecodeString(p, end, &m->form_factor)) return false;
+    } else if (field == 13 && wire == 2) {
+      if (!DecodeString(p, end, &m->memory_type)) return false;
+    } else if (field == 14 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->is_ecc = v != 0;
+    } else if (field == 15 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_is_ecc = v != 0;
+    } else if (field == 16 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->total_width_bits = static_cast<uint32_t>(v);
+    } else if (field == 17 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_total_width_bits = v != 0;
+    } else if (field == 18 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->data_width_bits = static_cast<uint32_t>(v);
+    } else if (field == 19 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_data_width_bits = v != 0;
+    } else if (field == 20 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->configured_voltage_mv = static_cast<uint32_t>(v);
+    } else if (field == 21 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_configured_voltage_mv = v != 0;
+    } else if (field == 22 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->populated = v != 0;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeInventoryStorageEntry(const uint8_t* data, size_t len,
+                                 InventoryStorageEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->device_path)) return false;
+    } else if (field == 3 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->physical_drive_number = static_cast<uint32_t>(v);
+    } else if (field == 4 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_physical_drive_number = v != 0;
+    } else if (field == 5 && wire == 2) {
+      if (!DecodeString(p, end, &m->model)) return false;
+    } else if (field == 6 && wire == 2) {
+      if (!DecodeString(p, end, &m->vendor)) return false;
+    } else if (field == 7 && wire == 2) {
+      if (!DecodeString(p, end, &m->serial_number)) return false;
+    } else if (field == 8 && wire == 2) {
+      if (!DecodeString(p, end, &m->firmware_revision)) return false;
+    } else if (field == 9 && wire == 2) {
+      if (!DecodeString(p, end, &m->bus_type)) return false;
+    } else if (field == 10 && wire == 2) {
+      if (!DecodeString(p, end, &m->media_type)) return false;
+    } else if (field == 11 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->size_bytes = v;
+    } else if (field == 12 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_size_bytes = v != 0;
+    } else if (field == 13 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->sector_size_bytes = static_cast<uint32_t>(v);
+    } else if (field == 14 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_sector_size_bytes = v != 0;
+    } else if (field == 15 && wire == 2) {
+      if (!DecodeString(p, end, &m->partition_style)) return false;
+    } else if (field == 16 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->is_removable = v != 0;
+    } else if (field == 17 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_is_removable = v != 0;
+    } else if (field == 18 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->trim_supported = v != 0;
+    } else if (field == 19 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_trim_supported = v != 0;
+    } else if (field == 20 && wire == 2) {
+      if (!DecodeString(p, end, &m->manufacturer)) return false;
+    } else if (field == 21 && wire == 2) {
+      if (!DecodeString(p, end, &m->description)) return false;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DecodeInventoryNetworkAdapterEntry(const uint8_t* data, size_t len,
+                                        InventoryNetworkAdapterEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->description)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->friendly_name)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->mac_address)) return false;
+    } else if (field == 5 && wire == 2) {
+      if (!DecodeString(p, end, &m->connection_type)) return false;
+    } else if (field == 6 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->if_index = static_cast<uint32_t>(v);
+    } else if (field == 7 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_if_index = v != 0;
+    } else if (field == 8 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->mtu = static_cast<uint32_t>(v);
+    } else if (field == 9 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_mtu = v != 0;
+    } else if (field == 10 && wire == 2) {
+      if (!DecodeString(p, end, &m->operational_status)) return false;
+    } else if (field == 11 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->dhcp_enabled = v != 0;
+    } else if (field == 12 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_dhcp_enabled = v != 0;
+    } else if (field == 13 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->link_speed_bps = v;
+    } else if (field == 14 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_link_speed_bps = v != 0;
+    } else if (field == 15 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->is_loopback = v != 0;
+    } else if (field == 16 && wire == 2) {
+      std::string addr;
+      if (!DecodeString(p, end, &addr)) return false;
+      m->ipv4_addresses.push_back(std::move(addr));
+    } else if (field == 17 && wire == 2) {
+      std::string addr;
+      if (!DecodeString(p, end, &addr)) return false;
+      m->ipv6_addresses.push_back(std::move(addr));
+    } else if (field == 18 && wire == 2) {
+      std::string addr;
+      if (!DecodeString(p, end, &addr)) return false;
+      m->gateway_addresses.push_back(std::move(addr));
+    } else if (field == 19 && wire == 2) {
+      std::string addr;
+      if (!DecodeString(p, end, &addr)) return false;
+      m->dns_addresses.push_back(std::move(addr));
+    } else if (field == 20 && wire == 2) {
+      if (!DecodeString(p, end, &m->driver_provider)) return false;
+    } else if (field == 21 && wire == 2) {
+      if (!DecodeString(p, end, &m->driver_version)) return false;
+    } else if (field == 22 && wire == 2) {
+      if (!DecodeString(p, end, &m->driver_date)) return false;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool DecodeGetInventoryDomain(const uint8_t* data, size_t len,
                               GetInventoryDomain* m) {
   const uint8_t* p = data;
@@ -1681,6 +2292,70 @@ bool DecodeInventoryDomainSnapshot(const uint8_t* data, size_t len,
         return false;
       }
       m->batteries.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 20 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryMotherboardEntry entry;
+      if (!DecodeInventoryMotherboardEntry(p, static_cast<size_t>(blen),
+                                           &entry)) {
+        return false;
+      }
+      m->motherboard.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 21 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryBiosEntry entry;
+      if (!DecodeInventoryBiosEntry(p, static_cast<size_t>(blen), &entry)) {
+        return false;
+      }
+      m->bios.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 22 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryCpuEntry entry;
+      if (!DecodeInventoryCpuEntry(p, static_cast<size_t>(blen), &entry)) {
+        return false;
+      }
+      m->cpu.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 23 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryMemoryModuleEntry entry;
+      if (!DecodeInventoryMemoryModuleEntry(p, static_cast<size_t>(blen),
+                                            &entry)) {
+        return false;
+      }
+      m->memory_modules.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 24 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryStorageEntry entry;
+      if (!DecodeInventoryStorageEntry(p, static_cast<size_t>(blen),
+                                       &entry)) {
+        return false;
+      }
+      m->storage.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 25 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryNetworkAdapterEntry entry;
+      if (!DecodeInventoryNetworkAdapterEntry(p, static_cast<size_t>(blen),
+                                              &entry)) {
+        return false;
+      }
+      m->network_adapters.push_back(std::move(entry));
       p += static_cast<size_t>(blen);
     } else if (!SkipField(wire, p, end)) {
       return false;
