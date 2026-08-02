@@ -294,7 +294,7 @@ flowchart TD
 - [x] `report.export` writes json/html/pdf/markdown/csv and returns path metadata — **M6 frozen** ([mcp-m6-validation.md](archives/mcp-m6-validation.md))
 - [x] Settings AI Integration writes policy; disabled → `POLICY_DISABLED` — **M7 frozen** ([mcp-m7-validation.md](archives/mcp-m7-validation.md))
 - [x] Diagnostics MCP section (version, policy, uptime, metrics, subscriptions, log path)
-- [x] `PulseMCP.cmd` + `mcp\` in installer payload (`package_pulsemcp.ps1`)
+- [x] `PulseMCP.exe` + private `runtime\` + `mcp\` in installer payload (`package_pulsemcp.ps1`)
 - [x] Pipe max instances ≥ 8 (`kMaxPipeInstances`)
 - [x] Cursor global registration + unregister (Pulse-owned only); Claude Desktop provider; ChatGPT stub
 - [x] Privacy / AI disclosure copy in Settings → AI Integration
@@ -506,6 +506,7 @@ Distinct from **Plugin SDK (R13)** (in-process/out-of-process *extensions inside
 | Release | Content |
 |---------|---------|
 | **0.2.1-beta** | R0 + R1 (+ R2/R3 shipped in practice) |
+| **0.3.1-beta** | PulseMCP private Node runtime (no system Node.js) |
 | **0.3.0-beta** | MCP M2–M7 productization (AI Integration) |
 | **0.3.5-beta** | R3 Inventory (phased) |
 | **0.4.0-beta** | R4 Reports first-class |

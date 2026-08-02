@@ -12,9 +12,10 @@ Pulse exposes a read-only [Model Context Protocol](https://modelcontextprotocol.
 ## Requirements
 
 - PulseService running
-- PulseMCP installed (Setup installs `PulseMCP.cmd` + `mcp\`)
-- [Node.js 20+](https://nodejs.org/) on `PATH` (launcher uses `node`)
+- PulseMCP installed (Setup installs `PulseMCP.exe` + private `runtime\` + `mcp\`)
 - An MCP-capable client (Cursor, Claude Desktop; ChatGPT reserved)
+
+End users do **not** need a system Node.js installation. The installer ships a private Node runtime used only by PulseMCP.
 
 ## Enable
 
@@ -42,7 +43,7 @@ Same safety model for `%APPDATA%\Claude\claude_desktop_config.json`.
 |---------|-----|
 | `POLICY_DISABLED` | Enable Pulse MCP in Settings |
 | Tools missing after upgrade | Re-Register; restart Cursor |
-| PulseMCP not found | Reinstall Pulse; ensure Node.js on PATH |
+| PulseMCP not found | Reinstall Pulse (Setup must include `PulseMCP.exe` + `runtime\`) |
 | Invalid JSON in Cursor config | Restore `mcp.json.pulse-backup-*` |
 | Service pipe offline | Start PulseService from Diagnostics |
 

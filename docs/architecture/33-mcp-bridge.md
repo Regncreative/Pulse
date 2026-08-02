@@ -779,7 +779,7 @@ Pulse/
 ├── service/pulse_service/         # unchanged collectors (pipe max bump)
 ├── shared/pulse_protocol/         # IPC schema shared conceptually
 ├── tools/scripts/
-│   └── package_pulsemcp.ps1       # SEA / bundle → PulseMCP.exe
+│   └── package_pulsemcp.ps1       # private Node runtime + PulseMCP.exe launcher (+ .cmd)
 └── docs/architecture/
     ├── 33-mcp-bridge.md           # this document
     └── decisions/ADR-010-….md

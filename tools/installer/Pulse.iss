@@ -5,7 +5,7 @@
 ; No PowerShell. No ExecutionPolicy. UAC elevation only.
 
 #define MyAppName "Pulse"
-#define MyAppVersion "0.3.0-beta"
+#define MyAppVersion "0.3.1-beta"
 #define MyAppPublisher "Regncreative"
 #define MyAppURL "https://github.com/Regncreative/Pulse"
 #define MyAppExeName "Pulse.exe"
@@ -69,8 +69,9 @@ Filename: "{app}\service\PulseService.exe"; \
   Flags: runhidden waituntilterminated; \
   RunOnceId: "UninstallPulseService"
 ; Remove Pulse-created AI client MCP registrations only (never other servers).
+; Prefer PulseMCP.exe (bundled private Node); fall back to PulseMCP.cmd.
 Filename: "{cmd}"; \
-  Parameters: "/c if exist ""{app}\PulseMCP.cmd"" (""{app}\PulseMCP.cmd"" --cleanup-registrations)"; \
+  Parameters: "/c if exist ""{app}\PulseMCP.exe"" (""{app}\PulseMCP.exe"" --cleanup-registrations) else if exist ""{app}\PulseMCP.cmd"" (""{app}\PulseMCP.cmd"" --cleanup-registrations)"; \
   Flags: runhidden waituntilterminated; \
   RunOnceId: "CleanupPulseMcpRegistrations"
 

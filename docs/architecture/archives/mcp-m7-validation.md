@@ -38,7 +38,7 @@
 
 ## Manual checklist (sign at freeze)
 
-- [ ] Clean install Setup.exe → Pulse + PulseService + `PulseMCP.cmd` present
+- [ ] Clean install Setup.exe → Pulse + PulseService + `PulseMCP.exe` + `runtime\node.exe` present (no system Node.js required)
 - [ ] Enable MCP → `mcp.self` works from Cursor after Register
 - [ ] Unregister removes only `pulse` entry; other servers remain
 - [ ] Upgrade preserves `policy.json`

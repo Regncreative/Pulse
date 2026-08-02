@@ -16,10 +16,30 @@ class McpLaunchCommand {
 class McpLaunchResolver {
   const McpLaunchResolver();
 
-  /// Prefer installed PulseMCP next to Pulse.exe, then PATH node + mcp\main.js,
-  /// then dev tree under the current working / executable parent.
+  /// Prefer installed self-contained PulseMCP next to Pulse.exe.
+  /// Production installs ship [PulseMCP.exe] + private `runtime\node.exe`
+  /// and never require a system Node.js on PATH.
   Future<McpLaunchCommand?> resolve() async {
     final exeDir = File(Platform.resolvedExecutable).parent.path;
+
+    final exeBeside = File('$exeDir\\PulseMCP.exe');
+    if (await exeBeside.exists()) {
+      return McpLaunchCommand(
+        command: exeBeside.path,
+        args: const [],
+        display: exeBeside.path,
+      );
+    }
+
+    final runtimeNode = File('$exeDir\\runtime\\node.exe');
+    final mainBeside = File('$exeDir\\mcp\\main.js');
+    if (await runtimeNode.exists() && await mainBeside.exists()) {
+      return McpLaunchCommand(
+        command: runtimeNode.path,
+        args: [mainBeside.path],
+        display: '${runtimeNode.path} ${mainBeside.path}',
+      );
+    }
 
     final cmdBeside = File('$exeDir\\PulseMCP.cmd');
     if (await cmdBeside.exists()) {
@@ -29,22 +49,14 @@ class McpLaunchResolver {
         display: cmdBeside.path,
       );
     }
-    final exeBeside = File('$exeDir\\PulseMCP.exe');
-    if (await exeBeside.exists()) {
-      return McpLaunchCommand(
-        command: exeBeside.path,
-        args: const [],
-        display: exeBeside.path,
-      );
-    }
-    final mainBeside = File('$exeDir\\mcp\\main.js');
+
     if (await mainBeside.exists()) {
       final node = await _findNode();
       if (node != null) {
         return McpLaunchCommand(
           command: node,
           args: [mainBeside.path],
-          display: '${node} ${mainBeside.path}',
+          display: '$node ${mainBeside.path}',
         );
       }
     }
@@ -59,7 +71,7 @@ class McpLaunchResolver {
           return McpLaunchCommand(
             command: node,
             args: [candidate.path],
-            display: '${node} ${candidate.path}',
+            display: '$node ${candidate.path}',
           );
         }
       }

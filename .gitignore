@@ -60,3 +60,7 @@ Thumbs.db
 
 # Local machine data
 ProgramData/
+
+# Packaging caches (official Node zip for private PulseMCP runtime)
+tools/cache/
+

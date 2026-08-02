@@ -16,7 +16,7 @@
 <p align="center">
   <img alt="Windows" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4?style=flat-square&logo=windows&logoColor=white" />
   <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Regncreative/Pulse/ci.yml?branch=master&style=flat-square&label=CI" />
-  <img alt="Release" src="https://img.shields.io/badge/release-v0.3.0--beta-orange?style=flat-square" />
+  <img alt="Release" src="https://img.shields.io/badge/release-v0.3.1--beta-orange?style=flat-square" />
   <img alt="Flutter" src="https://img.shields.io/badge/UI-Flutter-02569B?style=flat-square&logo=flutter&logoColor=white" />
   <img alt="C++" src="https://img.shields.io/badge/service-C%2B%2B%2020-00599C?style=flat-square&logo=cplusplus&logoColor=white" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-22C55E?style=flat-square" />
@@ -144,7 +144,7 @@ ETW, WMI, and plugins are intentional future milestones — see [docs/architectu
 
 ### For everyone (beta package)
 
-1. Download **`Pulse-Setup-0.3.0-beta-windows-x64.exe`** from [GitHub Releases](https://github.com/Regncreative/Pulse/releases)
+1. Download **`Pulse-Setup-0.3.1-beta-windows-x64.exe`** from [GitHub Releases](https://github.com/Regncreative/Pulse/releases)
 2. Run the installer and accept the UAC prompt
 3. PulseService is registered and started automatically
 4. Skip or complete the short welcome — then open Timeline or System Health
@@ -157,7 +157,7 @@ Developers can also build a local package:
 .\tools\scripts\package_beta.ps1
 ```
 
-Output: `dist\Pulse-Setup-0.3.0-beta-windows-x64.exe`, `dist\Pulse\`, and `dist\Pulse-0.3.0-beta-windows-x64.zip`
+Output: `dist\Pulse-Setup-0.3.1-beta-windows-x64.exe`, `dist\Pulse\`, and `dist\Pulse-0.3.1-beta-windows-x64.zip`
 
 ### For developers (day-to-day)
 

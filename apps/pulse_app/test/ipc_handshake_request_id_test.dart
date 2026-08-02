@@ -10,7 +10,7 @@ void main() {
       body: ClientHello(
         protocolVersion: 1,
         clientName: 'Pulse',
-        clientVersion: '0.3.0-beta',
+        clientVersion: '0.3.1-beta',
       ),
     );
     final encoded = encodeEnvelope(hello);
@@ -20,7 +20,7 @@ void main() {
 
     final server = Envelope(
       requestId: handshakeId,
-      body: ServerHello(protocolVersion: 1, serviceVersion: '0.3.0-beta'),
+      body: ServerHello(protocolVersion: 1, serviceVersion: '0.3.1-beta'),
     );
     final serverDecoded = decodeEnvelope(encodeEnvelope(server));
     expect(serverDecoded.requestId, handshakeId);

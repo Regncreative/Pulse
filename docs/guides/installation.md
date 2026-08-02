@@ -12,8 +12,8 @@ Advanced users can use the `dist\Pulse\` folder from packaging:
 
 - `Pulse.exe` — UI
 - `service\PulseService.exe --install-start` (elevated)
-- `PulseMCP.cmd` — MCP launcher (Node.js 20+ required)
-
+- `PulseMCP.exe` — MCP server (bundled private Node runtime; no system Node.js)
+- `PulseMCP.cmd` — compatibility launcher (same private runtime)
 ## Uninstall
 
 Use Windows Apps & features / the Start menu Uninstall entry. Uninstall:

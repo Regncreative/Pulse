@@ -13,7 +13,7 @@
   PulseService (--install-start), and launches Pulse — no PowerShell.
 #>
 $ErrorActionPreference = "Stop"
-$Version = "0.3.0-beta"
+$Version = "0.3.1-beta"
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $dist = Join-Path $root "dist\Pulse"
 $flutterBin = @(
@@ -193,7 +193,8 @@ This folder is the install payload. For developers:
 
   service\PulseService.exe --install-start   (elevated)
   Pulse.exe
-  PulseMCP.cmd                 (requires Node.js 20+ on PATH)
+  PulseMCP.exe                 (self-contained; private Node runtime - no system Node.js)
+  PulseMCP.cmd                 (compatibility launcher; same private runtime)
 
 Privacy: local-only. No telemetry. Observation only.
 MCP: enable in Settings → AI Integration. Policy: %LOCALAPPDATA%\Pulse\mcp\policy.json
@@ -208,6 +209,10 @@ Compress-Archive -Path (Join-Path $dist "*") -DestinationPath $zip -Force
 Write-Host "==> Verifying runtime deps"
 & powershell -ExecutionPolicy Bypass -File (Join-Path $root "tools\scripts\verify_runtime_deps.ps1") -PackageDir $dist
 if ($LASTEXITCODE -ne 0) { throw "verify_runtime_deps.ps1 failed" }
+
+Write-Host "==> Verifying PulseMCP without system Node.js"
+& powershell -ExecutionPolicy Bypass -File (Join-Path $root "tools\scripts\verify_pulsemcp_no_system_node.ps1") -PackageDir $dist
+if ($LASTEXITCODE -ne 0) { throw "verify_pulsemcp_no_system_node.ps1 failed" }
 
 Write-Host "==> Building Inno Setup installer (no PowerShell for end users)"
 $iscc = @(
