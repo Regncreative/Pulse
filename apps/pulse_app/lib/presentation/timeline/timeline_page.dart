@@ -15,6 +15,7 @@ import '../../application/timeline_library_controller.dart';
 import '../../application/timeline_session_controller.dart';
 import '../../features/timeline/timeline_export.dart';
 import '../../features/timeline/timeline_incident_engine.dart';
+import '../../features/timeline/timeline_empty_copy.dart';
 import '../../features/timeline/timeline_query.dart';
 import '../../features/timeline/widgets/timeline_details_panel.dart';
 import '../../features/timeline/widgets/timeline_event_tile.dart';
@@ -253,18 +254,18 @@ class _TimelinePageState extends State<TimelinePage> {
     return null;
   }
 
-  String _emptyMessage({required bool hasEvents, required bool mock}) {
-    if (!hasEvents) {
-      return mock
-          ? 'No sample events are loaded. Rebuild with PULSE_MOCK_TIMELINE or connect PulseService.'
-          : 'Pulse is connected and listening across diagnostics Event Log channels.\n\n'
-              'New events appear here as Windows works. Use Refresh if you expect a historical snapshot.';
-    }
-    if (_filtersActive) {
-      return 'No events match the current search and filters.\n\n'
-          'Clear filters or try a different severity, source, category, provider, or date range.';
-    }
-    return 'Nothing to show in this view.';
+  String _emptyMessage({
+    required List<TimelineEvent> sessionEvents,
+    required bool mock,
+  }) {
+    return timelineEmptyMessage(
+      hasSessionEvents: sessionEvents.isNotEmpty,
+      filtersActive: _filtersActive,
+      query: _query,
+      sessionHasSecurityChannelEvents:
+          sessionContainsSecurityChannelEvents(sessionEvents),
+      mock: mock,
+    );
   }
 
   Future<void> _saveCurrentSearch() async {
@@ -518,7 +519,7 @@ class _TimelinePageState extends State<TimelinePage> {
                           visible: visible,
                           hasStoredEvents: events.isNotEmpty,
                           emptyMessage: _emptyMessage(
-                            hasEvents: events.isNotEmpty,
+                            sessionEvents: events,
                             mock: kUseMockTimeline,
                           ),
                           showMockBanner: kUseMockTimeline,

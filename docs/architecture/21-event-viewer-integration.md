@@ -29,6 +29,15 @@ Pulse attempts the following channels under the service account (typically Local
 | `Microsoft-Windows-Kernel-Boot/Operational` | Optional | Boot-related operational log when present |
 | `Security` | Probe (`EvtOpenLog`) | **Often fails** under LocalService — skip and log; do not fail the snapshot |
 
+### Security channel UX (client)
+
+When the Timeline **Source** filter is set to Security and the retained session has **no** Security-channel events, the UI must distinguish that from a normal empty filter result:
+
+- **Security unavailable:** explain that PulseService runs as `LocalService` and Windows often denies Security log read access. Do **not** imply Security is available or invent events.
+- **No events match:** use the generic filter-empty copy when Security events exist in the session but current filters exclude them.
+
+Probe/skip behavior in the collector is unchanged ([ADR-002](decisions/ADR-002-windows-service.md) LocalService account).
+
 Clients that send `channel=System` (historical default) receive the **diagnostics multi-channel set**. Explicit non-default channel names remain reserved for single-channel requests on snapshot.
 
 **Not supported:** Analytic / Debug subscribe ([EvtSubscribe](https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtsubscribe) limitation).
