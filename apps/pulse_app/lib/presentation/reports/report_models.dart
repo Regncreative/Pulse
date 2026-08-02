@@ -9,6 +9,7 @@ enum ReportTemplate {
   serviceInventory,
   driverInventory,
   softwareInventory,
+  systemInventory,
 }
 
 /// On-disk export encodings.
@@ -28,6 +29,7 @@ extension ReportTemplateX on ReportTemplate {
         ReportTemplate.serviceInventory => 'Service inventory',
         ReportTemplate.driverInventory => 'Driver inventory',
         ReportTemplate.softwareInventory => 'Software inventory',
+        ReportTemplate.systemInventory => 'System inventory',
       };
 
   String get description => switch (this) {
@@ -45,6 +47,9 @@ extension ReportTemplateX on ReportTemplate {
           'Driver services from the Inventory Engine (SCM SERVICE_DRIVER subset).',
         ReportTemplate.softwareInventory =>
           'Installed software from Inventory (machine-wide Uninstall registry).',
+        ReportTemplate.systemInventory =>
+          'Motherboard, BIOS, CPU, memory, storage, and network adapters '
+              'from the Inventory Engine (SMBIOS + SetupAPI).',
       };
 
   String get fileStem => switch (this) {
@@ -55,6 +60,7 @@ extension ReportTemplateX on ReportTemplate {
         ReportTemplate.serviceInventory => 'pulse-services',
         ReportTemplate.driverInventory => 'pulse-drivers',
         ReportTemplate.softwareInventory => 'pulse-software',
+        ReportTemplate.systemInventory => 'pulse-system-inventory',
       };
 
   /// CSV fits tabular templates; diagnostics is structured JSON/HTML/PDF only.
@@ -67,7 +73,8 @@ extension ReportTemplateX on ReportTemplate {
         ReportTemplate.hardwareInventory ||
         ReportTemplate.serviceInventory ||
         ReportTemplate.driverInventory ||
-        ReportTemplate.softwareInventory =>
+        ReportTemplate.softwareInventory ||
+        ReportTemplate.systemInventory =>
           true,
         _ => false,
       };
@@ -77,8 +84,20 @@ extension ReportTemplateX on ReportTemplate {
         ReportTemplate.driverInventory => InventoryDomainId.drivers,
         ReportTemplate.softwareInventory => InventoryDomainId.software,
         ReportTemplate.hardwareInventory => null, // USB + PCI pair
+        ReportTemplate.systemInventory =>
+          null, // motherboard/bios/cpu/memory/storage/network sextet
         _ => null,
       };
+
+  /// P2 System Inventory domains (SSOT for the [systemInventory] template).
+  static const List<InventoryDomainId> systemInventoryDomains = [
+    InventoryDomainId.motherboard,
+    InventoryDomainId.bios,
+    InventoryDomainId.cpu,
+    InventoryDomainId.memoryModules,
+    InventoryDomainId.storage,
+    InventoryDomainId.networkAdapters,
+  ];
 }
 
 extension ReportFormatX on ReportFormat {

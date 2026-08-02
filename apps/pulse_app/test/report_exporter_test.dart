@@ -126,6 +126,53 @@ void main() {
       expect(json, contains('Test GPU'));
       expect(json, isNot(contains('Ryzen')));
     });
+
+    test('encodes system inventory from Inventory P2 domains, not Health',
+        () {
+      final json = ReportExporter.buildJson(
+        ReportExportInput(
+          template: ReportTemplate.systemInventory,
+          format: ReportFormat.json,
+          // Health present but must NOT be the identity source for this
+          // template — System Inventory identity must come from Inventory.
+          health: HealthSnapshot(
+            info: HealthStaticInfo(cpuModel: 'Health CPU (must not appear)'),
+          ),
+          inventoryMotherboard: InventoryDomainSnapshot(
+            domain: InventoryDomainId.motherboard,
+            status: InventoryStatus.available,
+            generation: 1,
+            motherboard: [
+              InventoryMotherboardEntry(
+                id: 'motherboard',
+                manufacturer: 'PulseLab',
+                product: 'Test Board X570',
+              ),
+            ],
+          ),
+          inventoryCpu: InventoryDomainSnapshot(
+            domain: InventoryDomainId.cpu,
+            status: InventoryStatus.available,
+            generation: 2,
+            cpu: [
+              InventoryCpuEntry(
+                id: 'cpu',
+                name: 'Test CPU 9000X',
+                manufacturer: 'PulseLab',
+                hasPhysicalCores: true,
+                physicalCores: 8,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(json, contains('"pulse_export": "pulse-system-inventory"'));
+      expect(json, contains('"source": "inventory_engine"'));
+      expect(json, contains('Test Board X570'));
+      expect(json, contains('Test CPU 9000X'));
+      expect(json, isNot(contains('Health CPU')));
+    });
   });
 
   group('ReportExporter CSV', () {
@@ -235,6 +282,39 @@ void main() {
       expect(csv, contains('Windows Event Log'));
     });
 
+    test('system inventory CSV covers all six P2 domains', () {
+      final csv = ReportExporter.buildCsv(
+        ReportExportInput(
+          template: ReportTemplate.systemInventory,
+          format: ReportFormat.csv,
+          inventoryMotherboard: InventoryDomainSnapshot(
+            domain: InventoryDomainId.motherboard,
+            status: InventoryStatus.available,
+            motherboard: [
+              InventoryMotherboardEntry(id: 'motherboard', product: 'Board'),
+            ],
+          ),
+          inventoryStorage: InventoryDomainSnapshot(
+            domain: InventoryDomainId.storage,
+            status: InventoryStatus.available,
+            storage: [
+              InventoryStorageEntry(id: r'disk\0', model: 'Test SSD'),
+            ],
+          ),
+        ),
+      );
+
+      expect(csv, contains('source=inventory_engine'));
+      expect(csv, contains('## motherboard'));
+      expect(csv, contains('## bios'));
+      expect(csv, contains('## cpu'));
+      expect(csv, contains('## memory_modules'));
+      expect(csv, contains('## storage'));
+      expect(csv, contains('## network_adapters'));
+      expect(csv, contains('Board'));
+      expect(csv, contains('Test SSD'));
+    });
+
     test('diagnostics rejects CSV', () {
       expect(
         () => ReportExporter.buildCsv(
@@ -252,6 +332,20 @@ void main() {
     expect(ReportTemplate.healthSnapshot.supportsCsv, isTrue);
     expect(ReportTemplate.timeline.supportsCsv, isTrue);
     expect(ReportTemplate.hardwareInventory.supportsCsv, isTrue);
+    expect(ReportTemplate.systemInventory.supportsCsv, isTrue);
     expect(ReportTemplate.diagnostics.supportsCsv, isFalse);
+  });
+
+  test('ReportTemplate.systemInventory uses the Inventory Engine', () {
+    expect(ReportTemplate.systemInventory.usesInventoryEngine, isTrue);
+    expect(ReportTemplate.systemInventory.inventoryDomain, isNull);
+    expect(ReportTemplateX.systemInventoryDomains, [
+      InventoryDomainId.motherboard,
+      InventoryDomainId.bios,
+      InventoryDomainId.cpu,
+      InventoryDomainId.memoryModules,
+      InventoryDomainId.storage,
+      InventoryDomainId.networkAdapters,
+    ]);
   });
 }

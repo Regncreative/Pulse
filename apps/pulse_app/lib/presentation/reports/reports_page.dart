@@ -54,6 +54,7 @@ class _ReportsPageState extends State<ReportsPage> {
       final health = await _fetchHealthIfNeeded(ipc);
       final inventory = await _fetchInventoryIfNeeded(ipc);
       final hardwarePair = await _fetchHardwareInventoryIfNeeded(ipc);
+      final systemDomains = await _fetchSystemInventoryIfNeeded(ipc);
       if (_template == ReportTemplate.diagnostics && diag.snapshot == null) {
         try {
           await diag.refresh();
@@ -67,6 +68,12 @@ class _ReportsPageState extends State<ReportsPage> {
         inventory: inventory,
         inventoryUsb: hardwarePair.$1,
         inventoryPci: hardwarePair.$2,
+        inventoryMotherboard: systemDomains.$1,
+        inventoryBios: systemDomains.$2,
+        inventoryCpu: systemDomains.$3,
+        inventoryMemoryModules: systemDomains.$4,
+        inventoryStorage: systemDomains.$5,
+        inventoryNetworkAdapters: systemDomains.$6,
         events: List.of(timeline.events),
         diagnostics: diag.snapshot,
         ipcStatus: ipc.status,
@@ -132,6 +139,50 @@ class _ReportsPageState extends State<ReportsPage> {
     return (usb, pci);
   }
 
+  /// System Inventory report SSOT — six P2 domains (ADR-011). Never falls
+  /// back to `HealthStaticInfo`; a failed/unfetched domain stays `null` and
+  /// the exporter renders "no snapshot" for that section only.
+  Future<
+      (
+        InventoryDomainSnapshot?,
+        InventoryDomainSnapshot?,
+        InventoryDomainSnapshot?,
+        InventoryDomainSnapshot?,
+        InventoryDomainSnapshot?,
+        InventoryDomainSnapshot?
+      )> _fetchSystemInventoryIfNeeded(PulseIpcClient ipc) async {
+    if (_template != ReportTemplate.systemInventory) {
+      return (null, null, null, null, null, null);
+    }
+    if (ipc.status.state != IpcConnectionState.connected) {
+      return (null, null, null, null, null, null);
+    }
+    Future<InventoryDomainSnapshot?> fetch(InventoryDomainId domain) async {
+      try {
+        return await ipc.getInventoryDomain(domain: domain);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final results = await Future.wait([
+      fetch(InventoryDomainId.motherboard),
+      fetch(InventoryDomainId.bios),
+      fetch(InventoryDomainId.cpu),
+      fetch(InventoryDomainId.memoryModules),
+      fetch(InventoryDomainId.storage),
+      fetch(InventoryDomainId.networkAdapters),
+    ]);
+    return (
+      results[0],
+      results[1],
+      results[2],
+      results[3],
+      results[4],
+      results[5],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final connectionLabel = context.select<ConnectionController, String>(
@@ -165,8 +216,8 @@ class _ReportsPageState extends State<ReportsPage> {
                 title: 'Export report',
                 subtitle:
                     'Save System Health, Timeline, Diagnostics, Inventory '
-                    '(services / drivers / software), or hardware summary as '
-                    'JSON, CSV, HTML, or PDF.',
+                    '(services / drivers / software), or hardware and system '
+                    'summaries as JSON, CSV, HTML, or PDF.',
               ),
               if (state != IpcConnectionState.connected) ...[
                 const SizedBox(height: PulseTokens.spaceMd),
@@ -339,6 +390,7 @@ class _ReportsPageState extends State<ReportsPage> {
       ReportTemplate.serviceInventory => LucideIcons.cog,
       ReportTemplate.driverInventory => LucideIcons.circuitBoard,
       ReportTemplate.softwareInventory => LucideIcons.package,
+      ReportTemplate.systemInventory => LucideIcons.server,
     };
   }
 }

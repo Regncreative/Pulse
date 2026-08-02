@@ -13,6 +13,7 @@ import '../../application/settings_controller.dart';
 import '../../features/timeline/timeline_display.dart';
 import '../../features/timeline/timeline_export.dart';
 import '../../ipc/pulse_ipc_client.dart';
+import '../inventory/inventory_detail_model.dart';
 import 'report_models.dart';
 
 /// Bundled inputs for a single Reports export.
@@ -24,6 +25,12 @@ class ReportExportInput {
     this.inventory,
     this.inventoryUsb,
     this.inventoryPci,
+    this.inventoryMotherboard,
+    this.inventoryBios,
+    this.inventoryCpu,
+    this.inventoryMemoryModules,
+    this.inventoryStorage,
+    this.inventoryNetworkAdapters,
     this.events = const [],
     this.diagnostics,
     this.ipcStatus,
@@ -41,6 +48,18 @@ class ReportExportInput {
   final InventoryDomainSnapshot? inventoryUsb;
   /// Hardware inventory SSOT (PCI domain).
   final InventoryDomainSnapshot? inventoryPci;
+  /// System inventory SSOT (P2 domains) — motherboard.
+  final InventoryDomainSnapshot? inventoryMotherboard;
+  /// System inventory SSOT (P2 domains) — BIOS.
+  final InventoryDomainSnapshot? inventoryBios;
+  /// System inventory SSOT (P2 domains) — CPU.
+  final InventoryDomainSnapshot? inventoryCpu;
+  /// System inventory SSOT (P2 domains) — memory modules.
+  final InventoryDomainSnapshot? inventoryMemoryModules;
+  /// System inventory SSOT (P2 domains) — storage devices.
+  final InventoryDomainSnapshot? inventoryStorage;
+  /// System inventory SSOT (P2 domains) — network adapters.
+  final InventoryDomainSnapshot? inventoryNetworkAdapters;
   final List<TimelineEvent> events;
   final DiagnosticsSnapshot? diagnostics;
   final IpcStatus? ipcStatus;
@@ -123,6 +142,8 @@ class ReportExporter {
         return _keyValueCsv(healthMetricsRows(input.health));
       case ReportTemplate.hardwareInventory:
         return hardwareInventoryCsv(input.inventoryUsb, input.inventoryPci);
+      case ReportTemplate.systemInventory:
+        return systemInventoryCsv(input);
       case ReportTemplate.serviceInventory:
       case ReportTemplate.driverInventory:
       case ReportTemplate.softwareInventory:
@@ -160,6 +181,7 @@ class ReportExporter {
   section { background: $surface; border: 1px solid $border; border-radius: 10px;
             padding: 18px 20px; margin-bottom: 16px; }
   h2 { font-size: 15px; margin: 0 0 12px; font-weight: 600; }
+  h3 { font-size: 13px; margin: 14px 0 6px; font-weight: 600; color: $muted; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid $border;
            vertical-align: top; }
@@ -282,8 +304,10 @@ class ReportExporter {
     return rows;
   }
 
-  /// Deprecated Health-static hardware flatten. Prefer Inventory USB/PCI.
-  /// Retained for P2 identity migration; not used by Hardware report SSOT.
+  /// Deprecated Health-static hardware flatten. Superseded by Inventory
+  /// USB/PCI (Hardware report) and Inventory P2 domains (System report).
+  /// Retained only for callers that have not migrated; not used by any
+  /// current report SSOT.
   static List<(String, String)> healthStaticHardwareRows(HealthStaticInfo? info) {
     if (info == null) {
       return const [('status', 'No hardware inventory available')];
@@ -414,6 +438,129 @@ class ReportExporter {
             '${e.hasProblemCode ? e.problemCode : ''}',
           );
         }
+      case InventoryDomainId.motherboard:
+        meta.writeln(
+          'id,manufacturer,product,version,serial_number,asset_tag,'
+          'location_in_chassis,board_type',
+        );
+        for (final e in snap.motherboard) {
+          meta.writeln(
+            '${_csvCell(e.id)},${_csvCell(e.manufacturer)},'
+            '${_csvCell(e.product)},${_csvCell(e.version)},'
+            '${_csvCell(e.serialNumber)},${_csvCell(e.assetTag)},'
+            '${_csvCell(e.locationInChassis)},${_csvCell(e.boardType)}',
+          );
+        }
+      case InventoryDomainId.bios:
+        meta.writeln(
+          'id,vendor,version,release_date,major_release,minor_release,'
+          'rom_size_bytes,uefi_capable',
+        );
+        for (final e in snap.bios) {
+          meta.writeln(
+            '${_csvCell(e.id)},${_csvCell(e.vendor)},${_csvCell(e.version)},'
+            '${_csvCell(e.releaseDate)},'
+            '${e.hasMajorRelease ? e.majorRelease : ''},'
+            '${e.hasMinorRelease ? e.minorRelease : ''},'
+            '${e.hasRomSizeBytes ? e.romSizeBytes : ''},'
+            '${e.hasUefiCapable ? e.uefiCapable : ''}',
+          );
+        }
+      case InventoryDomainId.cpu:
+        meta.writeln(
+          'id,name,manufacturer,architecture,sockets,physical_cores,'
+          'logical_processors,base_clock_mhz,numa_nodes,l1_cache_bytes,'
+          'l2_cache_bytes,l3_cache_bytes,instruction_set,smt_enabled,'
+          'virtualization_vendor',
+        );
+        for (final e in snap.cpu) {
+          meta.writeln(
+            '${_csvCell(e.id)},${_csvCell(e.name)},${_csvCell(e.manufacturer)},'
+            '${_csvCell(e.architecture)},'
+            '${e.hasSockets ? e.sockets : ''},'
+            '${e.hasPhysicalCores ? e.physicalCores : ''},'
+            '${e.hasLogicalProcessors ? e.logicalProcessors : ''},'
+            '${e.hasBaseClockMhz ? e.baseClockMhz : ''},'
+            '${e.hasNumaNodes ? e.numaNodes : ''},'
+            '${e.hasL1CacheBytes ? e.l1CacheBytes : ''},'
+            '${e.hasL2CacheBytes ? e.l2CacheBytes : ''},'
+            '${e.hasL3CacheBytes ? e.l3CacheBytes : ''},'
+            '${_csvCell(e.instructionSet)},'
+            '${e.hasSmtEnabled ? e.smtEnabled : ''},'
+            '${_csvCell(e.virtualizationVendor)}',
+          );
+        }
+      case InventoryDomainId.memoryModules:
+        meta.writeln(
+          'id,bank_locator,manufacturer,part_number,serial_number,'
+          'size_bytes,speed_mts,configured_speed_mts,form_factor,'
+          'memory_type,is_ecc,total_width_bits,data_width_bits,'
+          'configured_voltage_mv,populated',
+        );
+        for (final e in snap.memoryModules) {
+          meta.writeln(
+            '${_csvCell(e.id)},${_csvCell(e.bankLocator)},'
+            '${_csvCell(e.manufacturer)},${_csvCell(e.partNumber)},'
+            '${_csvCell(e.serialNumber)},'
+            '${e.hasSizeBytes ? e.sizeBytes : ''},'
+            '${e.hasSpeedMts ? e.speedMts : ''},'
+            '${e.hasConfiguredSpeedMts ? e.configuredSpeedMts : ''},'
+            '${_csvCell(e.formFactor)},${_csvCell(e.memoryType)},'
+            '${e.hasIsEcc ? e.isEcc : ''},'
+            '${e.hasTotalWidthBits ? e.totalWidthBits : ''},'
+            '${e.hasDataWidthBits ? e.dataWidthBits : ''},'
+            '${e.hasConfiguredVoltageMv ? e.configuredVoltageMv : ''},'
+            '${e.populated}',
+          );
+        }
+      case InventoryDomainId.storage:
+        meta.writeln(
+          'id,device_path,physical_drive_number,model,vendor,'
+          'serial_number,firmware_revision,bus_type,media_type,'
+          'size_bytes,sector_size_bytes,partition_style,is_removable,'
+          'trim_supported,manufacturer,description',
+        );
+        for (final e in snap.storage) {
+          meta.writeln(
+            '${_csvCell(e.id)},${_csvCell(e.devicePath)},'
+            '${e.hasPhysicalDriveNumber ? e.physicalDriveNumber : ''},'
+            '${_csvCell(e.model)},${_csvCell(e.vendor)},'
+            '${_csvCell(e.serialNumber)},${_csvCell(e.firmwareRevision)},'
+            '${_csvCell(e.busType)},${_csvCell(e.mediaType)},'
+            '${e.hasSizeBytes ? e.sizeBytes : ''},'
+            '${e.hasSectorSizeBytes ? e.sectorSizeBytes : ''},'
+            '${_csvCell(e.partitionStyle)},'
+            '${e.hasIsRemovable ? e.isRemovable : ''},'
+            '${e.hasTrimSupported ? e.trimSupported : ''},'
+            '${_csvCell(e.manufacturer)},${_csvCell(e.description)}',
+          );
+        }
+      case InventoryDomainId.networkAdapters:
+        meta.writeln(
+          'id,friendly_name,description,mac_address,connection_type,'
+          'if_index,mtu,operational_status,dhcp_enabled,link_speed_bps,'
+          'is_loopback,ipv4_addresses,ipv6_addresses,gateway_addresses,'
+          'dns_addresses,driver_provider,driver_version,driver_date',
+        );
+        for (final e in snap.networkAdapters) {
+          meta.writeln(
+            '${_csvCell(e.id)},${_csvCell(e.friendlyName)},'
+            '${_csvCell(e.description)},${_csvCell(e.macAddress)},'
+            '${_csvCell(e.connectionType)},'
+            '${e.hasIfIndex ? e.ifIndex : ''},'
+            '${e.hasMtu ? e.mtu : ''},'
+            '${_csvCell(e.operationalStatus)},'
+            '${e.hasDhcpEnabled ? e.dhcpEnabled : ''},'
+            '${e.hasLinkSpeedBps ? e.linkSpeedBps : ''},'
+            '${e.isLoopback},'
+            '${_csvCell(e.ipv4Addresses.join('|'))},'
+            '${_csvCell(e.ipv6Addresses.join('|'))},'
+            '${_csvCell(e.gatewayAddresses.join('|'))},'
+            '${_csvCell(e.dnsAddresses.join('|'))},'
+            '${_csvCell(e.driverProvider)},${_csvCell(e.driverVersion)},'
+            '${_csvCell(e.driverDate)}',
+          );
+        }
       default:
         meta.writeln('note');
         meta.writeln(
@@ -430,8 +577,40 @@ class ReportExporter {
         InventoryDomainId.software => snap.software.length,
         InventoryDomainId.usb => snap.usb.length,
         InventoryDomainId.pci => snap.pci.length,
+        InventoryDomainId.motherboard => snap.motherboard.length,
+        InventoryDomainId.bios => snap.bios.length,
+        InventoryDomainId.cpu => snap.cpu.length,
+        InventoryDomainId.memoryModules => snap.memoryModules.length,
+        InventoryDomainId.storage => snap.storage.length,
+        InventoryDomainId.networkAdapters => snap.networkAdapters.length,
         _ => 0,
       };
+
+  /// System Inventory report CSV — P2 domains (ADR-011 SSOT). Not
+  /// [healthStaticHardwareRows]; System identity now belongs to Inventory.
+  static String systemInventoryCsv(ReportExportInput input) {
+    final buf = StringBuffer()
+      ..writeln('# pulse-system-inventory')
+      ..writeln('# source=inventory_engine');
+    for (final section in _systemInventorySections(input)) {
+      buf
+        ..writeln()
+        ..writeln('## ${section.$1}')
+        ..write(inventoryDomainCsv(section.$2));
+    }
+    return buf.toString();
+  }
+
+  static List<(String, InventoryDomainSnapshot?)> _systemInventorySections(
+    ReportExportInput input,
+  ) => [
+        ('motherboard', input.inventoryMotherboard),
+        ('bios', input.inventoryBios),
+        ('cpu', input.inventoryCpu),
+        ('memory_modules', input.inventoryMemoryModules),
+        ('storage', input.inventoryStorage),
+        ('network_adapters', input.inventoryNetworkAdapters),
+      ];
 
   static Map<String, dynamic> inventoryDomainJson(
     InventoryDomainSnapshot? snap,
@@ -518,6 +697,128 @@ class ReportExporter {
             if (e.hasProblemCode) 'problem_code': e.problemCode,
           },
       ],
+      'motherboard': [
+        for (final e in snap.motherboard)
+          {
+            'id': e.id,
+            'manufacturer': e.manufacturer,
+            'product': e.product,
+            'version': e.version,
+            'serial_number': e.serialNumber,
+            'asset_tag': e.assetTag,
+            'location_in_chassis': e.locationInChassis,
+            'board_type': e.boardType,
+          },
+      ],
+      'bios': [
+        for (final e in snap.bios)
+          {
+            'id': e.id,
+            'vendor': e.vendor,
+            'version': e.version,
+            'release_date': e.releaseDate,
+            if (e.hasMajorRelease) 'major_release': e.majorRelease,
+            if (e.hasMinorRelease) 'minor_release': e.minorRelease,
+            if (e.hasRomSizeBytes) 'rom_size_bytes': e.romSizeBytes,
+            if (e.hasUefiCapable) 'uefi_capable': e.uefiCapable,
+          },
+      ],
+      'cpu': [
+        for (final e in snap.cpu)
+          {
+            'id': e.id,
+            'name': e.name,
+            'manufacturer': e.manufacturer,
+            'architecture': e.architecture,
+            if (e.hasSockets) 'sockets': e.sockets,
+            if (e.hasPhysicalCores) 'physical_cores': e.physicalCores,
+            if (e.hasLogicalProcessors)
+              'logical_processors': e.logicalProcessors,
+            if (e.hasBaseClockMhz) 'base_clock_mhz': e.baseClockMhz,
+            if (e.hasNumaNodes) 'numa_nodes': e.numaNodes,
+            if (e.hasL1CacheBytes) 'l1_cache_bytes': e.l1CacheBytes,
+            if (e.hasL2CacheBytes) 'l2_cache_bytes': e.l2CacheBytes,
+            if (e.hasL3CacheBytes) 'l3_cache_bytes': e.l3CacheBytes,
+            'instruction_set': e.instructionSet,
+            if (e.hasSmtEnabled) 'smt_enabled': e.smtEnabled,
+            'virtualization_vendor': e.virtualizationVendor,
+          },
+      ],
+      'memory_modules': [
+        for (final e in snap.memoryModules)
+          {
+            'id': e.id,
+            'bank_locator': e.bankLocator,
+            'manufacturer': e.manufacturer,
+            'part_number': e.partNumber,
+            'serial_number': e.serialNumber,
+            if (e.hasSizeBytes) 'size_bytes': e.sizeBytes,
+            if (e.hasSpeedMts) 'speed_mts': e.speedMts,
+            if (e.hasConfiguredSpeedMts)
+              'configured_speed_mts': e.configuredSpeedMts,
+            'form_factor': e.formFactor,
+            'memory_type': e.memoryType,
+            if (e.hasIsEcc) 'is_ecc': e.isEcc,
+            if (e.hasTotalWidthBits) 'total_width_bits': e.totalWidthBits,
+            if (e.hasDataWidthBits) 'data_width_bits': e.dataWidthBits,
+            if (e.hasConfiguredVoltageMv)
+              'configured_voltage_mv': e.configuredVoltageMv,
+            'populated': e.populated,
+          },
+      ],
+      'storage': [
+        for (final e in snap.storage)
+          {
+            'id': e.id,
+            'device_path': e.devicePath,
+            if (e.hasPhysicalDriveNumber)
+              'physical_drive_number': e.physicalDriveNumber,
+            'model': e.model,
+            'vendor': e.vendor,
+            'serial_number': e.serialNumber,
+            'firmware_revision': e.firmwareRevision,
+            'bus_type': e.busType,
+            'media_type': e.mediaType,
+            if (e.hasSizeBytes) 'size_bytes': e.sizeBytes,
+            if (e.hasSectorSizeBytes) 'sector_size_bytes': e.sectorSizeBytes,
+            'partition_style': e.partitionStyle,
+            if (e.hasIsRemovable) 'is_removable': e.isRemovable,
+            if (e.hasTrimSupported) 'trim_supported': e.trimSupported,
+            'manufacturer': e.manufacturer,
+            'description': e.description,
+          },
+      ],
+      'network_adapters': [
+        for (final e in snap.networkAdapters)
+          {
+            'id': e.id,
+            'friendly_name': e.friendlyName,
+            'description': e.description,
+            'mac_address': e.macAddress,
+            'connection_type': e.connectionType,
+            if (e.hasIfIndex) 'if_index': e.ifIndex,
+            if (e.hasMtu) 'mtu': e.mtu,
+            'operational_status': e.operationalStatus,
+            if (e.hasDhcpEnabled) 'dhcp_enabled': e.dhcpEnabled,
+            if (e.hasLinkSpeedBps) 'link_speed_bps': e.linkSpeedBps,
+            'is_loopback': e.isLoopback,
+            'ipv4_addresses': e.ipv4Addresses,
+            'ipv6_addresses': e.ipv6Addresses,
+            'gateway_addresses': e.gatewayAddresses,
+            'dns_addresses': e.dnsAddresses,
+            'driver_provider': e.driverProvider,
+            'driver_version': e.driverVersion,
+            'driver_date': e.driverDate,
+          },
+      ],
+    };
+  }
+
+  /// System Inventory report JSON — six P2 domain snapshots keyed by domain.
+  static Map<String, dynamic> systemInventoryJson(ReportExportInput input) {
+    return {
+      for (final section in _systemInventorySections(input))
+        section.$1: inventoryDomainJson(section.$2),
     };
   }
 
@@ -652,6 +953,9 @@ class ReportExporter {
         base['source'] = 'inventory_engine';
         base['usb'] = inventoryDomainJson(input.inventoryUsb);
         base['pci'] = inventoryDomainJson(input.inventoryPci);
+      case ReportTemplate.systemInventory:
+        base['source'] = 'inventory_engine';
+        base['system'] = systemInventoryJson(input);
       case ReportTemplate.serviceInventory:
       case ReportTemplate.driverInventory:
       case ReportTemplate.softwareInventory:
@@ -697,7 +1001,13 @@ class ReportExporter {
         'dns': s.dns,
       };
 
+  /// System identity cover block. [ReportTemplate.systemInventory] sources
+  /// identity from Inventory (motherboard/CPU) — never [HealthStaticInfo],
+  /// since Inventory is now the SSOT for that identity data.
   static List<(String, String)> _systemIdentity(ReportExportInput input) {
+    if (input.template == ReportTemplate.systemInventory) {
+      return _systemInventoryIdentity(input);
+    }
     final info = input.health?.info;
     final snap = input.diagnostics;
     final windows = () {
@@ -720,6 +1030,24 @@ class ReportExporter {
       if (info != null && info.cpuModel.isNotEmpty) ('cpu', info.cpuModel),
       if (info != null && info.gpuModel.isNotEmpty) ('gpu', info.gpuModel),
     ];
+  }
+
+  static List<(String, String)> _systemInventoryIdentity(
+    ReportExportInput input,
+  ) {
+    final board = input.inventoryMotherboard?.motherboard;
+    final bios = input.inventoryBios?.bios;
+    final cpu = input.inventoryCpu?.cpu;
+    final rows = <(String, String)>[
+      if (board != null && board.isNotEmpty && board.first.product.isNotEmpty)
+        ('motherboard', board.first.product),
+      if (bios != null && bios.isNotEmpty && bios.first.vendor.isNotEmpty)
+        ('bios_vendor', bios.first.vendor),
+      if (cpu != null && cpu.isNotEmpty && cpu.first.name.isNotEmpty)
+        ('cpu', cpu.first.name),
+    ];
+    if (rows.isEmpty) rows.add(('status', 'No system inventory snapshot'));
+    return rows;
   }
 
   static String _timelineCsv(List<TimelineEvent> events) {
@@ -831,6 +1159,8 @@ class ReportExporter {
             '${_kvTableHtml(inventorySummaryRows(usb))}</section>'
             '<section><h2>PCI inventory ($pciCount)</h2>'
             '${_kvTableHtml(inventorySummaryRows(pci))}</section>';
+      case ReportTemplate.systemInventory:
+        return _systemInventoryHtml(input);
       case ReportTemplate.serviceInventory:
       case ReportTemplate.driverInventory:
       case ReportTemplate.softwareInventory:
@@ -906,6 +1236,73 @@ class ReportExporter {
     }
   }
 
+  /// System Inventory HTML — one sub-section per P2 entry, reusing the same
+  /// [InventoryDetailSection] builders as the Inventory detail panel so the
+  /// report and the UI never disagree on fields.
+  static String _systemInventoryHtml(ReportExportInput input) {
+    final buf = StringBuffer()..writeln('<section><h2>System inventory</h2>');
+    for (final e in input.inventoryMotherboard?.motherboard ?? const []) {
+      buf.writeln(
+        '<h3>Motherboard — ${_escapeHtml(e.product.isEmpty ? e.id : e.product)}</h3>'
+        '${_sectionsHtml(motherboardDetailSections(e))}',
+      );
+    }
+    for (final e in input.inventoryBios?.bios ?? const []) {
+      buf.writeln(
+        '<h3>BIOS — ${_escapeHtml(e.vendor.isEmpty ? e.id : e.vendor)}</h3>'
+        '${_sectionsHtml(biosDetailSections(e))}',
+      );
+    }
+    for (final e in input.inventoryCpu?.cpu ?? const []) {
+      buf.writeln(
+        '<h3>CPU — ${_escapeHtml(e.name.isEmpty ? e.id : e.name)}</h3>'
+        '${_sectionsHtml(cpuDetailSections(e))}',
+      );
+    }
+    for (final e in input.inventoryMemoryModules?.memoryModules ?? const []) {
+      buf.writeln(
+        '<h3>Memory — ${_escapeHtml(e.bankLocator.isEmpty ? e.id : e.bankLocator)}</h3>'
+        '${_sectionsHtml(memoryModuleDetailSections(e))}',
+      );
+    }
+    for (final e in input.inventoryStorage?.storage ?? const []) {
+      buf.writeln(
+        '<h3>Storage — ${_escapeHtml(e.model.isEmpty ? e.id : e.model)}</h3>'
+        '${_sectionsHtml(storageDetailSections(e))}',
+      );
+    }
+    for (final e
+        in input.inventoryNetworkAdapters?.networkAdapters ?? const []) {
+      buf.writeln(
+        '<h3>Network adapter — '
+        '${_escapeHtml(e.friendlyName.isEmpty ? e.id : e.friendlyName)}</h3>'
+        '${_sectionsHtml(networkAdapterDetailSections(e))}',
+      );
+    }
+    buf.writeln('</section>');
+    return buf.toString();
+  }
+
+  static String _sectionsHtml(List<InventoryDetailSection> sections) {
+    if (sections.isEmpty) return '<p>No structured fields returned.</p>';
+    final buf = StringBuffer();
+    for (final section in sections) {
+      buf.writeln(
+        '<div style="font-weight:600;font-size:12px;margin:8px 0 4px;">'
+        '${_escapeHtml(section.title)}</div>',
+      );
+      buf.writeln('<table>');
+      for (final field in section.fields) {
+        buf.writeln(
+          '<tr><th>${_escapeHtml(field.$1)}</th>'
+          '<td>${_escapeHtml(field.$2)}</td></tr>',
+        );
+      }
+      buf.writeln('</table>');
+    }
+    return buf.toString();
+  }
+
   static List<pw.Widget> _pdfTables(ReportExportInput input) {
     switch (input.template) {
       case ReportTemplate.timeline:
@@ -963,6 +1360,8 @@ class ReportExporter {
           pw.SizedBox(height: 6),
           _pdfKeyValueTable(inventorySummaryRows(input.inventoryPci)),
         ];
+      case ReportTemplate.systemInventory:
+        return _systemInventoryPdfWidgets(input);
       case ReportTemplate.serviceInventory:
       case ReportTemplate.driverInventory:
       case ReportTemplate.softwareInventory:
@@ -991,6 +1390,84 @@ class ReportExporter {
           ),
         ];
     }
+  }
+
+  /// System Inventory PDF widgets — mirrors [_systemInventoryHtml], reusing
+  /// the shared [InventoryDetailSection] builders per P2 entry.
+  static List<pw.Widget> _systemInventoryPdfWidgets(ReportExportInput input) {
+    final widgets = <pw.Widget>[];
+    void addEntry(String heading, List<InventoryDetailSection> sections) {
+      widgets.addAll([
+        pw.Text(
+          heading,
+          style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 4),
+        ..._sectionsPdfWidgets(sections),
+        pw.SizedBox(height: 10),
+      ]);
+    }
+
+    for (final e in input.inventoryMotherboard?.motherboard ?? const []) {
+      addEntry(
+        'Motherboard — ${e.product.isEmpty ? e.id : e.product}',
+        motherboardDetailSections(e),
+      );
+    }
+    for (final e in input.inventoryBios?.bios ?? const []) {
+      addEntry(
+        'BIOS — ${e.vendor.isEmpty ? e.id : e.vendor}',
+        biosDetailSections(e),
+      );
+    }
+    for (final e in input.inventoryCpu?.cpu ?? const []) {
+      addEntry('CPU — ${e.name.isEmpty ? e.id : e.name}', cpuDetailSections(e));
+    }
+    for (final e in input.inventoryMemoryModules?.memoryModules ?? const []) {
+      addEntry(
+        'Memory — ${e.bankLocator.isEmpty ? e.id : e.bankLocator}',
+        memoryModuleDetailSections(e),
+      );
+    }
+    for (final e in input.inventoryStorage?.storage ?? const []) {
+      addEntry(
+        'Storage — ${e.model.isEmpty ? e.id : e.model}',
+        storageDetailSections(e),
+      );
+    }
+    for (final e
+        in input.inventoryNetworkAdapters?.networkAdapters ?? const []) {
+      addEntry(
+        'Network adapter — ${e.friendlyName.isEmpty ? e.id : e.friendlyName}',
+        networkAdapterDetailSections(e),
+      );
+    }
+    if (widgets.isEmpty) {
+      widgets.add(pw.Text('No system inventory snapshot available.'));
+    }
+    return widgets;
+  }
+
+  static List<pw.Widget> _sectionsPdfWidgets(
+    List<InventoryDetailSection> sections,
+  ) {
+    final widgets = <pw.Widget>[];
+    for (final section in sections) {
+      widgets.addAll([
+        pw.Text(
+          section.title,
+          style: pw.TextStyle(
+            fontSize: 9,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.grey700,
+          ),
+        ),
+        pw.SizedBox(height: 2),
+        _pdfKeyValueTable(section.fields),
+        pw.SizedBox(height: 4),
+      ]);
+    }
+    return widgets;
   }
 
   static pw.Widget _pdfKeyValueTable(List<(String, String)> rows) {
