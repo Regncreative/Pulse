@@ -226,6 +226,20 @@ std::vector<uint8_t> EncodeInventorySoftwareEntry(
   return out;
 }
 
+std::vector<uint8_t> EncodeInventoryUsbEntry(const InventoryUsbEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.description, &out);
+  WriteString(3, m.hardware_id, &out);
+  WriteString(4, m.manufacturer, &out);
+  WriteString(5, m.service, &out);
+  WriteString(6, m.class_name, &out);
+  WriteString(7, m.class_guid, &out);
+  WriteU32(8, m.problem_code, &out);
+  WriteBool(9, m.has_problem_code, &out);
+  return out;
+}
+
 std::vector<uint8_t> EncodeGetInventoryDomain(const GetInventoryDomain& m) {
   std::vector<uint8_t> out;
   WriteU32(1, static_cast<uint32_t>(m.domain), &out);
@@ -254,6 +268,9 @@ std::vector<uint8_t> EncodeInventoryDomainSnapshot(
   }
   for (const auto& e : m.software) {
     WriteBytesField(12, EncodeInventorySoftwareEntry(e), &out);
+  }
+  for (const auto& e : m.usb) {
+    WriteBytesField(13, EncodeInventoryUsbEntry(e), &out);
   }
   return out;
 }
@@ -1171,6 +1188,44 @@ bool DecodeInventorySoftwareEntry(const uint8_t* data, size_t len,
   return true;
 }
 
+bool DecodeInventoryUsbEntry(const uint8_t* data, size_t len,
+                             InventoryUsbEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->description)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->hardware_id)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->manufacturer)) return false;
+    } else if (field == 5 && wire == 2) {
+      if (!DecodeString(p, end, &m->service)) return false;
+    } else if (field == 6 && wire == 2) {
+      if (!DecodeString(p, end, &m->class_name)) return false;
+    } else if (field == 7 && wire == 2) {
+      if (!DecodeString(p, end, &m->class_guid)) return false;
+    } else if (field == 8 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->problem_code = static_cast<uint32_t>(v);
+    } else if (field == 9 && wire == 0) {
+      uint64_t v = 0;
+      if (!ReadVarint(p, end, &v)) return false;
+      m->has_problem_code = v != 0;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool DecodeGetInventoryDomain(const uint8_t* data, size_t len,
                               GetInventoryDomain* m) {
   const uint8_t* p = data;
@@ -1271,6 +1326,16 @@ bool DecodeInventoryDomainSnapshot(const uint8_t* data, size_t len,
         return false;
       }
       m->software.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 13 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryUsbEntry entry;
+      if (!DecodeInventoryUsbEntry(p, static_cast<size_t>(blen), &entry)) {
+        return false;
+      }
+      m->usb.push_back(std::move(entry));
       p += static_cast<size_t>(blen);
     } else if (!SkipField(wire, p, end)) {
       return false;

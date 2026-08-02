@@ -241,6 +241,31 @@ void main() {
     expect(snap.software.first.architecture, 'x64');
   });
 
+  test('InventoryDomainSnapshot R3 usb roundtrip', () {
+    final env = Envelope(
+      requestId: 41,
+      body: InventoryDomainSnapshot(
+        domain: InventoryDomainId.usb,
+        status: InventoryStatus.available,
+        generation: 5,
+        usb: [
+          InventoryUsbEntry(
+            id: r'USB\VID_046D&PID_C52B\5&12345678&0&2',
+            description: 'USB Receiver',
+            hardwareId: r'USB\VID_046D&PID_C52B',
+            manufacturer: 'Logitech',
+            className: 'USB',
+          ),
+        ],
+      ),
+    );
+    final decoded = decodeEnvelope(encodeEnvelope(env));
+    final snap = decoded.body! as InventoryDomainSnapshot;
+    expect(snap.usb, hasLength(1));
+    expect(snap.usb.first.manufacturer, 'Logitech');
+    expect(snap.usb.first.id, contains(r'USB\VID_046D'));
+  });
+
   test('GetInventoryDomain request roundtrip', () {
     final env = Envelope(
       requestId: 37,

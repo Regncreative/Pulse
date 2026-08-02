@@ -577,6 +577,38 @@ int main() {
     return 40;
   }
 
+  InventoryDomainSnapshot usb_snap;
+  usb_snap.domain = InventoryDomainId::Usb;
+  usb_snap.status = InventoryStatus::Available;
+  usb_snap.generation = 5;
+  InventoryUsbEntry usb;
+  usb.id = R"(USB\VID_046D&PID_C52B\5&12345678&0&2)";
+  usb.description = "USB Receiver";
+  usb.hardware_id = R"(USB\VID_046D&PID_C52B)";
+  usb.manufacturer = "Logitech";
+  usb.class_name = "USB";
+  usb_snap.usb.push_back(usb);
+  Envelope usb_env;
+  usb_env.request_id = 41;
+  usb_env.body = usb_snap;
+  std::vector<uint8_t> usb_payload;
+  if (!EncodeEnvelope(usb_env, &usb_payload)) {
+    std::cerr << "InventoryDomainSnapshot usb encode failed\n";
+    return 41;
+  }
+  Envelope usb_decoded;
+  if (!DecodeEnvelope(usb_payload.data(), usb_payload.size(), &usb_decoded) ||
+      !std::holds_alternative<InventoryDomainSnapshot>(usb_decoded.body)) {
+    std::cerr << "InventoryDomainSnapshot usb decode failed\n";
+    return 41;
+  }
+  const auto& usb_out = std::get<InventoryDomainSnapshot>(usb_decoded.body);
+  if (usb_out.usb.size() != 1 || usb_out.usb[0].id != usb.id ||
+      usb_out.usb[0].manufacturer != "Logitech") {
+    std::cerr << "InventoryDomainSnapshot usb payload mismatch\n";
+    return 41;
+  }
+
   std::cout << "pulse_wire_tests OK\n";
   return 0;
 }

@@ -3,6 +3,7 @@
 #include "inventory/drivers_collector.hpp"
 #include "inventory/services_collector.hpp"
 #include "inventory/software_collector.hpp"
+#include "inventory/usb_collector.hpp"
 
 #include <chrono>
 
@@ -82,6 +83,20 @@ ipc::InventoryDomainSnapshot InventoryEngine::CollectSoftware(
   return snap;
 }
 
+ipc::InventoryDomainSnapshot InventoryEngine::CollectUsb(std::uint32_t limit) {
+  const auto collected = UsbCollector::Collect(limit);
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Usb;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.usb = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = UsbCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
 ipc::InventoryDomainSnapshot InventoryEngine::CollectFresh(
     const CollectRequest& request) {
   switch (request.domain) {
@@ -92,6 +107,7 @@ ipc::InventoryDomainSnapshot InventoryEngine::CollectFresh(
     case ipc::InventoryDomainId::Software:
       return CollectSoftware(request.limit);
     case ipc::InventoryDomainId::Usb:
+      return CollectUsb(request.limit);
     case ipc::InventoryDomainId::Pci:
     case ipc::InventoryDomainId::Displays:
     case ipc::InventoryDomainId::Audio:
@@ -156,6 +172,9 @@ ipc::InventoryDomainSnapshot InventoryEngine::GetDomain(
   }
   if (request.domain == ipc::InventoryDomainId::Software) {
     return ServeCachedOrCollect(&software_, request);
+  }
+  if (request.domain == ipc::InventoryDomainId::Usb) {
+    return ServeCachedOrCollect(&usb_, request);
   }
 
   // Unimplemented domains: no cache fill of unsupported beyond response.

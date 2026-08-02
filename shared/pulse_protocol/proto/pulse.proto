@@ -651,6 +651,18 @@ message InventorySoftwareEntry {
   string architecture = 10;   // x64 | x86 (hive that owned the key)
 }
 
+message InventoryUsbEntry {
+  string id = 1;              // stable: Device Instance ID
+  string description = 2;
+  string hardware_id = 3;     // primary HardwareID
+  string manufacturer = 4;
+  string service = 5;
+  string class_name = 6;
+  string class_guid = 7;
+  uint32 problem_code = 8;
+  bool has_problem_code = 9;
+}
+
 message GetInventoryDomain {
   InventoryDomainId domain = 1;
   bool force_refresh = 2;
@@ -670,6 +682,7 @@ message InventoryDomainSnapshot {
   repeated InventoryServiceEntry services = 10;
   repeated InventoryDriverEntry drivers = 11;
   repeated InventorySoftwareEntry software = 12;
+  repeated InventoryUsbEntry usb = 13;
 }
 
 message Envelope {

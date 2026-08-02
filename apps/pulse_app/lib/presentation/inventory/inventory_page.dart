@@ -29,6 +29,7 @@ class _InventoryPageState extends State<InventoryPage> {
     _DomainTab(InventoryDomainId.services, 'Services', LucideIcons.cog),
     _DomainTab(InventoryDomainId.drivers, 'Drivers', LucideIcons.cpu),
     _DomainTab(InventoryDomainId.software, 'Software', LucideIcons.package),
+    _DomainTab(InventoryDomainId.usb, 'USB', LucideIcons.usb),
   ];
 
   InventoryDomainId _domain = InventoryDomainId.services;
@@ -158,6 +159,28 @@ class _InventoryPageState extends State<InventoryPage> {
                 'estimated_size_bytes': '${e.estimatedSizeBytes}',
               'system_component': e.systemComponent ? 'true' : 'false',
               'architecture': e.architecture,
+            },
+          ));
+        }
+      case InventoryDomainId.usb:
+        for (final e in snap.usb) {
+          rows.add(_InventoryRow(
+            id: e.id,
+            title: e.description.isEmpty ? e.id : e.description,
+            subtitle: [
+              if (e.manufacturer.isNotEmpty) e.manufacturer,
+              if (e.className.isNotEmpty) e.className,
+              if (e.hardwareId.isNotEmpty) e.hardwareId,
+            ].join(' · '),
+            details: {
+              'id': e.id,
+              'description': e.description,
+              'hardware_id': e.hardwareId,
+              'manufacturer': e.manufacturer,
+              'service': e.service,
+              'class_name': e.className,
+              'class_guid': e.classGuid,
+              if (e.hasProblemCode) 'problem_code': '${e.problemCode}',
             },
           ));
         }
@@ -456,6 +479,7 @@ class _StatusBanner extends StatelessWidget {
       InventoryDomainId.services => snapshot.services.length,
       InventoryDomainId.drivers => snapshot.drivers.length,
       InventoryDomainId.software => snapshot.software.length,
+      InventoryDomainId.usb => snapshot.usb.length,
       _ => 0,
     };
     return PulseCard(
