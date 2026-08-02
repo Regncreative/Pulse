@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { INVENTORY_TOOLS_REGISTERED } from "../src/catalog/v1.js";
 import { MetricsRegistry } from "../src/metrics/metrics.js";
 import { runMcpSelf } from "../src/tools/mcp/self.js";
 
@@ -31,7 +32,12 @@ describe("mcp.self", () => {
       ok: boolean;
       data: {
         versions: Record<string, unknown>;
-        capabilities: { tools: string[]; protocolFeatures: string[] };
+        capabilities: {
+          tools: string[];
+          protocolFeatures: string[];
+          inventoryToolsRegistered: string[];
+          inventoryToolsEnabled: boolean;
+        };
         servicePipeConnected: boolean;
       };
       observedAt: string;
@@ -41,7 +47,12 @@ describe("mcp.self", () => {
     expect(body.data.versions.mcpServer).toBe("0.1.0");
     expect(body.data.versions.ipcProtocol).toBe(1);
     expect(body.data.capabilities.tools).toContain("mcp.self");
+    expect(body.data.capabilities.tools).not.toContain("inventory.services");
     expect(body.data.capabilities.protocolFeatures).toContain("stdio");
+    expect(body.data.capabilities.inventoryToolsEnabled).toBe(false);
+    expect(body.data.capabilities.inventoryToolsRegistered).toEqual([
+      ...INVENTORY_TOOLS_REGISTERED,
+    ]);
     expect(body.observedAt).toBeTruthy();
     expect(body.generatedAt).toBeTruthy();
     // May or may not be connected depending on host; field must exist.

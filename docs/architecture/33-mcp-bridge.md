@@ -832,15 +832,25 @@ Each phase: unit tests for schemas, integration test against PulseService `--con
 
 ## 16.1 Future MCP — Inventory Engine (ADR-011)
 
-Shipped Inventory domains expose structured IPC snapshots today (`GetInventoryDomain`). Future PulseMCP tools (not registered until R5/R6 productization) should mirror:
+Shipped Inventory domains expose structured IPC snapshots today (`GetInventoryDomain`).
 
-| Tool (planned) | Domain | Stable id |
-|----------------|--------|-----------|
+**Schemas registered** under `apps/pulse_mcp/schemas/inventory/` and listed in
+`INVENTORY_TOOLS_REGISTERED` (`apps/pulse_mcp/src/catalog/v1.ts`).
+**Handlers remain disabled** (`inventoryToolsEnabled: false` in `mcp.self`) until
+the MCP Inventory milestone. Active tools stay `mcp.self` only.
+
+| Tool (registered, disabled) | Domain | Stable id |
+|-----------------------------|--------|-----------|
 | `inventory.services` | Services | SCM service name |
 | `inventory.drivers` | Drivers | SCM driver service key |
 | `inventory.software` | Software | ProductCode / uninstall key |
 | `inventory.usb` | USB | Device Instance ID |
 | `inventory.pci` | PCI | Device Instance Path |
+| `inventory.displays` | Displays | Device Instance ID |
+| `inventory.audio` | Audio | Device Instance ID |
+| `inventory.bluetooth` | Bluetooth | Device Instance ID |
+| `inventory.printers` | Printers | Spooler printer name |
+| `inventory.battery` | Battery | Instance ID or `system_power` |
 
 Payloads must remain structured (no UI-formatted strings). Status enum: `available` / `unsupported` / `access_denied` / `partial` / `error`.
 

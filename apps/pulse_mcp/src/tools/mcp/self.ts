@@ -2,6 +2,7 @@ import type { MetricsRegistry } from "../../metrics/metrics.js";
 import type { McpPolicy } from "../../policy/policy.js";
 import { failure, success, toMcpToolResult } from "../../response/envelope.js";
 import {
+  INVENTORY_TOOLS_REGISTERED,
   V1_PERMISSIONS,
   V1_PROTOCOL_FEATURES,
   V1_REPORT_FORMATS,
@@ -61,6 +62,8 @@ export async function runMcpSelf(ctx: McpSelfContext) {
       reportFormats: [...V1_REPORT_FORMATS],
       permissions: [...V1_PERMISSIONS],
       protocolFeatures: [...V1_PROTOCOL_FEATURES],
+      inventoryToolsRegistered: [...INVENTORY_TOOLS_REGISTERED],
+      inventoryToolsEnabled: false,
     },
     connectedClients: Math.max(1, metrics.connectedClients),
     requestsServed: metrics.requestsServed,

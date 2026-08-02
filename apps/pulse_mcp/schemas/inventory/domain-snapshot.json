@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pulse://mcp/schemas/inventory/domain-snapshot.json",
+  "title": "InventoryDomainSnapshot",
+  "description": "Structured Inventory Engine snapshot (ADR-011). Observation only. Tools disabled until MCP Inventory milestone.",
+  "type": "object",
+  "required": ["domain", "status", "generation", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "domain": {
+      "type": "string",
+      "enum": [
+        "services",
+        "drivers",
+        "software",
+        "usb",
+        "pci",
+        "displays",
+        "audio",
+        "bluetooth",
+        "printers",
+        "battery"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "available",
+        "unsupported",
+        "access_denied",
+        "partial",
+        "error"
+      ]
+    },
+    "status_detail": { "type": "string" },
+    "truncated": { "type": "boolean" },
+    "generation": { "type": "integer", "minimum": 0 },
+    "generated_at_unix_ms": { "type": "integer" },
+    "cache_ttl_ms": { "type": "integer", "minimum": 0 },
+    "full_resync": { "type": "boolean" },
+    "entries": {
+      "type": "array",
+      "items": { "type": "object" }
+    }
+  }
+}
