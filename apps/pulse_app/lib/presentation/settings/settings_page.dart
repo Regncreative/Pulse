@@ -20,6 +20,21 @@ import '../components/pulse_section_header.dart';
 import '../utils/pulse_snack.dart';
 import '../utils/pulse_user_errors.dart';
 
+/// Snap arbitrary persisted caps onto the Settings dropdown presets.
+int _nearestTimelineCap(int value) {
+  const presets = [500, 2000, 10000, 50000, 100000];
+  var best = presets.first;
+  var bestDelta = (value - best).abs();
+  for (final p in presets.skip(1)) {
+    final d = (value - p).abs();
+    if (d < bestDelta) {
+      best = p;
+      bestDelta = d;
+    }
+  }
+  return best;
+}
+
 enum _SettingsCategory {
   general,
   appearance,
@@ -596,13 +611,20 @@ class _SettingsPageState extends State<SettingsPage> {
               _SettingsRow(
                 icon: LucideIcons.listOrdered,
                 title: 'Maximum stored events',
-                subtitle: '${settings.maxStoredEvents} events in memory',
-                trailing: _PrefSlider(
-                  value: settings.maxStoredEvents,
-                  min: 50,
-                  max: 2000,
-                  divisions: 39,
-                  onCommit: (v) async {
+                subtitle:
+                    '${settings.maxStoredEvents} in memory · higher limits use more RAM',
+                trailing: DropdownButton<int>(
+                  value: _nearestTimelineCap(settings.maxStoredEvents),
+                  underline: const SizedBox.shrink(),
+                  items: const [
+                    DropdownMenuItem(value: 500, child: Text('500')),
+                    DropdownMenuItem(value: 2000, child: Text('2,000')),
+                    DropdownMenuItem(value: 10000, child: Text('10,000')),
+                    DropdownMenuItem(value: 50000, child: Text('50,000')),
+                    DropdownMenuItem(value: 100000, child: Text('100,000')),
+                  ],
+                  onChanged: (v) async {
+                    if (v == null) return;
                     await settings.setMaxStoredEvents(v);
                     if (context.mounted) {
                       _snack(context, 'Timeline limit set to $v');

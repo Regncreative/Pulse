@@ -165,7 +165,7 @@ class SettingsController extends ChangeNotifier {
   Future<void> load() async {
     _prefs = await SharedPreferences.getInstance();
     final p = _prefs!;
-    maxStoredEvents = p.getInt(_kMaxEvents) ?? 500;
+    maxStoredEvents = (p.getInt(_kMaxEvents) ?? 500).clamp(50, 100000);
     startupSnapshotSize = p.getInt(_kSnapshotSize) ?? 100;
     autoScroll = p.getBool(_kAutoScroll) ?? true;
     liveMonitoringEnabled = p.getBool(_kLiveMonitoring) ?? true;
@@ -199,7 +199,9 @@ class SettingsController extends ChangeNotifier {
   }
 
   Future<void> setMaxStoredEvents(int value) async {
-    maxStoredEvents = value.clamp(50, 2000);
+    // Flagship Timeline can retain up to 100k events in memory (RAM cost grows
+    // with message size). Default remains 500 for typical machines.
+    maxStoredEvents = value.clamp(50, 100000);
     await _prefs?.setInt(_kMaxEvents, maxStoredEvents);
     notifyListeners();
   }
@@ -466,7 +468,7 @@ class SettingsController extends ChangeNotifier {
   Future<void> applyFromMap(Map<String, dynamic> map) async {
     if (map.containsKey('max_stored_events')) {
       final v = map['max_stored_events'];
-      if (v is int) maxStoredEvents = v.clamp(50, 2000);
+      if (v is int) maxStoredEvents = v.clamp(50, 100000);
     }
     if (map.containsKey('startup_snapshot_size')) {
       final v = map['startup_snapshot_size'];
