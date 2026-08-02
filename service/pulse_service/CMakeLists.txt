@@ -64,6 +64,10 @@ add_executable(PulseService WIN32
   src/inventory/printers_collector.cpp
   src/inventory/battery_collector.cpp
   src/inventory/setupapi_device_enumerator.cpp
+  src/inventory/smbios_table.cpp
+  src/inventory/motherboard_collector.cpp
+  src/inventory/bios_collector.cpp
+  src/inventory/memory_modules_collector.cpp
   src/windows/wevt_helpers.cpp
   src/logging/logger.cpp
   src/util/config.cpp
@@ -268,6 +272,45 @@ target_include_directories(battery_collector_tests PRIVATE
 )
 target_link_libraries(battery_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32)
 add_test(NAME battery_collector_tests COMMAND battery_collector_tests)
+
+add_executable(motherboard_collector_tests
+  test/motherboard_collector_test.cpp
+  src/inventory/motherboard_collector.cpp
+  src/inventory/smbios_table.cpp
+)
+target_include_directories(motherboard_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(motherboard_collector_tests PRIVATE pulse_wire)
+add_test(NAME motherboard_collector_tests COMMAND motherboard_collector_tests)
+
+add_executable(bios_collector_tests
+  test/bios_collector_test.cpp
+  src/inventory/bios_collector.cpp
+  src/inventory/smbios_table.cpp
+)
+target_include_directories(bios_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(bios_collector_tests PRIVATE pulse_wire)
+add_test(NAME bios_collector_tests COMMAND bios_collector_tests)
+
+add_executable(memory_modules_collector_tests
+  test/memory_modules_collector_test.cpp
+  src/inventory/memory_modules_collector.cpp
+  src/inventory/smbios_table.cpp
+)
+target_include_directories(memory_modules_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(memory_modules_collector_tests PRIVATE pulse_wire)
+add_test(NAME memory_modules_collector_tests COMMAND memory_modules_collector_tests)
 
 add_executable(inventory_engine_smoke_tests
   test/inventory_engine_smoke_test.cpp
