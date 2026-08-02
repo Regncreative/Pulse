@@ -43,6 +43,19 @@
 | Citations | Microsoft Kernel-Power 41; EventLog 6008 previous shutdown unexpected |
 | FP notes | Long window can pair unrelated cycles; prefer nearest 6008 after 41. |
 
+### `service-crash-recover`
+
+| Field | Value |
+|-------|--------|
+| Title | Service crash and recovery |
+| Members | `Service Control Manager` **7031**, then `Service Control Manager` **7036** |
+| Window | 180 seconds |
+| Possible cause | A Windows service terminated unexpectedly and later reported a state change (often a recovery restart). |
+| Confidence | medium |
+| Next step | Confirm the service name in both events. Investigate repeated 7031 crashes for the same service. |
+| Citations | Microsoft SCM Event IDs 7031 / 7036 |
+| FP notes | Any 7036 after a 7031 within the window may pair unrelated services; prefer reviewing message text. |
+
 ### `display-tdr-4101`
 
 | Field | Value |

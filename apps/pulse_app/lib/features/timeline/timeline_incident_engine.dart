@@ -151,6 +151,28 @@ class TimelineIncidentEngine {
           'Long window can pair unrelated cycles; nearest 6008 after 41 is preferred.',
     ),
     TimelineCorrelationRule(
+      id: 'service-crash-recover',
+      title: 'Service crash and recovery',
+      windowMs: 180 * 1000,
+      steps: [
+        TimelineCorrelationStep(
+          providerContains: 'Service Control Manager',
+          winEventId: 7031,
+        ),
+        TimelineCorrelationStep(
+          providerContains: 'Service Control Manager',
+          winEventId: 7036,
+        ),
+      ],
+      possibleCause:
+          'A Windows service terminated unexpectedly and later reported a state change (often a recovery restart).',
+      confidence: TimelineRcaConfidence.medium,
+      nextStep:
+          'Confirm the service name in both events. Investigate repeated 7031 crashes for the same service.',
+      falsePositiveNotes:
+          'Any 7036 after a 7031 within the window may pair unrelated services; prefer reviewing message text.',
+    ),
+    TimelineCorrelationRule(
       id: 'display-tdr-4101',
       title: 'Display driver reset (TDR)',
       windowMs: 0,
@@ -172,44 +194,51 @@ class TimelineIncidentEngine {
   ];
 
   /// Build list items from newest-first events. Consumed events appear only inside incidents.
+  ///
+  /// Two-pass: (1) greedily form incidents from rule step-0 anchors, (2) emit in
+  /// list order so newer follow-ups are not prematurely flattened as lone rows.
+  /// Complexity: O(n · R · C) with C = candidates for a follow-up Event ID.
   List<TimelineListItem> buildItems(List<TimelineEvent> newestFirst) {
-    final remaining = List<TimelineEvent>.from(newestFirst);
-    final items = <TimelineListItem>[];
     final consumed = <String>{};
+    final incidentByMemberId = <String, TimelineIncident>{};
+    final byEventId = <int, List<TimelineEvent>>{};
+    for (final e in newestFirst) {
+      byEventId.putIfAbsent(e.winEventId, () => <TimelineEvent>[]).add(e);
+    }
 
-    while (remaining.isNotEmpty) {
-      final head = remaining.first;
-      if (consumed.contains(head.eventId)) {
-        remaining.removeAt(0);
-        continue;
-      }
-
-      TimelineIncident? incident;
+    for (final head in newestFirst) {
+      if (consumed.contains(head.eventId)) continue;
       for (final rule in rules) {
-        incident = _tryMatch(rule, remaining, consumed);
-        if (incident != null) break;
-      }
-
-      if (incident != null) {
-        items.add(TimelineIncidentItem(incident));
+        final incident = _tryMatchFromHead(rule, head, byEventId, consumed);
+        if (incident == null) continue;
         for (final e in incident.events) {
           consumed.add(e.eventId);
+          incidentByMemberId[e.eventId] = incident;
         }
-        remaining.removeWhere((e) => consumed.contains(e.eventId));
-      } else {
-        items.add(TimelineLoneEventItem(head));
-        consumed.add(head.eventId);
-        remaining.removeAt(0);
+        break;
       }
+    }
+
+    final items = <TimelineListItem>[];
+    final emittedIncidents = <String>{};
+    for (final e in newestFirst) {
+      final incident = incidentByMemberId[e.eventId];
+      if (incident != null) {
+        if (emittedIncidents.add(incident.id)) {
+          items.add(TimelineIncidentItem(incident));
+        }
+        continue;
+      }
+      items.add(TimelineLoneEventItem(e));
     }
     return items;
   }
 
-  TimelineRcaHint? hintForEvent(
+  /// RCA for [event] if it belongs to a matched incident in [items].
+  TimelineRcaHint? hintFromItems(
     TimelineEvent event,
-    List<TimelineEvent> newestFirst,
+    List<TimelineListItem> items,
   ) {
-    final items = buildItems(newestFirst);
     for (final item in items) {
       if (item is TimelineIncidentItem &&
           item.incident.events.any((e) => e.eventId == event.eventId)) {
@@ -219,25 +248,33 @@ class TimelineIncidentEngine {
     return null;
   }
 
-  TimelineIncident? _tryMatch(
+  TimelineRcaHint? hintForEvent(
+    TimelineEvent event,
+    List<TimelineEvent> newestFirst,
+  ) {
+    return hintFromItems(event, buildItems(newestFirst));
+  }
+
+  TimelineIncident? _tryMatchFromHead(
     TimelineCorrelationRule rule,
-    List<TimelineEvent> remaining,
+    TimelineEvent head,
+    Map<int, List<TimelineEvent>> byEventId,
     Set<String> alreadyConsumed,
   ) {
+    if (rule.steps.isEmpty) return null;
+    if (!_matchesStep(head, rule.steps.first)) return null;
+
     if (rule.singleton) {
-      final e = remaining.first;
-      if (alreadyConsumed.contains(e.eventId)) return null;
-      if (!_matchesStep(e, rule.steps.first)) return null;
       return TimelineIncident(
-        id: 'incident|${rule.id}|${e.eventId}',
+        id: 'incident|${rule.id}|${head.eventId}',
         title: rule.title,
         ruleId: rule.id,
-        events: [e],
+        events: [head],
         rca: TimelineRcaHint(
           possibleCause: rule.possibleCause,
           confidence: rule.confidence,
           nextStep: rule.nextStep,
-          relatedEventIds: [e.eventId],
+          relatedEventIds: [head.eventId],
           ruleId: rule.id,
         ),
       );
@@ -245,31 +282,22 @@ class TimelineIncidentEngine {
 
     if (rule.steps.length < 2) return null;
 
-    final firstStep = rule.steps.first;
-    final anchor = remaining.cast<TimelineEvent?>().firstWhere(
-          (e) =>
-              e != null &&
-              !alreadyConsumed.contains(e.eventId) &&
-              _matchesStep(e, firstStep),
-          orElse: () => null,
-        );
-    if (anchor == null) return null;
-
-    final members = <TimelineEvent>[anchor];
-    var cursorTime = anchor.timestampUnixMs;
+    final members = <TimelineEvent>[head];
+    var cursorTime = head.timestampUnixMs;
 
     for (var i = 1; i < rule.steps.length; i++) {
       final step = rule.steps[i];
+      final candidates = byEventId[step.winEventId];
+      if (candidates == null || candidates.isEmpty) return null;
+
       TimelineEvent? best;
       var bestDelta = 1 << 62;
-      for (final e in remaining) {
+      for (final e in candidates) {
         if (alreadyConsumed.contains(e.eventId)) continue;
         if (members.any((m) => m.eventId == e.eventId)) continue;
         if (!_matchesStep(e, step)) continue;
-        if (anchor.timestampUnixMs <= 0 || e.timestampUnixMs <= 0) continue;
-        // Prefer follow-up at or after the previous step (boot/WER typically later).
-        final delta = e.timestampUnixMs - cursorTime;
-        final absDelta = delta.abs();
+        if (head.timestampUnixMs <= 0 || e.timestampUnixMs <= 0) continue;
+        final absDelta = (e.timestampUnixMs - cursorTime).abs();
         if (absDelta > rule.windowMs) continue;
         if (absDelta < bestDelta) {
           bestDelta = absDelta;
@@ -282,7 +310,7 @@ class TimelineIncidentEngine {
     }
 
     return TimelineIncident(
-      id: 'incident|${rule.id}|${anchor.eventId}',
+      id: 'incident|${rule.id}|${head.eventId}',
       title: rule.title,
       ruleId: rule.id,
       events: members,

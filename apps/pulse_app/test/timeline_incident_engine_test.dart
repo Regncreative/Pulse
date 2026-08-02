@@ -79,6 +79,60 @@ void main() {
       expect(incident.memberCount, 1);
     });
 
+    test('service 7031+7036 pairs into incident', () {
+      final events = [
+        _ev(
+          id: 's2',
+          provider: 'Service Control Manager',
+          winEventId: 7036,
+          ts: 5_000,
+        ),
+        _ev(
+          id: 's1',
+          provider: 'Service Control Manager',
+          winEventId: 7031,
+          ts: 1_000,
+        ),
+      ];
+      final items = TimelineIncidentEngine().buildItems(events);
+      expect(items, hasLength(1));
+      expect(
+        (items.first as TimelineIncidentItem).incident.ruleId,
+        'service-crash-recover',
+      );
+    });
+
+    test('pairs when follow-up is newer (newest-first list)', () {
+      final events = [
+        _ev(
+          id: 'wer',
+          provider: 'Windows Error Reporting',
+          winEventId: 1001,
+          ts: 5_000,
+        ),
+        _ev(
+          id: 'crash',
+          provider: 'Application Error',
+          winEventId: 1000,
+          ts: 4_000,
+        ),
+        _ev(
+          id: 'other',
+          provider: 'Service Control Manager',
+          winEventId: 7036,
+          ts: 3_000,
+        ),
+      ];
+      final items = TimelineIncidentEngine().buildItems(events);
+      expect(items, hasLength(2));
+      expect(items[0], isA<TimelineIncidentItem>());
+      expect(
+        (items[0] as TimelineIncidentItem).incident.ruleId,
+        'app-crash-wer',
+      );
+      expect(items[1], isA<TimelineLoneEventItem>());
+    });
+
     test('unrelated events stay flat', () {
       final events = [
         _ev(
