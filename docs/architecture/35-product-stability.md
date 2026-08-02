@@ -155,4 +155,4 @@ Canonical archive: [archives/r1-soak-pass-2026-08-01.md](archives/r1-soak-pass-2
 
 R0 + R1 are closed. Future stability regressions found during later waves are fixed as defect work against the frozen Wave A bar; they do not reopen roadmap milestones without an ADR.
 
-Next milestone: **R2 Timeline Intelligence** per [34-engineering-roadmap.md](34-engineering-roadmap.md) — plan then implement; no R3 until R2 is complete.
+Next milestone: **R3 Inventory Engine** — requires accepted [ADR-011](decisions/) and approved [39-inventory-engine-r3.md](39-inventory-engine-r3.md). R2 is frozen ([archives/r2-validation-report-2026-08-02.md](archives/r2-validation-report-2026-08-02.md)).

@@ -222,7 +222,7 @@ flowchart TD
 
 | **Deps** | R1, ADR-011 |
 | **Risk** | High |
-| **Docs** | ADR-011, 19, 33 |
+| **Docs** | ADR-011, 19, 33, **[39-inventory-engine-r3.md](39-inventory-engine-r3.md)** (draft plan) |
 
 **Success metrics (all required for “R3 complete”; phases may ship incrementally):**
 

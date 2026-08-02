@@ -146,13 +146,14 @@ Rules are verified against **Microsoft-documented IDs** and host presence where 
 flutter test test/timeline_export_test.dart test/timeline_query_test.dart test/timeline_incident_engine_test.dart test/timeline_library_controller_test.dart test/timeline_perf_100k_test.dart
 
 # From VS x64 developer environment:
-cmake --build C:\dev\Pulse-service-build-r1 --config Debug --target event_intelligence_tests
+cmake --build C:\dev\Pulse-service-build-r1 --config Release --target event_intelligence_tests PulseService
 C:\dev\Pulse-service-build-r1\event_intelligence_tests.exe
 
-powershell -ExecutionPolicy Bypass -File tools/scripts/compare_event_viewer.ps1
-powershell -ExecutionPolicy Bypass -File tools/scripts/timeline_perf_100k.ps1
-powershell -ExecutionPolicy Bypass -File tools/scripts/validate_timeline_export.ps1
+# Flutter Windows release (short-path junction recommended on Unicode OneDrive paths):
+flutter build windows --release
 ```
+
+**Verified at freeze (2026-08-02):** Timeline Flutter suite PASS; `event_intelligence_tests OK` (Release); `PulseService` Release link OK; `flutter build windows --release` → `Pulse.exe` OK.
 
 ---
 
