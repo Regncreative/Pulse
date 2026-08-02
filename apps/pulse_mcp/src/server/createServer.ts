@@ -51,6 +51,10 @@ import { runObservationTool, type ToolRuntime } from "../tools/runTool.js";
 import { MCP_SERVER_VERSION } from "../version.js";
 import { PulseIpcError } from "../ipc/session.js";
 
+export interface SubscriptionView {
+  current: string[];
+}
+
 export interface CreateServerOptions {
   metrics: MetricsRegistry;
   policy: McpPolicy;
@@ -59,6 +63,8 @@ export interface CreateServerOptions {
   health: HealthCache;
   timeline: TimelineCache;
   diagnostics: DiagnosticsCache;
+  /** Optional live view of active resource subscriptions (for status.json). */
+  subscriptions?: SubscriptionView;
 }
 
 const SYSTEM_URIS = new Set([
@@ -140,6 +146,11 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   );
 
   const subscribed = new Set<string>();
+  const syncSubscriptions = () => {
+    if (opts.subscriptions) {
+      opts.subscriptions.current = [...subscribed];
+    }
+  };
   let lastPublishedJson = new Map<string, string>();
 
   const publishIfChanged = async (
@@ -845,6 +856,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
     }
     const already = subscribed.has(uri);
     subscribed.add(uri);
+    syncSubscriptions();
     if (SYSTEM_URIS.has(uri) && !already) {
       const systemCount = [...subscribed].filter((u) => SYSTEM_URIS.has(u))
         .length;
@@ -875,6 +887,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
     if (!subscribed.delete(uri)) {
       return {};
     }
+    syncSubscriptions();
     if (SYSTEM_URIS.has(uri)) {
       const systemCount = [...subscribed].filter((u) => SYSTEM_URIS.has(u))
         .length;

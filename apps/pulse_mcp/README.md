@@ -14,7 +14,7 @@ Architecture: [docs/architecture/33-mcp-bridge.md](../../docs/architecture/33-mc
 | **M4** | **Frozen** — `timeline.list` / `timeline.search` + `pulse://timeline/live` ([validation](../../docs/architecture/archives/mcp-m4-validation.md)) |
 | **M5** | **Frozen** — `diagnostics.snapshot`, `service.status`, diagnostics + mcp status resources ([validation](../../docs/architecture/archives/mcp-m5-validation.md)) |
 | **M6** | **Frozen** — `report.export` (json/csv/html/pdf/markdown) ([validation](../../docs/architecture/archives/mcp-m6-validation.md)) |
-| M7 | Not started (gated on M6 freeze) |
+| **M7** | **Frozen** — productization (Settings AI Integration, Diagnostics MCP, installer, Cursor registration) ([validation](../../docs/architecture/archives/mcp-m7-validation.md)) |
 
 ## M2 tools
 

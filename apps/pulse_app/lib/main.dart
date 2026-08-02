@@ -63,6 +63,7 @@ class PulseRoot extends StatelessWidget {
         ChangeNotifierProvider.value(value: services.serviceLifecycle),
         ChangeNotifierProvider.value(value: services.clientFrameMetrics),
         ChangeNotifierProvider.value(value: services.healthNavigation),
+        ChangeNotifierProvider.value(value: services.mcpIntegration),
       ],
       child: PulseApp(),
     );

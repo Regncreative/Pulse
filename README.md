@@ -194,6 +194,17 @@ Full prerequisites and flags: [BUILD.md](BUILD.md) · [DEVELOPMENT.md](DEVELOPME
 
 ---
 
+## AI Integration (MCP)
+
+Pulse ships **PulseMCP** — a read-only Model Context Protocol server for Cursor, Claude Desktop, and future clients.
+
+- Enable in **Settings → AI Integration** (opt-in policy file)
+- One-click **Register** for Cursor (global `~\.cursor\mcp.json`) with backup + safe merge
+- Diagnostics → **MCP** for live status metrics
+- Guides: [AI Integration](docs/guides/ai-integration.md) · [Installation](docs/guides/installation.md) · [Troubleshooting](docs/guides/troubleshooting.md) · [Security](docs/guides/security.md)
+
+---
+
 ## Development
 
 | Command | Description |

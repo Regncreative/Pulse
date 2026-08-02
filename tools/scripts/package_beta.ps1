@@ -163,6 +163,25 @@ if (-not $vcRedist) { throw "vc_redist.x64.exe not found under Visual Studio Red
 New-Item -ItemType Directory -Force -Path (Join-Path $dist "redist") | Out-Null
 Copy-Item $vcRedist (Join-Path $dist "redist\VC_redist.x64.exe") -Force
 
+Write-Host "==> Packaging PulseMCP"
+& powershell -ExecutionPolicy Bypass -File (Join-Path $root "tools\scripts\package_pulsemcp.ps1")
+if ($LASTEXITCODE -ne 0) { throw "package_pulsemcp.ps1 failed" }
+
+Write-Host "==> Copying AI Integration docs into payload"
+$docsOut = Join-Path $dist "docs\guides"
+New-Item -ItemType Directory -Force -Path $docsOut | Out-Null
+Copy-Item (Join-Path $root "docs\guides\ai-integration.md") $docsOut -Force
+$guideExtras = @(
+  "installation.md",
+  "troubleshooting.md",
+  "security.md",
+  "upgrade-notes.md"
+)
+foreach ($g in $guideExtras) {
+  $src = Join-Path $root "docs\guides\$g"
+  if (Test-Path $src) { Copy-Item $src $docsOut -Force }
+}
+
 Write-Host "==> Writing README for payload folder (advanced / portable)"
 @"
 Pulse payload folder (advanced)
@@ -174,8 +193,10 @@ This folder is the install payload. For developers:
 
   service\PulseService.exe --install-start   (elevated)
   Pulse.exe
+  PulseMCP.cmd                 (requires Node.js 20+ on PATH)
 
 Privacy: local-only. No telemetry. Observation only.
+MCP: enable in Settings → AI Integration. Policy: %LOCALAPPDATA%\Pulse\mcp\policy.json
 "@ | Set-Content -Path (Join-Path $dist "README_INSTALL.txt") -Encoding UTF8
 
 # Zip (payload / CI artifact - not the primary end-user deliverable)

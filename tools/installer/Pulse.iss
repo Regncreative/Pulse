@@ -68,6 +68,11 @@ Filename: "{app}\service\PulseService.exe"; \
   Parameters: "--uninstall"; \
   Flags: runhidden waituntilterminated; \
   RunOnceId: "UninstallPulseService"
+; Remove Pulse-created AI client MCP registrations only (never other servers).
+Filename: "{cmd}"; \
+  Parameters: "/c if exist ""{app}\PulseMCP.cmd"" (""{app}\PulseMCP.cmd"" --cleanup-registrations)"; \
+  Flags: runhidden waituntilterminated; \
+  RunOnceId: "CleanupPulseMcpRegistrations"
 
 [Code]
 function ExecChecked(const FileName, Params, WorkDir: String; var ResultCode: Integer): Boolean;

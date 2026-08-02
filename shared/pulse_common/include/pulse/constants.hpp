@@ -17,7 +17,7 @@ constexpr uint32_t kFrameMagic = 0x50554C53u; // 'P' 'U' 'L' 'S' little-endian a
 constexpr uint32_t kMaxFramePayloadBytes = 2u * 1024u * 1024u; // 2 MB
 
 constexpr uint32_t kProtocolVersion = 1;
-constexpr uint32_t kMaxPipeInstances = 4;
+constexpr uint32_t kMaxPipeInstances = 8;
 constexpr size_t kDefaultLiveQueueCapacity = 1000;
 
 // Pipe SDDL from architecture doc 05

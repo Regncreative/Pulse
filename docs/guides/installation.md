@@ -1,0 +1,23 @@
+# Pulse installation
+
+## Recommended
+
+1. Download `Pulse-Setup-<version>-windows-x64.exe`
+2. Run the Setup (UAC). It installs Visual C++ runtime, registers PulseService, and launches Pulse.
+3. Open **Settings → AI Integration** if you want MCP for AI clients.
+
+## Portable payload
+
+Advanced users can use the `dist\Pulse\` folder from packaging:
+
+- `Pulse.exe` — UI
+- `service\PulseService.exe --install-start` (elevated)
+- `PulseMCP.cmd` — MCP launcher (Node.js 20+ required)
+
+## Uninstall
+
+Use Windows Apps & features / the Start menu Uninstall entry. Uninstall:
+
+- Stops and removes PulseService
+- Runs PulseMCP `--cleanup-registrations` for Pulse-created AI client entries only
+- Leaves `%LOCALAPPDATA%\Pulse\` logs/policy unless you delete them manually

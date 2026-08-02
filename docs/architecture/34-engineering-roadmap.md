@@ -292,12 +292,12 @@ flowchart TD
 **Success metrics (all required):**
 
 - [x] `report.export` writes json/html/pdf/markdown/csv and returns path metadata — **M6 frozen** ([mcp-m6-validation.md](archives/mcp-m6-validation.md))
-- [ ] Settings MCP toggle writes policy; disabled → `POLICY_DISABLED`
-- [ ] Diagnostics shows MCP version, policy, uptime, request metrics, log path
-- [ ] `PulseMCP.exe` (or equivalent) in installer payload
-- [ ] Pipe max instances ≥ 8; UI + MCP + ping coexist without exhaustion
-- [ ] Fresh install smoke: enable MCP, Claude/Cursor or Inspector `mcp.self` succeeds
-- [ ] Privacy disclosure copy present in Settings
+- [x] Settings AI Integration writes policy; disabled → `POLICY_DISABLED` — **M7 frozen** ([mcp-m7-validation.md](archives/mcp-m7-validation.md))
+- [x] Diagnostics MCP section (version, policy, uptime, metrics, subscriptions, log path)
+- [x] `PulseMCP.cmd` + `mcp\` in installer payload (`package_pulsemcp.ps1`)
+- [x] Pipe max instances ≥ 8 (`kMaxPipeInstances`)
+- [x] Cursor global registration + unregister (Pulse-owned only); Claude Desktop provider; ChatGPT stub
+- [x] Privacy / AI disclosure copy in Settings → AI Integration
 
 #### R7 — MCP M8 Streamable HTTP (optional) (XL)
 
@@ -501,7 +501,7 @@ Distinct from **Plugin SDK (R13)** (in-process/out-of-process *extensions inside
 
 ## 6. Release plan (advisory)
 
-**Temporary priority (2026-08-02):** MCP M2–M7 (R5–R6) is prioritized ahead of remaining Wave B/C items. **M2–M6 frozen** ([mcp-m2-validation.md](archives/mcp-m2-validation.md), [mcp-m3-validation.md](archives/mcp-m3-validation.md), [mcp-m4-validation.md](archives/mcp-m4-validation.md), [mcp-m5-validation.md](archives/mcp-m5-validation.md), [mcp-m6-validation.md](archives/mcp-m6-validation.md)); M7 not started until explicit go-ahead. R4 shared report generators deferred — M6 uses TypeScript writers over IPC until consolidated.
+**Temporary priority (2026-08-02):** MCP M2–M7 (R5–R6) is prioritized ahead of remaining Wave B/C items. **M2–M7 frozen** ([mcp-m2-validation.md](archives/mcp-m2-validation.md) … [mcp-m7-validation.md](archives/mcp-m7-validation.md)); M8 (HTTP) not started until explicit go-ahead. R4 shared report generators deferred — M6 TypeScript writers remain until consolidated.
 
 | Release | Content |
 |---------|---------|

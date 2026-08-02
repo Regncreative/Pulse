@@ -8,10 +8,13 @@ import 'package:pulse_protocol/pulse_constants.dart';
 
 import '../../application/connection_controller.dart';
 import '../../application/diagnostics_controller.dart';
+import '../../application/mcp_integration_controller.dart';
 import '../../application/settings_controller.dart';
 import '../../application/timeline_session_controller.dart';
 import '../../app/theme/pulse_theme.dart';
 import '../../ipc/pulse_ipc_client.dart';
+import '../../mcp/mcp_paths.dart';
+import '../../mcp/providers/mcp_client_provider.dart';
 import '../components/pulse_app_bar.dart';
 import '../components/pulse_badge.dart';
 import '../components/pulse_button.dart';
@@ -43,6 +46,7 @@ enum _SettingsCategory {
   diagnostics,
   performance,
   privacy,
+  aiIntegration,
   updates,
   developer,
 }
@@ -56,6 +60,7 @@ extension on _SettingsCategory {
         _SettingsCategory.diagnostics => 'Diagnostics',
         _SettingsCategory.performance => 'Performance',
         _SettingsCategory.privacy => 'Privacy',
+        _SettingsCategory.aiIntegration => 'AI Integration',
         _SettingsCategory.updates => 'Updates',
         _SettingsCategory.developer => 'Developer',
       };
@@ -68,6 +73,7 @@ extension on _SettingsCategory {
         _SettingsCategory.diagnostics => LucideIcons.bug,
         _SettingsCategory.performance => LucideIcons.gauge,
         _SettingsCategory.privacy => LucideIcons.shieldCheck,
+        _SettingsCategory.aiIntegration => LucideIcons.bot,
         _SettingsCategory.updates => LucideIcons.download,
         _SettingsCategory.developer => LucideIcons.codeXml,
       };
@@ -169,6 +175,7 @@ class _SettingsPageState extends State<SettingsPage> {
       (c) => c.status.state,
     );
     final settings = context.watch<SettingsController>();
+    final mcp = context.watch<McpIntegrationController>();
     final ipc = context.watch<PulseIpcClient>();
     final diag = context.watch<DiagnosticsController>();
     final timeline = context.watch<TimelineSessionController>();
@@ -227,6 +234,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         context,
                         category: _category,
                         settings: settings,
+                        mcp: mcp,
                         timeline: timeline,
                         diag: diag,
                         serviceVersion: serviceVersion,
@@ -259,16 +267,207 @@ class _SettingsPageState extends State<SettingsPage> {
         'Balance responsiveness, detail, and battery.',
       _SettingsCategory.privacy =>
         'Everything stays on this PC. No accounts or telemetry.',
+      _SettingsCategory.aiIntegration =>
+        'Opt-in Pulse MCP for AI clients. Observation only. Consent required.',
       _SettingsCategory.updates => 'App and service version information.',
       _SettingsCategory.developer =>
         'Export, import, and reset local preferences.',
     };
   }
 
+  List<Widget> _buildAiIntegration(
+    BuildContext context,
+    McpIntegrationController mcp,
+  ) {
+    final st = mcp.status;
+    final launch = mcp.launchCommand?.display ?? 'PulseMCP not found';
+    final clientRows = <Widget>[];
+    for (final p in mcp.providers) {
+      final det = mcp.detections[p.id];
+      final reg = mcp.registered[p.id] == true;
+      final installed = det?.installed == true;
+      clientRows.add(const SoftDivider(indent: 52));
+      clientRows.add(
+        _SettingsRow(
+          icon: LucideIcons.sparkles,
+          title: p.id.displayName,
+          subtitle: installed
+              ? (reg
+                  ? 'Registered · ${det?.configPath ?? ''}'
+                  : (det?.detail ?? 'Detected'))
+              : (det?.detail ?? 'Not detected'),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (p.id != McpClientId.chatgpt)
+                PulseButton(
+                  label: reg ? 'Unregister' : 'Register',
+                  icon: reg ? LucideIcons.unlink : LucideIcons.link,
+                  variant: PulseButtonVariant.secondary,
+                  onPressed: mcp.busy
+                      ? null
+                      : () async {
+                          final result = reg
+                              ? await mcp.unregisterClient(p.id)
+                              : await mcp.registerClient(p.id);
+                          if (!context.mounted) return;
+                          _snack(
+                            context,
+                            result.message,
+                            error: !result.ok,
+                          );
+                        },
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return [
+      _SettingsGroup(
+        title: 'Pulse MCP',
+        children: [
+          _SettingsRow(
+            icon: LucideIcons.bot,
+            title: 'Enable Pulse MCP',
+            subtitle:
+                'Opt-in bridge for AI clients. Off by default. AI hosts may upload tool results to their cloud — Pulse does not.',
+            trailing: Switch(
+              value: mcp.enabled,
+              onChanged: mcp.busy
+                  ? null
+                  : (v) async {
+                      final msg = await mcp.setEnabled(v);
+                      if (!context.mounted) return;
+                      if (msg != null) _snack(context, msg);
+                    },
+            ),
+          ),
+          const SoftDivider(indent: 52),
+          _SettingsRow(
+            icon: LucideIcons.play,
+            title: 'Start Pulse MCP automatically with Pulse',
+            subtitle:
+                'Runs a local status heartbeat when Pulse starts. AI clients still launch their own MCP stdio session.',
+            trailing: Switch(
+              value: mcp.startWithPulse,
+              onChanged: (!mcp.enabled || mcp.busy)
+                  ? null
+                  : (v) async {
+                      final msg = await mcp.setStartWithPulse(v);
+                      if (!context.mounted) return;
+                      if (msg != null) _snack(context, msg);
+                    },
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: PulseTokens.spaceMd),
+      _SettingsGroup(
+        title: 'Status',
+        children: [
+          _SettingsRow(
+            icon: LucideIcons.activity,
+            title: 'MCP server status',
+            subtitle: st.running
+                ? 'Running (${st.mode ?? st.transport ?? 'stdio'})'
+                : 'Not running',
+            trailing: PulseBadge(
+              label: st.running ? 'Online' : 'Offline',
+              tone: st.running ? PulseBadgeTone.success : PulseBadgeTone.neutral,
+            ),
+          ),
+          const SoftDivider(indent: 52),
+          _SettingsRow(
+            icon: LucideIcons.tag,
+            title: 'MCP version',
+            subtitle: st.version ?? '—',
+          ),
+          const SoftDivider(indent: 52),
+          _SettingsRow(
+            icon: LucideIcons.radio,
+            title: 'Listening transport(s)',
+            subtitle: st.transport ?? (mcp.enabled ? 'stdio (on demand)' : '—'),
+          ),
+          const SoftDivider(indent: 52),
+          _SettingsRow(
+            icon: LucideIcons.users,
+            title: 'Active client count',
+            subtitle: '${st.connectedClients}',
+          ),
+          const SoftDivider(indent: 52),
+          _SettingsRow(
+            icon: LucideIcons.user,
+            title: 'Connected client names',
+            subtitle: st.clientNames.isEmpty
+                ? '—'
+                : st.clientNames.join(', '),
+          ),
+          const SoftDivider(indent: 52),
+          _SettingsRow(
+            icon: LucideIcons.terminal,
+            title: 'Launch command',
+            subtitle: launch,
+          ),
+          const SoftDivider(indent: 52),
+          _SettingsRow(
+            icon: LucideIcons.fileJson,
+            title: 'Policy file',
+            subtitle: McpPaths.policyFile,
+          ),
+        ],
+      ),
+      const SizedBox(height: PulseTokens.spaceMd),
+      _SettingsGroup(
+        title: 'AI clients',
+        children: [
+          _SettingsRow(
+            icon: LucideIcons.info,
+            title: 'Registration',
+            subtitle:
+                'Writes only the Pulse MCP server entry. Other MCP servers are left untouched. Config is backed up first.',
+          ),
+          ...clientRows,
+        ],
+      ),
+      const SizedBox(height: PulseTokens.spaceMd),
+      _SettingsGroup(
+        title: 'Help',
+        children: [
+          _SettingsRow(
+            icon: LucideIcons.scrollText,
+            title: 'Open logs',
+            subtitle: st.logPath ?? McpPaths.logsDir,
+            trailing: PulseButton(
+              label: 'Open',
+              icon: LucideIcons.folderOpen,
+              variant: PulseButtonVariant.secondary,
+              onPressed: () => mcp.openLogs(),
+            ),
+          ),
+          const SoftDivider(indent: 52),
+          _SettingsRow(
+            icon: LucideIcons.bookOpen,
+            title: 'Open MCP documentation',
+            subtitle: 'AI Integration guide',
+            trailing: PulseButton(
+              label: 'Open',
+              icon: LucideIcons.externalLink,
+              variant: PulseButtonVariant.secondary,
+              onPressed: () => mcp.openDocumentation(),
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
   List<Widget> _buildCategoryContent(
     BuildContext context, {
     required _SettingsCategory category,
     required SettingsController settings,
+    required McpIntegrationController mcp,
     required TimelineSessionController timeline,
     required DiagnosticsController diag,
     required String serviceVersion,
@@ -824,6 +1023,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ],
+      _SettingsCategory.aiIntegration => _buildAiIntegration(context, mcp),
       _SettingsCategory.privacy => [
           _SettingsGroup(
             title: 'Local-first',

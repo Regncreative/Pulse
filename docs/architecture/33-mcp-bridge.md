@@ -830,7 +830,7 @@ Dev:
 | **M4** | `timeline.list` / `timeline.search` + `pulse://timeline/live` | **Frozen** (2026-08-02) — [archives/mcp-m4-validation.md](archives/mcp-m4-validation.md) |
 | **M5** | `diagnostics.snapshot`, `service.status` + `pulse://diagnostics/snapshot`, `pulse://mcp/status` | **Frozen** (2026-08-02) — [archives/mcp-m5-validation.md](archives/mcp-m5-validation.md) |
 | **M6** | `report.export` (json/html/pdf/md/csv) | **Frozen** (2026-08-02) — [archives/mcp-m6-validation.md](archives/mcp-m6-validation.md) |
-| **M7** | Flutter MCP Diagnostics UI + installer + pipe max 8 | Three versions visible in UI |
+| **M7** | Flutter AI Integration + Diagnostics MCP + installer + pipe max 8 + client registration | **Frozen** (2026-08-02) — [archives/mcp-m7-validation.md](archives/mcp-m7-validation.md) |
 | **M8** | Streamable HTTP loopback + bearer (optional) | Spec-compliant HTTP transport |
 | **Later** | Full service catalog; `process.kill`; Prompts | Separate ADRs |
 

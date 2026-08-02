@@ -2,6 +2,7 @@ import '../application/client_frame_metrics.dart';
 import '../application/connection_controller.dart';
 import '../application/diagnostics_controller.dart';
 import '../application/health_navigation.dart';
+import '../application/mcp_integration_controller.dart';
 import '../application/service_lifecycle_controller.dart';
 import '../application/settings_controller.dart';
 import '../application/timeline_library_controller.dart';
@@ -21,6 +22,7 @@ class AppServices {
     required this.serviceLifecycle,
     required this.clientFrameMetrics,
     required this.healthNavigation,
+    required this.mcpIntegration,
   });
 
   final PulseIpcClient ipcClient;
@@ -33,6 +35,7 @@ class AppServices {
   final ServiceLifecycleController serviceLifecycle;
   final ClientFrameMetrics clientFrameMetrics;
   final HealthNavigation healthNavigation;
+  final McpIntegrationController mcpIntegration;
 
   static Future<AppServices> create() async {
     final logger = AppLogger();
@@ -60,6 +63,8 @@ class AppServices {
     final serviceLifecycle = ServiceLifecycleController(logger: logger);
     serviceLifecycle.startPolling();
     final healthNavigation = HealthNavigation();
+    final mcpIntegration = McpIntegrationController(logger: logger);
+    await mcpIntegration.load();
 
     // Attach before start so the connecting→connected edge is never missed.
     // Snapshot loading always goes through TimelineSessionController.reloadSnapshot
@@ -78,6 +83,7 @@ class AppServices {
       serviceLifecycle: serviceLifecycle,
       clientFrameMetrics: frameMetrics,
       healthNavigation: healthNavigation,
+      mcpIntegration: mcpIntegration,
     );
   }
 }
