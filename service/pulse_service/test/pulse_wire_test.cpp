@@ -609,6 +609,39 @@ int main() {
     return 41;
   }
 
+  InventoryDomainSnapshot pci_snap;
+  pci_snap.domain = InventoryDomainId::Pci;
+  pci_snap.status = InventoryStatus::Available;
+  pci_snap.generation = 6;
+  InventoryPciEntry pci;
+  pci.id = R"(PCI\VEN_10DE&DEV_2684&SUBSYS_1234&REV_A1\4&ABCD&0&0008)";
+  pci.description = "NVIDIA GeForce";
+  pci.hardware_id = R"(PCI\VEN_10DE&DEV_2684)";
+  pci.manufacturer = "NVIDIA";
+  pci.class_name = "Display";
+  pci.location_info = "PCI bus 1, device 0, function 0";
+  pci_snap.pci.push_back(pci);
+  Envelope pci_env;
+  pci_env.request_id = 42;
+  pci_env.body = pci_snap;
+  std::vector<uint8_t> pci_payload;
+  if (!EncodeEnvelope(pci_env, &pci_payload)) {
+    std::cerr << "InventoryDomainSnapshot pci encode failed\n";
+    return 42;
+  }
+  Envelope pci_decoded;
+  if (!DecodeEnvelope(pci_payload.data(), pci_payload.size(), &pci_decoded) ||
+      !std::holds_alternative<InventoryDomainSnapshot>(pci_decoded.body)) {
+    std::cerr << "InventoryDomainSnapshot pci decode failed\n";
+    return 42;
+  }
+  const auto& pci_out = std::get<InventoryDomainSnapshot>(pci_decoded.body);
+  if (pci_out.pci.size() != 1 || pci_out.pci[0].id != pci.id ||
+      pci_out.pci[0].location_info.empty()) {
+    std::cerr << "InventoryDomainSnapshot pci payload mismatch\n";
+    return 42;
+  }
+
   std::cout << "pulse_wire_tests OK\n";
   return 0;
 }

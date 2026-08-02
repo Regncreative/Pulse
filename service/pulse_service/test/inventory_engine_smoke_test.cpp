@@ -10,6 +10,7 @@ int main() {
       pulse::ipc::InventoryDomainId::Drivers,
       pulse::ipc::InventoryDomainId::Software,
       pulse::ipc::InventoryDomainId::Usb,
+      pulse::ipc::InventoryDomainId::Pci,
   };
 
   for (const auto domain : domains) {
@@ -33,7 +34,8 @@ int main() {
       continue;
     }
     const size_t count = snap.services.size() + snap.drivers.size() +
-                         snap.software.size() + snap.usb.size();
+                         snap.software.size() + snap.usb.size() +
+                         snap.pci.size();
     if (count == 0 &&
         snap.status == pulse::ipc::InventoryStatus::Available) {
       std::cerr << "domain " << static_cast<unsigned>(domain)

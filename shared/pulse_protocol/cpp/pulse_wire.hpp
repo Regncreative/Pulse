@@ -618,6 +618,19 @@ struct InventoryUsbEntry {
   bool has_problem_code = false;
 };
 
+struct InventoryPciEntry {
+  std::string id;
+  std::string description;
+  std::string hardware_id;
+  std::string manufacturer;
+  std::string service;
+  std::string class_name;
+  std::string class_guid;
+  std::string location_info;
+  uint32_t problem_code = 0;
+  bool has_problem_code = false;
+};
+
 struct GetInventoryDomain {
   InventoryDomainId domain = InventoryDomainId::Unspecified;
   bool force_refresh = false;
@@ -638,6 +651,7 @@ struct InventoryDomainSnapshot {
   std::vector<InventoryDriverEntry> drivers;
   std::vector<InventorySoftwareEntry> software;
   std::vector<InventoryUsbEntry> usb;
+  std::vector<InventoryPciEntry> pci;
 };
 
 struct Envelope {

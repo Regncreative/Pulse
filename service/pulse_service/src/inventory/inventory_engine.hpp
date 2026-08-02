@@ -40,6 +40,7 @@ class InventoryEngine {
   ipc::InventoryDomainSnapshot CollectDrivers(std::uint32_t limit);
   ipc::InventoryDomainSnapshot CollectSoftware(std::uint32_t limit);
   ipc::InventoryDomainSnapshot CollectUsb(std::uint32_t limit);
+  ipc::InventoryDomainSnapshot CollectPci(std::uint32_t limit);
   ipc::InventoryDomainSnapshot MakeUnsupported(
       ipc::InventoryDomainId domain, std::uint32_t ttl_ms) const;
   ipc::InventoryDomainSnapshot ServeCachedOrCollect(
@@ -50,6 +51,7 @@ class InventoryEngine {
   CachedDomain drivers_;
   CachedDomain software_;
   CachedDomain usb_;
+  CachedDomain pci_;
   std::uint64_t next_generation_ = 1;
 };
 

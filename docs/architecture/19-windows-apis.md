@@ -52,6 +52,7 @@ Observation-only. Linked as domains ship. Primary APIs:
 | Drivers | Same SCM APIs with `SERVICE_DRIVER` (SCM subset; not Driver Store) |
 | Software | `RegOpenKeyExW` / `RegEnumKeyExW` on HKLM Uninstall (+ WOW6432Node); HKCU/Store omitted |
 | USB | `SetupDiGetClassDevsW` enumerator `USB` + `SetupDiGetDeviceInstanceIdW`; fallback `CM_Get_Device_IDW` |
+| PCI | Same SetupAPI pattern with enumerator `PCI` (membership); GPU PCIe link stays Health enrichment |
 
 See [ADR-011](decisions/ADR-011-inventory-engine.md) for full domain catalog, fallbacks, and permissions.
 

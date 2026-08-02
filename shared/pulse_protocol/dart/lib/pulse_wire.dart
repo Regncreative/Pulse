@@ -269,6 +269,31 @@ class InventoryUsbEntry {
   bool hasProblemCode;
 }
 
+class InventoryPciEntry {
+  InventoryPciEntry({
+    this.id = '',
+    this.description = '',
+    this.hardwareId = '',
+    this.manufacturer = '',
+    this.service = '',
+    this.className = '',
+    this.classGuid = '',
+    this.locationInfo = '',
+    this.problemCode = 0,
+    this.hasProblemCode = false,
+  });
+  String id;
+  String description;
+  String hardwareId;
+  String manufacturer;
+  String service;
+  String className;
+  String classGuid;
+  String locationInfo;
+  int problemCode;
+  bool hasProblemCode;
+}
+
 class GetInventoryDomain {
   GetInventoryDomain({
     this.domain = InventoryDomainId.unspecified,
@@ -296,10 +321,12 @@ class InventoryDomainSnapshot {
     List<InventoryDriverEntry>? drivers,
     List<InventorySoftwareEntry>? software,
     List<InventoryUsbEntry>? usb,
+    List<InventoryPciEntry>? pci,
   })  : services = services ?? <InventoryServiceEntry>[],
         drivers = drivers ?? <InventoryDriverEntry>[],
         software = software ?? <InventorySoftwareEntry>[],
-        usb = usb ?? <InventoryUsbEntry>[];
+        usb = usb ?? <InventoryUsbEntry>[],
+        pci = pci ?? <InventoryPciEntry>[];
   InventoryDomainId domain;
   InventoryStatus status;
   String statusDetail;
@@ -312,6 +339,7 @@ class InventoryDomainSnapshot {
   List<InventoryDriverEntry> drivers;
   List<InventorySoftwareEntry> software;
   List<InventoryUsbEntry> usb;
+  List<InventoryPciEntry> pci;
 }
 
 class GetTimelineSnapshot {
@@ -1337,6 +1365,21 @@ Uint8List _encodeInventoryUsbEntry(InventoryUsbEntry m) {
   return out.toBytes();
 }
 
+Uint8List _encodeInventoryPciEntry(InventoryPciEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.description, out);
+  _writeString(3, m.hardwareId, out);
+  _writeString(4, m.manufacturer, out);
+  _writeString(5, m.service, out);
+  _writeString(6, m.className, out);
+  _writeString(7, m.classGuid, out);
+  _writeString(8, m.locationInfo, out);
+  _writeU64(9, m.problemCode, out);
+  _writeBool(10, m.hasProblemCode, out);
+  return out.toBytes();
+}
+
 Uint8List _encodeGetInventoryDomain(GetInventoryDomain m) {
   final out = BytesBuilder();
   _writeU64(1, m.domain.index, out);
@@ -1367,6 +1410,9 @@ Uint8List _encodeInventoryDomainSnapshot(InventoryDomainSnapshot m) {
   }
   for (final e in m.usb) {
     _writeBytesField(13, _encodeInventoryUsbEntry(e), out);
+  }
+  for (final e in m.pci) {
+    _writeBytesField(14, _encodeInventoryPciEntry(e), out);
   }
   return out.toBytes();
 }
@@ -2354,6 +2400,40 @@ InventoryUsbEntry _decodeInventoryUsbEntry(Uint8List data) {
   return m;
 }
 
+InventoryPciEntry _decodeInventoryPciEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryPciEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.description = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.hardwareId = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.manufacturer = r.readString();
+    } else if (field == 5 && wire == 2) {
+      m.service = r.readString();
+    } else if (field == 6 && wire == 2) {
+      m.className = r.readString();
+    } else if (field == 7 && wire == 2) {
+      m.classGuid = r.readString();
+    } else if (field == 8 && wire == 2) {
+      m.locationInfo = r.readString();
+    } else if (field == 9 && wire == 0) {
+      m.problemCode = r.readVarint();
+    } else if (field == 10 && wire == 0) {
+      m.hasProblemCode = r.readVarint() != 0;
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
 GetInventoryDomain _decodeGetInventoryDomain(Uint8List data) {
   final r = _Reader(data);
   final m = GetInventoryDomain();
@@ -2407,6 +2487,8 @@ InventoryDomainSnapshot _decodeInventoryDomainSnapshot(Uint8List data) {
       m.software.add(_decodeInventorySoftwareEntry(r.readBytes()));
     } else if (field == 13 && wire == 2) {
       m.usb.add(_decodeInventoryUsbEntry(r.readBytes()));
+    } else if (field == 14 && wire == 2) {
+      m.pci.add(_decodeInventoryPciEntry(r.readBytes()));
     } else {
       r.skip(wire);
     }

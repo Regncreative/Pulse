@@ -663,6 +663,19 @@ message InventoryUsbEntry {
   bool has_problem_code = 9;
 }
 
+message InventoryPciEntry {
+  string id = 1;              // stable: Device Instance Path / Instance ID
+  string description = 2;
+  string hardware_id = 3;     // primary HardwareID (PCI\\VEN_...&DEV_...)
+  string manufacturer = 4;
+  string service = 5;
+  string class_name = 6;
+  string class_guid = 7;
+  string location_info = 8;
+  uint32 problem_code = 9;
+  bool has_problem_code = 10;
+}
+
 message GetInventoryDomain {
   InventoryDomainId domain = 1;
   bool force_refresh = 2;
@@ -683,6 +696,7 @@ message InventoryDomainSnapshot {
   repeated InventoryDriverEntry drivers = 11;
   repeated InventorySoftwareEntry software = 12;
   repeated InventoryUsbEntry usb = 13;
+  repeated InventoryPciEntry pci = 14;
 }
 
 message Envelope {

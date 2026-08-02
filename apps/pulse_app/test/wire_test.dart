@@ -266,6 +266,31 @@ void main() {
     expect(snap.usb.first.id, contains(r'USB\VID_046D'));
   });
 
+  test('InventoryDomainSnapshot R3 pci roundtrip', () {
+    final env = Envelope(
+      requestId: 42,
+      body: InventoryDomainSnapshot(
+        domain: InventoryDomainId.pci,
+        status: InventoryStatus.available,
+        generation: 6,
+        pci: [
+          InventoryPciEntry(
+            id: r'PCI\VEN_10DE&DEV_2684&SUBSYS_1234&REV_A1\4&ABCD&0&0008',
+            description: 'NVIDIA GeForce',
+            hardwareId: r'PCI\VEN_10DE&DEV_2684',
+            manufacturer: 'NVIDIA',
+            className: 'Display',
+            locationInfo: 'PCI bus 1, device 0, function 0',
+          ),
+        ],
+      ),
+    );
+    final decoded = decodeEnvelope(encodeEnvelope(env));
+    final snap = decoded.body! as InventoryDomainSnapshot;
+    expect(snap.pci, hasLength(1));
+    expect(snap.pci.first.locationInfo, contains('PCI bus'));
+  });
+
   test('GetInventoryDomain request roundtrip', () {
     final env = Envelope(
       requestId: 37,

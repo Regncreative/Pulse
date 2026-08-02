@@ -57,6 +57,7 @@ add_executable(PulseService WIN32
   src/inventory/drivers_collector.cpp
   src/inventory/software_collector.cpp
   src/inventory/usb_collector.cpp
+  src/inventory/pci_collector.cpp
   src/inventory/setupapi_device_enumerator.cpp
   src/windows/wevt_helpers.cpp
   src/logging/logger.cpp
@@ -179,6 +180,20 @@ target_include_directories(usb_collector_tests PRIVATE
 target_link_libraries(usb_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32)
 add_test(NAME usb_collector_tests COMMAND usb_collector_tests)
 
+add_executable(pci_collector_tests
+  test/pci_collector_test.cpp
+  src/inventory/pci_collector.cpp
+  src/inventory/setupapi_device_enumerator.cpp
+  src/windows/wevt_helpers.cpp
+)
+target_include_directories(pci_collector_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(pci_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi setupapi cfgmgr32)
+add_test(NAME pci_collector_tests COMMAND pci_collector_tests)
+
 add_executable(inventory_engine_smoke_tests
   test/inventory_engine_smoke_test.cpp
   src/inventory/inventory_engine.cpp
@@ -186,6 +201,7 @@ add_executable(inventory_engine_smoke_tests
   src/inventory/drivers_collector.cpp
   src/inventory/software_collector.cpp
   src/inventory/usb_collector.cpp
+  src/inventory/pci_collector.cpp
   src/inventory/setupapi_device_enumerator.cpp
   src/windows/wevt_helpers.cpp
 )
