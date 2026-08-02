@@ -15,6 +15,7 @@ import '../components/service_status_card.dart';
 import '../diagnostics/diagnostics_page.dart';
 import '../health/health_view_models.dart';
 import '../health/system_health_page.dart';
+import '../inventory/inventory_page.dart';
 import '../reports/reports_page.dart';
 import '../settings/settings_page.dart';
 import '../timeline/timeline_page.dart';
@@ -25,10 +26,11 @@ import 'command_palette.dart';
 abstract final class PulseShellPages {
   static const timeline = 0;
   static const health = 1;
-  static const reports = 2;
-  static const diagnostics = 3;
-  static const settings = 4;
-  static const count = 5;
+  static const inventory = 2;
+  static const reports = 3;
+  static const diagnostics = 4;
+  static const settings = 5;
+  static const count = 6;
 }
 
 class AppShell extends StatefulWidget {
@@ -54,6 +56,11 @@ class _AppShellState extends State<AppShell> {
       selectedIcon: LucideIcons.heartPulse,
     ),
     PulseNavItem(
+      label: 'Inventory',
+      icon: LucideIcons.packageSearch,
+      selectedIcon: LucideIcons.packageSearch,
+    ),
+    PulseNavItem(
       label: 'Reports',
       icon: LucideIcons.fileText,
       selectedIcon: LucideIcons.fileText,
@@ -73,6 +80,7 @@ class _AppShellState extends State<AppShell> {
   static const _titles = [
     'Timeline',
     'System Health',
+    'Inventory',
     'Reports',
     'Diagnostics',
     'Settings',
@@ -134,6 +142,13 @@ class _AppShellState extends State<AppShell> {
         icon: LucideIcons.heartPulse,
         keywords: const ['navigate', 'page', 'health'],
         onInvoke: () => go(PulseShellPages.health),
+      ),
+      PulseCommand(
+        id: 'nav.inventory',
+        title: 'Go to Inventory',
+        icon: LucideIcons.packageSearch,
+        keywords: const ['navigate', 'page', 'services', 'drivers', 'software'],
+        onInvoke: () => go(PulseShellPages.inventory),
       ),
       PulseCommand(
         id: 'nav.reports',
@@ -248,20 +263,24 @@ class _AppShellState extends State<AppShell> {
         const SingleActivator(LogicalKeyboardKey.digit2, control: true):
             () => _selectPage(PulseShellPages.health),
         const SingleActivator(LogicalKeyboardKey.digit3, control: true):
-            () => _selectPage(PulseShellPages.reports),
+            () => _selectPage(PulseShellPages.inventory),
         const SingleActivator(LogicalKeyboardKey.digit4, control: true):
-            () => _selectPage(PulseShellPages.diagnostics),
+            () => _selectPage(PulseShellPages.reports),
         const SingleActivator(LogicalKeyboardKey.digit5, control: true):
+            () => _selectPage(PulseShellPages.diagnostics),
+        const SingleActivator(LogicalKeyboardKey.digit6, control: true):
             () => _selectPage(PulseShellPages.settings),
         const SingleActivator(LogicalKeyboardKey.digit1, meta: true):
             () => _selectPage(PulseShellPages.timeline),
         const SingleActivator(LogicalKeyboardKey.digit2, meta: true):
             () => _selectPage(PulseShellPages.health),
         const SingleActivator(LogicalKeyboardKey.digit3, meta: true):
-            () => _selectPage(PulseShellPages.reports),
+            () => _selectPage(PulseShellPages.inventory),
         const SingleActivator(LogicalKeyboardKey.digit4, meta: true):
-            () => _selectPage(PulseShellPages.diagnostics),
+            () => _selectPage(PulseShellPages.reports),
         const SingleActivator(LogicalKeyboardKey.digit5, meta: true):
+            () => _selectPage(PulseShellPages.diagnostics),
+        const SingleActivator(LogicalKeyboardKey.digit6, meta: true):
             () => _selectPage(PulseShellPages.settings),
       },
       child: Focus(
@@ -348,6 +367,8 @@ class _AppShellState extends State<AppShell> {
         return TimelinePage(title: title);
       case PulseShellPages.health:
         return SystemHealthPage(title: title);
+      case PulseShellPages.inventory:
+        return InventoryPage(title: title);
       case PulseShellPages.reports:
         return ReportsPage(title: title);
       case PulseShellPages.diagnostics:

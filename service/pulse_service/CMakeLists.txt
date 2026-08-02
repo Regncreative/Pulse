@@ -163,6 +163,22 @@ target_include_directories(software_collector_tests PRIVATE
 target_link_libraries(software_collector_tests PRIVATE pulse_wire Advapi32 Wevtapi)
 add_test(NAME software_collector_tests COMMAND software_collector_tests)
 
+add_executable(inventory_engine_smoke_tests
+  test/inventory_engine_smoke_test.cpp
+  src/inventory/inventory_engine.cpp
+  src/inventory/services_collector.cpp
+  src/inventory/drivers_collector.cpp
+  src/inventory/software_collector.cpp
+  src/windows/wevt_helpers.cpp
+)
+target_include_directories(inventory_engine_smoke_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${PULSE_ROOT}/shared/pulse_protocol/cpp"
+  "${PULSE_ROOT}/shared/pulse_common/include"
+)
+target_link_libraries(inventory_engine_smoke_tests PRIVATE pulse_wire Advapi32 Wevtapi)
+add_test(NAME inventory_engine_smoke_tests COMMAND inventory_engine_smoke_tests)
+
 add_executable(ipc_client_thread_lifetime_test
   test/ipc_client_thread_lifetime_test.cpp
 )
