@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 
+import { getSharedDiagnosticsCache } from "../src/diagnostics/cache.js";
 import { getSharedHealthCache } from "../src/health/cache.js";
 import { getSharedIpcSession } from "../src/ipc/session.js";
 import { PulseMcpLogger } from "../src/logging/logger.js";
@@ -10,10 +11,11 @@ import { createPulseMcpServer } from "../src/server/createServer.js";
 import { getSharedTimelineCache } from "../src/timeline/cache.js";
 
 describe("MCP integration (in-memory)", () => {
-  it("lists M2–M4 tools and mcp.self", async () => {
+  it("lists M2–M5 tools and mcp.self", async () => {
     const session = getSharedIpcSession();
     const health = getSharedHealthCache(session);
     const timeline = getSharedTimelineCache(session);
+    const diagnostics = getSharedDiagnosticsCache(session);
     const mcp = createPulseMcpServer({
       metrics: new MetricsRegistry(),
       policy: { enabled: true, path: "test-policy.json" },
@@ -21,6 +23,7 @@ describe("MCP integration (in-memory)", () => {
       session,
       health,
       timeline,
+      diagnostics,
     });
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
@@ -41,11 +44,15 @@ describe("MCP integration (in-memory)", () => {
     expect(names).toContain("process.details");
     expect(names).toContain("timeline.list");
     expect(names).toContain("timeline.search");
+    expect(names).toContain("diagnostics.snapshot");
+    expect(names).toContain("service.status");
 
     const resources = await client.listResources();
     const uris = resources.resources.map((r) => r.uri);
     expect(uris).toContain("pulse://system/cpu");
     expect(uris).toContain("pulse://timeline/live");
+    expect(uris).toContain("pulse://diagnostics/snapshot");
+    expect(uris).toContain("pulse://mcp/status");
 
     const self = await client.callTool({ name: "mcp.self", arguments: {} });
     const text = (self.content as Array<{ text?: string }>)[0]?.text ?? "";
@@ -64,6 +71,7 @@ describe("MCP integration (in-memory)", () => {
     const session = getSharedIpcSession();
     const health = getSharedHealthCache(session);
     const timeline = getSharedTimelineCache(session);
+    const diagnostics = getSharedDiagnosticsCache(session);
     const mcp = createPulseMcpServer({
       metrics: new MetricsRegistry(),
       policy: { enabled: false, path: "test-policy.json" },
@@ -71,6 +79,7 @@ describe("MCP integration (in-memory)", () => {
       session,
       health,
       timeline,
+      diagnostics,
     });
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();

@@ -28,21 +28,10 @@ export interface McpSelfContext {
   activeSubscriptions: string[];
 }
 
-export async function runMcpSelf(ctx: McpSelfContext) {
-  const tool = "mcp.self";
-  const started = Date.now();
-
-  if (!ctx.policy.enabled) {
-    const body = failure(
-      tool,
-      "POLICY_DISABLED",
-      "Pulse MCP bridge is disabled. Enable it in Pulse Settings, or set policy.json enabled=true.",
-      { policyPath: ctx.policy.path },
-    );
-    ctx.metrics.recordFailure(tool, Date.now() - started, "POLICY_DISABLED");
-    return toMcpToolResult(body);
-  }
-
+/** Shared status payload for mcp.self and pulse://mcp/status. */
+export async function buildMcpStatus(
+  ctx: McpSelfContext,
+): Promise<{ observedAt: string; data: Record<string, unknown>; ipcLatencyMs: number }> {
   let ipcError: string | null = null;
   const ipcStarted = Date.now();
   try {
@@ -57,7 +46,8 @@ export async function runMcpSelf(ctx: McpSelfContext) {
   const connected = ctx.session.connected;
 
   const data = {
-    enabledPolicy: true,
+    observedAt,
+    enabledPolicy: ctx.policy.enabled,
     uptimeSeconds: metrics.uptimeSeconds,
     transport: ctx.transport,
     versions: {
@@ -99,6 +89,25 @@ export async function runMcpSelf(ctx: McpSelfContext) {
     },
   };
 
+  return { observedAt, data, ipcLatencyMs };
+}
+
+export async function runMcpSelf(ctx: McpSelfContext) {
+  const tool = "mcp.self";
+  const started = Date.now();
+
+  if (!ctx.policy.enabled) {
+    const body = failure(
+      tool,
+      "POLICY_DISABLED",
+      "Pulse MCP bridge is disabled. Enable it in Pulse Settings, or set policy.json enabled=true.",
+      { policyPath: ctx.policy.path },
+    );
+    ctx.metrics.recordFailure(tool, Date.now() - started, "POLICY_DISABLED");
+    return toMcpToolResult(body);
+  }
+
+  const { observedAt, data, ipcLatencyMs } = await buildMcpStatus(ctx);
   const body = success(tool, data, {
     observedAt,
     mcpVersion: MCP_SERVER_VERSION,

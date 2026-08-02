@@ -32,6 +32,8 @@ export const V1_TOOLS = [
   "process.details",
   "timeline.list",
   "timeline.search",
+  "diagnostics.snapshot",
+  "service.status",
 ] as const;
 
 export const V1_TOOL_NAMESPACES = [
@@ -39,6 +41,8 @@ export const V1_TOOL_NAMESPACES = [
   "system",
   "process",
   "timeline",
+  "diagnostics",
+  "service",
 ] as const;
 
 export const V1_RESOURCES = [
@@ -48,9 +52,11 @@ export const V1_RESOURCES = [
   "pulse://system/network",
   "pulse://system/health",
   "pulse://timeline/live",
+  "pulse://diagnostics/snapshot",
+  "pulse://mcp/status",
 ] as const;
 
-/** Subscribable resource URIs (health + timeline live). */
+/** Subscribable resource URIs (health + timeline + diagnostics + mcp status). */
 export const V1_SUBSCRIPTIONS = [...V1_RESOURCES] as const;
 
 export const V1_REPORT_FORMATS = [

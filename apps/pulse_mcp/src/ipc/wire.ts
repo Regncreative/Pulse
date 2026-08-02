@@ -3,6 +3,8 @@
  * Field numbers match shared/pulse_protocol/proto/pulse.proto.
  */
 
+import { decodeDiagnosticsSnapshot } from "../diagnostics/decode.js";
+import type { DiagnosticsSnapshot } from "../diagnostics/types.js";
 import {
   decodeHealthSnapshot,
   decodeHealthUpdate,
@@ -127,6 +129,15 @@ export interface TimelineEventDetailMsg {
   detail: TimelineEventDetail;
 }
 
+export interface GetDiagnosticsSnapshotMsg {
+  type: "GetDiagnosticsSnapshot";
+}
+
+export interface DiagnosticsSnapshotMsg {
+  type: "DiagnosticsSnapshot";
+  snapshot: DiagnosticsSnapshot;
+}
+
 export interface ErrorResponseMsg {
   type: "ErrorResponse";
   code: number;
@@ -154,6 +165,8 @@ export type Body =
   | StopLiveMonitoringMsg
   | GetTimelineEventDetailMsg
   | TimelineEventDetailMsg
+  | GetDiagnosticsSnapshotMsg
+  | DiagnosticsSnapshotMsg
   | ErrorResponseMsg;
 
 export interface Envelope {
@@ -231,6 +244,9 @@ export function encodeEnvelope(env: Envelope): Uint8Array {
       break;
     case "StopHealthMonitoring":
       writeEmptyMessage(29, out);
+      break;
+    case "GetDiagnosticsSnapshot":
+      writeEmptyMessage(30, out);
       break;
     case "GetProcessDetails":
       writeBytesField(33, encodeGetProcessDetails(env.body), out);
@@ -345,6 +361,12 @@ export function decodeEnvelope(data: Uint8Array): Envelope {
           };
           break;
         }
+        case 31:
+          body = {
+            type: "DiagnosticsSnapshot",
+            snapshot: decodeDiagnosticsSnapshot(sub),
+          };
+          break;
         case 34:
           body = {
             type: "ProcessDetails",

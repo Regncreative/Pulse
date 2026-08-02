@@ -11,6 +11,11 @@ import {
   V1_TOOLS,
   V1_TOOL_NAMESPACES,
 } from "../catalog/v1.js";
+import type { DiagnosticsCache } from "../diagnostics/cache.js";
+import {
+  mapDiagnosticsSnapshot,
+  mapServiceStatus,
+} from "../diagnostics/mappers.js";
 import type { HealthCache } from "../health/cache.js";
 import {
   mapCpu,
@@ -38,7 +43,7 @@ import {
   filterTimelineEvents,
   type TimelineSearchFilters,
 } from "../timeline/query.js";
-import { runMcpSelf } from "../tools/mcp/self.js";
+import { buildMcpStatus, runMcpSelf } from "../tools/mcp/self.js";
 import { runObservationTool, type ToolRuntime } from "../tools/runTool.js";
 import { MCP_SERVER_VERSION } from "../version.js";
 import { PulseIpcError } from "../ipc/session.js";
@@ -50,6 +55,7 @@ export interface CreateServerOptions {
   session: IpcSession;
   health: HealthCache;
   timeline: TimelineCache;
+  diagnostics: DiagnosticsCache;
 }
 
 const SYSTEM_URIS = new Set([
@@ -60,6 +66,8 @@ const SYSTEM_URIS = new Set([
   "pulse://system/health",
 ]);
 const TIMELINE_LIVE_URI = "pulse://timeline/live";
+const DIAG_SNAPSHOT_URI = "pulse://diagnostics/snapshot";
+const MCP_STATUS_URI = "pulse://mcp/status";
 
 const SYSTEM_RESOURCE_META: Record<
   string,
@@ -90,6 +98,16 @@ const SYSTEM_RESOURCE_META: Record<
     description:
       "Live TimelineEvent pushes from Pulse Timeline Engine (StartLiveMonitoring).",
   },
+  "pulse://diagnostics/snapshot": {
+    name: "Diagnostics snapshot",
+    description:
+      "PulseService DiagnosticsSnapshot (on change / ≤5 s while subscribed).",
+  },
+  "pulse://mcp/status": {
+    name: "MCP status",
+    description:
+      "PulseMCP local status (versions, metrics, capabilities) on metric tick.",
+  },
 };
 
 export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
@@ -100,6 +118,7 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
     session: opts.session,
     health: opts.health,
     timeline: opts.timeline,
+    diagnostics: opts.diagnostics,
   };
 
   const server = new McpServer(
@@ -120,15 +139,32 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
   const subscribed = new Set<string>();
   let lastPublishedJson = new Map<string, string>();
 
-  const publishIfChanged = async (uri: string, payload: unknown) => {
-    const json = JSON.stringify(payload);
-    if (lastPublishedJson.get(uri) === json) return;
-    lastPublishedJson.set(uri, json);
+  const publishIfChanged = async (
+    uri: string,
+    payload: unknown,
+    compareKey?: string,
+  ) => {
+    const key = compareKey ?? JSON.stringify(payload);
+    if (lastPublishedJson.get(uri) === key) return;
+    lastPublishedJson.set(uri, key);
     try {
       await server.server.sendResourceUpdated({ uri });
     } catch {
       // Client may have disconnected.
     }
+  };
+
+  /** Exclude wall-clock / latency noise from mcp status change detection. */
+  const mcpStatusCompareKey = (data: Record<string, unknown>): string => {
+    const {
+      observedAt: _o,
+      uptimeSeconds: _u,
+      diagnostics,
+      ...rest
+    } = data;
+    const diag = (diagnostics ?? {}) as Record<string, unknown>;
+    const { ipcLatencyMs: _l, ...diagRest } = diag;
+    return JSON.stringify({ ...rest, diagnostics: diagRest });
   };
 
   const onHealthSample = () => {
@@ -556,10 +592,68 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
     },
   );
 
+  systemTool(
+    "diagnostics.snapshot",
+    "Diagnostics snapshot",
+    "PulseService DiagnosticsSnapshot via GetDiagnosticsSnapshot. Structured JSON only.",
+    z.object({ forceRefresh: z.boolean().optional() }),
+    async (args) => {
+      const snap = await opts.diagnostics.ensureSnapshot(
+        (args as { forceRefresh?: boolean }).forceRefresh === true,
+      );
+      return mapDiagnosticsSnapshot(snap);
+    },
+  );
+
+  systemTool(
+    "service.status",
+    "PulseService status",
+    "PulseService SCM/identity subset from DiagnosticsSnapshot. Not the full Windows Services catalog. Structured JSON only.",
+    z.object({ forceRefresh: z.boolean().optional() }),
+    async (args) => {
+      const snap = await opts.diagnostics.ensureSnapshot(
+        (args as { forceRefresh?: boolean }).forceRefresh === true,
+      );
+      return mapServiceStatus(snap);
+    },
+  );
+
   opts.timeline.onLiveEvent((event) => {
     if (!subscribed.has(TIMELINE_LIVE_URI)) return;
     void publishIfChanged(TIMELINE_LIVE_URI, mapTimelineEvent(event));
   });
+
+  opts.diagnostics.onChange((snap) => {
+    if (!subscribed.has(DIAG_SNAPSHOT_URI)) return;
+    void publishIfChanged(DIAG_SNAPSHOT_URI, mapDiagnosticsSnapshot(snap));
+  });
+
+  let mcpStatusTimer: NodeJS.Timeout | null = null;
+  const tickMcpStatus = () => {
+    void (async () => {
+      if (!subscribed.has(MCP_STATUS_URI) || !opts.policy.enabled) return;
+      try {
+        const { data } = await buildMcpStatus({
+          metrics: opts.metrics,
+          policy: opts.policy,
+          logPath: opts.logger.logPath,
+          transport: "stdio",
+          session: opts.session,
+          activeSubscriptions: [...subscribed],
+        });
+        await publishIfChanged(
+          MCP_STATUS_URI,
+          data,
+          mcpStatusCompareKey(data),
+        );
+      } catch (err) {
+        opts.logger.warn("resource.publish_fail", {
+          uri: MCP_STATUS_URI,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    })();
+  };
 
   for (const uri of V1_RESOURCES) {
     const meta = SYSTEM_RESOURCE_META[uri]!;
@@ -601,6 +695,37 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
                 uri,
                 mimeType: "application/json",
                 text: JSON.stringify(payload),
+              },
+            ],
+          };
+        }
+        if (uri === DIAG_SNAPSHOT_URI) {
+          const dsnap = await opts.diagnostics.ensureSnapshot();
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: "application/json",
+                text: JSON.stringify(mapDiagnosticsSnapshot(dsnap)),
+              },
+            ],
+          };
+        }
+        if (uri === MCP_STATUS_URI) {
+          const { data } = await buildMcpStatus({
+            metrics: opts.metrics,
+            policy: opts.policy,
+            logPath: opts.logger.logPath,
+            transport: "stdio",
+            session: opts.session,
+            activeSubscriptions: [...subscribed],
+          });
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: "application/json",
+                text: JSON.stringify(data),
               },
             ],
           };
@@ -656,6 +781,15 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
     if (uri === TIMELINE_LIVE_URI && !already) {
       await opts.timeline.addLiveSubscriber();
     }
+    if (uri === DIAG_SNAPSHOT_URI && !already) {
+      await opts.diagnostics.addPollSubscriber();
+    }
+    if (uri === MCP_STATUS_URI && !already) {
+      if (!mcpStatusTimer) {
+        mcpStatusTimer = setInterval(tickMcpStatus, 2000);
+      }
+      tickMcpStatus();
+    }
     opts.logger.info("resource.subscribe", { uri, count: subscribed.size });
     lastPublishedJson.delete(uri);
     if (SYSTEM_URIS.has(uri)) onHealthSample();
@@ -676,6 +810,15 @@ export function createPulseMcpServer(opts: CreateServerOptions): McpServer {
     }
     if (uri === TIMELINE_LIVE_URI) {
       await opts.timeline.removeLiveSubscriber();
+    }
+    if (uri === DIAG_SNAPSHOT_URI) {
+      await opts.diagnostics.removePollSubscriber();
+    }
+    if (uri === MCP_STATUS_URI && !subscribed.has(MCP_STATUS_URI)) {
+      if (mcpStatusTimer) {
+        clearInterval(mcpStatusTimer);
+        mcpStatusTimer = null;
+      }
     }
     if (subscribed.size === 0) lastPublishedJson.clear();
     opts.logger.info("resource.unsubscribe", { uri, count: subscribed.size });

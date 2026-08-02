@@ -278,11 +278,11 @@ flowchart TD
 - [x] Tools live: `system.health`, `system.cpu`, `system.memory`, `system.gpu`, `system.storage`, `system.network` *(M2 frozen 2026-08-02)*
 - [x] Tools live: `process.list`, `process.search`, `process.details` with filters + pagination + stable ids *(M3 frozen 2026-08-02)*
 - [x] Tools live: `timeline.list`, `timeline.search` with documented filters *(M4 frozen 2026-08-02)*
-- [ ] Tools live: `diagnostics.snapshot`, `service.status` (PulseService-only until inventory MCP follow-up)
-- [x] Resources + subscriptions for CPU/Memory/GPU/Network/Health/Timeline; unchanged payloads not published *(M2+M4)*
-- [ ] Every tool: unit + IPC integration + MCP client test green
-- [ ] `mcp.self` capabilities list matches registered tools/resources
-- [ ] Structured errors + `observedAt` / `generatedAt` on all tool responses
+- [x] Tools live: `diagnostics.snapshot`, `service.status` (PulseService-only until inventory MCP follow-up) — **M5 frozen** ([mcp-m5-validation.md](archives/mcp-m5-validation.md))
+- [x] Resources + subscriptions for CPU/Memory/GPU/Network/Health/Timeline/Diagnostics/MCP status; unchanged payloads not published *(M2+M4+M5)*
+- [x] Every M2–M5 tool: unit + IPC integration + MCP client test green *(through M5)*
+- [x] `mcp.self` capabilities list matches registered tools/resources *(through M5)*
+- [x] Structured errors + `observedAt` / `generatedAt` on all tool responses *(through M5)*
 
 #### R6 — MCP M6–M7 productize (L)
 
@@ -501,7 +501,7 @@ Distinct from **Plugin SDK (R13)** (in-process/out-of-process *extensions inside
 
 ## 6. Release plan (advisory)
 
-**Temporary priority (2026-08-02):** MCP M2–M7 (R5–R6) is prioritized ahead of remaining Wave B/C items. **M2–M4 frozen** ([mcp-m2-validation.md](archives/mcp-m2-validation.md), [mcp-m3-validation.md](archives/mcp-m3-validation.md), [mcp-m4-validation.md](archives/mcp-m4-validation.md)); M5 not started. R4 shared report generators deferred — M6 will use TypeScript writers over IPC until consolidated.
+**Temporary priority (2026-08-02):** MCP M2–M7 (R5–R6) is prioritized ahead of remaining Wave B/C items. **M2–M5 frozen** ([mcp-m2-validation.md](archives/mcp-m2-validation.md), [mcp-m3-validation.md](archives/mcp-m3-validation.md), [mcp-m4-validation.md](archives/mcp-m4-validation.md), [mcp-m5-validation.md](archives/mcp-m5-validation.md)); M6 not started until explicit go-ahead. R4 shared report generators deferred — M6 will use TypeScript writers over IPC until consolidated.
 
 | Release | Content |
 |---------|---------|

@@ -12,7 +12,8 @@ Architecture: [docs/architecture/33-mcp-bridge.md](../../docs/architecture/33-mc
 | **M2** | **Frozen** — `system.*` tools + `pulse://system/*` ([validation](../../docs/architecture/archives/mcp-m2-validation.md)) |
 | **M3** | **Frozen** — `process.list` / `process.search` / `process.details` ([validation](../../docs/architecture/archives/mcp-m3-validation.md)) |
 | **M4** | **Frozen** — `timeline.list` / `timeline.search` + `pulse://timeline/live` ([validation](../../docs/architecture/archives/mcp-m4-validation.md)) |
-| M5–M7 | Not started (gated on M4 freeze) |
+| **M5** | **Frozen** — `diagnostics.snapshot`, `service.status`, diagnostics + mcp status resources ([validation](../../docs/architecture/archives/mcp-m5-validation.md)) |
+| M6–M7 | Not started (gated on M5 freeze) |
 
 ## M2 tools
 
@@ -44,6 +45,18 @@ Stable id = `pid` + `createTime` when known. Inventory fields absent on the wire
 | `timeline.search` | Snapshot + Flutter-aligned client filters |
 
 `includeRaw` defaults **false**. Explicit Security channel requests return `ACCESS_DENIED` when the service account cannot open the Security log (`securityChannelAvailable` reports probe result).
+
+## M5 tools
+
+| Tool | Source |
+|------|--------|
+| `diagnostics.snapshot` | `GetDiagnosticsSnapshot` (Diagnostics Engine) |
+| `service.status` | PulseService SCM/identity subset only — **not** full Windows Services catalog |
+
+## M5 resources (subscribable)
+
+- `pulse://diagnostics/snapshot` — poll ≤5 s while subscribed; publish on meaningful change
+- `pulse://mcp/status` — local MCP status (`mcp.self` payload); publish on metric/capability change
 
 ## M4 resources (subscribable)
 

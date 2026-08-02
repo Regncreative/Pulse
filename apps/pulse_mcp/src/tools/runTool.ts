@@ -1,3 +1,4 @@
+import type { DiagnosticsCache } from "../diagnostics/cache.js";
 import type { HealthCache } from "../health/cache.js";
 import type { PulseMcpLogger } from "../logging/logger.js";
 import type { MetricsRegistry } from "../metrics/metrics.js";
@@ -22,6 +23,7 @@ export interface ToolRuntime {
   session: IpcSession;
   health: HealthCache;
   timeline: TimelineCache;
+  diagnostics: DiagnosticsCache;
 }
 
 export async function runObservationTool(
