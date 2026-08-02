@@ -54,7 +54,7 @@ describe("mcp.self", () => {
     };
     expect(body.ok).toBe(true);
     expect(body.data.versions.mcpServer).toBe("0.7.0");
-    expect(body.data.versions.pulseApp).toBe("0.2.1-beta");
+    expect(body.data.versions.pulseApp).toBe("0.3.0-beta");
     expect(body.data.versions.ipcProtocol).toBe(1);
     expect(body.data.namespaces).toContain("system");
     expect(body.data.namespaces).toContain("process");

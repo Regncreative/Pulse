@@ -9,8 +9,8 @@ constexpr const char* kProductName = "Pulse";
 constexpr const char* kServiceName = "PulseService";
 constexpr const char* kServiceDisplayName = "Pulse";
 constexpr const char* kPipeName = "\\\\.\\pipe\\PulseService";
-constexpr const char* kServiceVersion = "0.2.1-beta";
-constexpr const char* kAppVersion = "0.2.1-beta";
+constexpr const char* kServiceVersion = "0.3.0-beta";
+constexpr const char* kAppVersion = "0.3.0-beta";
 
 // Framing: magic "PULS" + uint32 LE length + protobuf payload
 constexpr uint32_t kFrameMagic = 0x50554C53u; // 'P' 'U' 'L' 'S' little-endian as bytes PULS

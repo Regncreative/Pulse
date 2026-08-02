@@ -43,7 +43,7 @@ flutter run -d windows
 .\tools\scripts\package_beta.ps1
 ```
 
-Produces `dist\Pulse-Setup-0.2.1-beta-windows-x64.exe`, `dist\Pulse\`, and `dist\Pulse-0.2.1-beta-windows-x64.zip`. See [docs/architecture/25-beta-release.md](docs/architecture/25-beta-release.md).
+Produces `dist\Pulse-Setup-0.3.0-beta-windows-x64.exe`, `dist\Pulse\`, and `dist\Pulse-0.3.0-beta-windows-x64.zip`. See [docs/architecture/25-beta-release.md](docs/architecture/25-beta-release.md).
 
 ## Install service (optional)
 

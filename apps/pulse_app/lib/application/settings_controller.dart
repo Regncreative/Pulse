@@ -38,7 +38,7 @@ class SettingsController extends ChangeNotifier {
   static const _kShowAdvancedDiagnostics = 'diagnostics.show_advanced';
   static const _kExportDirectory = 'exports.directory';
 
-  static const String buildDate = '2026-07-30';
+  static const String buildDate = '2026-08-02';
   static const int defaultCustomAccentArgb = 0xFF60CDFF;
   static const String defaultSettingsExportFileName = 'settings-export.json';
   static const String releasesUrl =

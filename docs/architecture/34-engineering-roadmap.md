@@ -506,7 +506,7 @@ Distinct from **Plugin SDK (R13)** (in-process/out-of-process *extensions inside
 | Release | Content |
 |---------|---------|
 | **0.2.1-beta** | R0 + R1 (+ R2/R3 shipped in practice) |
-| **0.3.0-beta** | R2 Timeline Intelligence |
+| **0.3.0-beta** | MCP M2–M7 productization (AI Integration) |
 | **0.3.5-beta** | R3 Inventory (phased) |
 | **0.4.0-beta** | R4 Reports first-class |
 | **0.5.0-beta** | R5–R6 MCP core product |
