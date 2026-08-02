@@ -94,6 +94,22 @@ std::string ReadInstanceId(HDEVINFO set, SP_DEVINFO_DATA* info) {
   return {};
 }
 
+/// Best-effort product token from a DiskDrive instance id
+/// (e.g. SCSI\DISK&VEN_NVME&PROD_SAMSUNG_SSD_980\...). Observed string only.
+std::string ProductFromInstanceId(const std::string& instance_id) {
+  const std::string key = "PROD_";
+  const size_t start = instance_id.find(key);
+  if (start == std::string::npos) return {};
+  size_t end = instance_id.find('\\', start);
+  if (end == std::string::npos) end = instance_id.find('&', start + key.size());
+  if (end == std::string::npos) end = instance_id.size();
+  std::string product = instance_id.substr(start + key.size(), end - start - key.size());
+  for (char& c : product) {
+    if (c == '_') c = ' ';
+  }
+  return TrimCopy(product);
+}
+
 /// IOCTL enrichment for one open disk handle. Returns true if any field was
 /// populated (i.e. the handle could be queried at all).
 bool EnrichViaIoctl(HANDLE disk, ipc::InventoryStorageEntry* entry) {
@@ -158,7 +174,8 @@ bool EnrichViaIoctl(HANDLE disk, ipc::InventoryStorageEntry* entry) {
   if (DeviceIoControl(disk, IOCTL_DISK_GET_LENGTH_INFO, nullptr, 0,
                       &length_info, sizeof(length_info), &length_bytes,
                       nullptr) &&
-      length_bytes >= sizeof(length_info)) {
+      length_bytes >= sizeof(length_info) &&
+      length_info.Length.QuadPart > 0) {
     any = true;
     entry->size_bytes = static_cast<uint64_t>(length_info.Length.QuadPart);
     entry->has_size_bytes = true;
@@ -172,6 +189,12 @@ bool EnrichViaIoctl(HANDLE disk, ipc::InventoryStorageEntry* entry) {
     any = true;
     entry->sector_size_bytes = geometry.Geometry.BytesPerSector;
     entry->has_sector_size_bytes = true;
+    // Geometry DiskSize is available with query-only handles when
+    // IOCTL_DISK_GET_LENGTH_INFO is denied.
+    if (!entry->has_size_bytes && geometry.DiskSize.QuadPart > 0) {
+      entry->size_bytes = static_cast<uint64_t>(geometry.DiskSize.QuadPart);
+      entry->has_size_bytes = true;
+    }
   }
 
   STORAGE_PROPERTY_QUERY seek_query{};
@@ -300,8 +323,11 @@ StorageCollector::Result StorageCollector::Collect(std::uint32_t limit) {
       entry.description = ReadRegistryPropertyString(set, &info, SPDRP_DEVICEDESC);
     }
     entry.manufacturer = ReadRegistryPropertyString(set, &info, SPDRP_MFG);
+    // Interface path is always available from SetupAPI (even when CreateFile
+    // for IOCTL enrichment is denied).
+    entry.device_path = wevt::WideToUtf8(detail->DevicePath);
 
-    const HANDLE disk = CreateFileW(detail->DevicePath, GENERIC_READ,
+    const HANDLE disk = CreateFileW(detail->DevicePath, 0,
                                     FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                                     OPEN_EXISTING, 0, nullptr);
     if (disk != INVALID_HANDLE_VALUE) {
@@ -313,6 +339,16 @@ StorageCollector::Result StorageCollector::Collect(std::uint32_t limit) {
       CloseHandle(disk);
     } else {
       any_ioctl_attempt_failed = true;
+    }
+
+    // When IOCTL model/size is unavailable, still surface SetupAPI identity
+    // strings already collected (no invented values).
+    if (entry.model.empty()) {
+      if (!entry.description.empty()) {
+        entry.model = entry.description;
+      } else {
+        entry.model = ProductFromInstanceId(instance_id);
+      }
     }
 
     out.entries.push_back(std::move(entry));

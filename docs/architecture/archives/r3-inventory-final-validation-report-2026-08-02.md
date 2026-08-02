@@ -1,13 +1,11 @@
 # R3 — Inventory Engine final validation report (P0 + P1 + P2)
 
-**Status:** PASS for the full R3 platform slice (P0 + P1 + P2) — release build /
-Device Manager spot-check still open (see Known limitations)
-**Date:** 2026-08-02
-**ADR:** [ADR-011](../decisions/ADR-011-inventory-engine.md) (Accepted)
-**Plan:** [39-inventory-engine-r3.md](../39-inventory-engine-r3.md)
-**Roadmap:** [34-engineering-roadmap.md](../34-engineering-roadmap.md)
+**Status:** SUPERSEDED by freeze — see [r3-inventory-engine-frozen-2026-08-02.md](r3-inventory-engine-frozen-2026-08-02.md)  
+**Date:** 2026-08-02  
+**ADR:** [ADR-011](../decisions/ADR-011-inventory-engine.md) (Accepted)  
+**Plan:** [39-inventory-engine-r3.md](../39-inventory-engine-r3.md)  
+**Roadmap:** [34-engineering-roadmap.md](../34-engineering-roadmap.md)  
 **Prior report:** [r3-inventory-p1-validation-report-2026-08-02.md](r3-inventory-p1-validation-report-2026-08-02.md)
-(P0 + P1 only; P2 not started)
 
 Constitution: observation only; Inventory describes; Health measures; no
 invented rows.
@@ -16,14 +14,10 @@ invented rows.
 
 ## Verdict
 
-**P0 + P1 + P2 Inventory platform implemented and smoke-validated.** All 16
-ADR-011 domains are collected, cached, exposed over IPC, rendered in the
-Flutter Inventory browser with rich sectioned detail panels, consumed by
-Reports (Service / Driver / Software / Hardware / **System**), and reserved
-(disabled) in PulseMCP.
-
-R3 is **not frozen** in doc 34 until release-build + Device Manager /
-`msinfo32` spot-check evidence closes. **Do not begin R4** until then.
+**R3 COMPLETE / FROZEN** (2026-08-02). Release PulseService + Flutter Release
+built; native spot-check recorded; Inventory report templates use Inventory
+SSOT. Authoritative close-out: [r3-inventory-engine-frozen-2026-08-02.md](r3-inventory-engine-frozen-2026-08-02.md).
+**Do not begin R4** until product explicitly opens Reports first-class.
 
 Note: commit `a468947` message incorrectly says `feat(r4)`; the change is the
 R3 System Inventory report template (Inventory SSOT), not an R4 start.

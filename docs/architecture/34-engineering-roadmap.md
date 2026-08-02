@@ -180,7 +180,9 @@ flowchart TD
 
 **Wave A:** **Frozen / closed.** R0 + R1 complete. Do not reopen Wave A without an ADR.
 
-**Wave B / R2:** **Frozen / closed** (2026-08-02). Maintainer accepted. Evidence: [archives/r2-validation-report-2026-08-02.md](archives/r2-validation-report-2026-08-02.md). Release notes draft: [docs/releases/v0.3.0-beta.md](../releases/v0.3.0-beta.md). **Do not reopen R2 without an ADR. Do not start R3 implementation until ADR-011 and the R3 plan are accepted.**
+**Wave B / R2:** **Frozen / closed** (2026-08-02). Maintainer accepted. Evidence: [archives/r2-validation-report-2026-08-02.md](archives/r2-validation-report-2026-08-02.md). Release notes draft: [docs/releases/v0.3.0-beta.md](../releases/v0.3.0-beta.md). **Do not reopen R2 without an ADR.**
+
+**Wave B / R3:** **Frozen / closed** (2026-08-02). Evidence: [archives/r3-inventory-engine-frozen-2026-08-02.md](archives/r3-inventory-engine-frozen-2026-08-02.md). **Do not reopen Inventory Engine without a new ADR. Do not start R4 until product explicitly opens Reports first-class.**
 
 ---
 
@@ -238,11 +240,13 @@ flowchart TD
 - [x] **P2 domains** (motherboard, BIOS, CPU, memory modules, storage, network adapters) implemented per ADR-011
 - [x] IPC messages + Flutter surfaces + MCP-ready schemas for shipped domains (handlers disabled until MCP Inventory milestone)
 - [x] Reports consume Inventory (Hardware/Software/Driver/Service/System) — no Health bypass *(all templates now Inventory SSOT; System Inventory report added in P2)*
-- [ ] Spot-check validation vs `services.msc` / Device Manager / Apps & Features recorded
+- [x] Spot-check validation vs `services.msc` / Device Manager / Apps & Features recorded — **PASS** ([freeze archive](archives/r3-inventory-engine-frozen-2026-08-02.md), [native capture](../../tools/validation-results/inventory-spotcheck-2026-08-02_11-38-51.md))
 - [x] Unit + IPC integration tests per domain; no invented rows; no duplicate collectors *(P0+P1+P2)*
-- [x] Performance: lazy start; requested-domain-only; cache contract validated *(P0+P1+P2 smoke; see R3 final validation report)*
-- [ ] Release build passes
+- [x] Performance: lazy start; requested-domain-only; cache contract validated *(P0+P1+P2 smoke; see R3 freeze archive)*
+- [x] Release build passes — PulseService Release + Flutter Windows Release (`C:\dev\Pulse-service-build-r3-release`, `apps/pulse_app` Release runner)
 - [x] Documentation updated (ADR-011, user-facing inventory limits, 19 API list, doc 33 schemas) *(P0+P1+P2)*
+
+**R3 status (2026-08-02): COMPLETE / FROZEN.** Do not reopen Inventory Engine scope without a new ADR. R4 must not start until product explicitly opens Reports first-class.
 
 #### R4 — Reports first-class (L)
 

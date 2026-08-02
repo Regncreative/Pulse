@@ -218,8 +218,18 @@ void ParseMemoryDeviceStructure(const uint8_t* p, uint8_t length,
                                 ipc::InventoryMemoryModuleEntry* out) {
   const uint8_t locator_idx = SmbiosReadU8(p, length, 0x10);
   const uint8_t bank_idx = SmbiosReadU8(p, length, 0x11);
-  out->id = TrimCopy(SmbiosStringAt(p, length, table_end, locator_idx));
+  const std::string device_locator =
+      TrimCopy(SmbiosStringAt(p, length, table_end, locator_idx));
   out->bank_locator = TrimCopy(SmbiosStringAt(p, length, table_end, bank_idx));
+  // ADR-011: id = Locator. Combine bank + device locator when both exist so
+  // dual-channel DIMMs that share "DIMM 0" remain unique and stable.
+  if (!out->bank_locator.empty() && !device_locator.empty()) {
+    out->id = out->bank_locator + "|" + device_locator;
+  } else if (!device_locator.empty()) {
+    out->id = device_locator;
+  } else if (!out->bank_locator.empty()) {
+    out->id = out->bank_locator;
+  }
 
   const uint16_t size_word = SmbiosReadU16(p, length, 0x0C);
   const bool populated = (size_word != 0 && size_word != 0xFFFF);
