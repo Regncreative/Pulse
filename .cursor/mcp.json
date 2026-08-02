@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "pulse": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/apps/pulse_mcp/dist/main.js"],
+      "env": {
+        "PULSE_MCP_ENABLED": "true"
+      }
+    }
+  }
+}

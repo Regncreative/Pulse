@@ -1,12 +1,20 @@
 export type ToolErrorCode =
   | "SERVICE_UNAVAILABLE"
   | "TIMEOUT"
-  | "INVALID_ARGUMENTS"
-  | "PROCESS_NOT_FOUND"
-  | "PERMISSION_DENIED"
   | "POLICY_DISABLED"
+  | "INVALID_ARGUMENT"
+  | "NOT_SUPPORTED"
+  | "ACCESS_DENIED"
+  | "INTERNAL_ERROR"
+  /** @deprecated use INVALID_ARGUMENT */
+  | "INVALID_ARGUMENTS"
+  /** @deprecated use NOT_SUPPORTED */
   | "UNSUPPORTED"
-  | "INTERNAL";
+  /** @deprecated use ACCESS_DENIED */
+  | "PERMISSION_DENIED"
+  /** @deprecated use INTERNAL_ERROR */
+  | "INTERNAL"
+  | "PROCESS_NOT_FOUND";
 
 export interface SuccessEnvelope<T> {
   ok: true;
@@ -81,9 +89,9 @@ export function failure(
   };
 }
 
-/** MCP tool result: JSON text + structuredContent for capable clients. */
+/** MCP tool result: JSON only (no markdown/prose). */
 export function toMcpToolResult(body: SuccessEnvelope<unknown> | ErrorEnvelope) {
-  const text = JSON.stringify(body, null, 2);
+  const text = JSON.stringify(body);
   return {
     content: [{ type: "text" as const, text }],
     structuredContent: body as unknown as Record<string, unknown>,

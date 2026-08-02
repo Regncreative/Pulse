@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pulse": {
+      "command": "node",
+      "args": ["dist/main.js"],
+      "env": {
+        "PULSE_MCP_ENABLED": "true"
+      }
+    }
+  }
+}

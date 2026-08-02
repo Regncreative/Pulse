@@ -18,12 +18,32 @@ export const INVENTORY_TOOLS_REGISTERED = [
   "inventory.network",
 ] as const;
 
-/** Active v1 tools (handlers registered). Inventory tools are not active yet. */
-export const V1_TOOLS = ["mcp.self"] as const;
+/** Active v1 tools (handlers registered). */
+export const V1_TOOLS = [
+  "mcp.self",
+  "system.health",
+  "system.cpu",
+  "system.memory",
+  "system.gpu",
+  "system.storage",
+  "system.network",
+] as const;
 
-export const V1_RESOURCES: string[] = [];
+export const V1_TOOL_NAMESPACES = [
+  "mcp",
+  "system",
+] as const;
 
-export const V1_SUBSCRIPTIONS: string[] = [];
+export const V1_RESOURCES = [
+  "pulse://system/cpu",
+  "pulse://system/memory",
+  "pulse://system/gpu",
+  "pulse://system/network",
+  "pulse://system/health",
+] as const;
+
+/** Subscribable resource URIs (same set for M2 health). */
+export const V1_SUBSCRIPTIONS = [...V1_RESOURCES] as const;
 
 export const V1_REPORT_FORMATS = [
   "json",
@@ -37,6 +57,8 @@ export const V1_PERMISSIONS = ["observation"] as const;
 
 export const V1_PROTOCOL_FEATURES = [
   "tools",
+  "resources",
+  "resource_subscriptions",
   "structured_json",
   "stdio",
   "capability_discovery",

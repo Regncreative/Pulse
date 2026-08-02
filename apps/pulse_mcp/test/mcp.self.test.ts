@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { INVENTORY_TOOLS_REGISTERED } from "../src/catalog/v1.js";
+import { IpcSession } from "../src/ipc/session.js";
 import { MetricsRegistry } from "../src/metrics/metrics.js";
 import { runMcpSelf } from "../src/tools/mcp/self.js";
 
@@ -12,6 +13,8 @@ describe("mcp.self", () => {
       policy: { enabled: false, path: "test-policy.json" },
       logPath: "test.log",
       transport: "stdio",
+      session: new IpcSession(),
+      activeSubscriptions: [],
     });
     expect(result.isError).toBe(true);
     const text = result.content[0]!.text;
@@ -27,13 +30,18 @@ describe("mcp.self", () => {
       policy: { enabled: true, path: "test-policy.json" },
       logPath: "test.log",
       transport: "stdio",
+      session: new IpcSession(),
+      activeSubscriptions: [],
     });
     const body = JSON.parse(result.content[0]!.text) as {
       ok: boolean;
       data: {
         versions: Record<string, unknown>;
+        namespaces: string[];
         capabilities: {
           tools: string[];
+          resources: string[];
+          subscriptions: string[];
           protocolFeatures: string[];
           inventoryToolsRegistered: string[];
           inventoryToolsEnabled: boolean;
@@ -44,18 +52,26 @@ describe("mcp.self", () => {
       generatedAt: string;
     };
     expect(body.ok).toBe(true);
-    expect(body.data.versions.mcpServer).toBe("0.1.0");
+    expect(body.data.versions.mcpServer).toBe("0.2.0");
+    expect(body.data.versions.pulseApp).toBe("0.2.1-beta");
     expect(body.data.versions.ipcProtocol).toBe(1);
+    expect(body.data.namespaces).toContain("system");
     expect(body.data.capabilities.tools).toContain("mcp.self");
+    expect(body.data.capabilities.tools).toContain("system.cpu");
     expect(body.data.capabilities.tools).not.toContain("inventory.services");
-    expect(body.data.capabilities.protocolFeatures).toContain("stdio");
+    expect(body.data.capabilities.resources).toContain("pulse://system/cpu");
+    expect(body.data.capabilities.subscriptions).toContain(
+      "pulse://system/cpu",
+    );
+    expect(body.data.capabilities.protocolFeatures).toContain(
+      "resource_subscriptions",
+    );
     expect(body.data.capabilities.inventoryToolsEnabled).toBe(false);
     expect(body.data.capabilities.inventoryToolsRegistered).toEqual([
       ...INVENTORY_TOOLS_REGISTERED,
     ]);
     expect(body.observedAt).toBeTruthy();
     expect(body.generatedAt).toBeTruthy();
-    // May or may not be connected depending on host; field must exist.
     expect(typeof body.data.servicePipeConnected).toBe("boolean");
   });
 });

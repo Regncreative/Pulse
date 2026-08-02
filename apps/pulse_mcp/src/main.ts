@@ -5,6 +5,8 @@
  */
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
+import { getSharedHealthCache } from "./health/cache.js";
+import { getSharedIpcSession } from "./ipc/session.js";
 import { PulseMcpLogger } from "./logging/logger.js";
 import { MetricsRegistry } from "./metrics/metrics.js";
 import { loadPolicy } from "./policy/policy.js";
@@ -15,12 +17,15 @@ async function main(): Promise<void> {
   const logger = new PulseMcpLogger();
   const metrics = new MetricsRegistry();
   const policy = loadPolicy();
+  const session = getSharedIpcSession();
+  const health = getSharedHealthCache(session);
 
   logger.info("PulseMCP starting", {
     version: MCP_SERVER_VERSION,
     policyEnabled: policy.enabled,
     policyPath: policy.path,
     logPath: logger.logPath,
+    milestone: "M2",
   });
 
   if (!policy.enabled) {
@@ -30,7 +35,13 @@ async function main(): Promise<void> {
     );
   }
 
-  const server = createPulseMcpServer({ metrics, policy, logger });
+  const server = createPulseMcpServer({
+    metrics,
+    policy,
+    logger,
+    session,
+    health,
+  });
   const transport = new StdioServerTransport();
   metrics.connectedClients = 1;
   await server.connect(transport);

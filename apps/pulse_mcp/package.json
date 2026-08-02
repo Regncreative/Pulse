@@ -1,6 +1,6 @@
 {
   "name": "@pulse/mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "PulseMCP — official Model Context Protocol server for Pulse Windows diagnostics",
   "type": "module",
@@ -13,7 +13,9 @@
     "start": "node dist/main.js",
     "dev": "tsx src/main.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "validate:m2": "tsx scripts/validate-m2.mts",
+    "validate:m2:soak": "tsx scripts/validate-m2.mts --soak-minutes 30"
   },
   "engines": {
     "node": ">=20"

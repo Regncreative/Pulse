@@ -806,7 +806,7 @@ Dev:
 |-------|--------|----------------|
 | **M0** | Docs locked (ADR-010 + this doc + cross-cutting contracts) | **Done** |
 | **M1** | PulseMCP skeleton: version, logging, metrics, stdio, `mcp.self`, policy gate, pipe hello | **Done** (`apps/pulse_mcp`) |
-| **M2** | `system.*` tools + health resources + subscriptions | Cursor/Claude subscribe to CPU |
+| **M2** | `system.*` tools + health resources + subscriptions | **Frozen** (2026-08-02) — [archives/mcp-m2-validation.md](archives/mcp-m2-validation.md) |
 | **M3** | `process.list` / `search` / `details` | Filtered inventory JSON |
 | **M4** | `timeline.list` / `timeline.search` + `pulse://timeline/live` | Search filters validated |
 | **M5** | `diagnostics.snapshot`, `service.status` | Matches UI diagnostics fields |

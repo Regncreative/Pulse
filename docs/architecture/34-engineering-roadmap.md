@@ -275,7 +275,7 @@ flowchart TD
 
 **Success metrics (all required):**
 
-- [ ] Tools live: `system.health`, `system.cpu`, `system.memory`, `system.gpu`, `system.storage`, `system.network`
+- [x] Tools live: `system.health`, `system.cpu`, `system.memory`, `system.gpu`, `system.storage`, `system.network` *(M2 frozen 2026-08-02)*
 - [ ] Tools live: `process.list`, `process.search`, `process.details` with filters + pagination + stable ids
 - [ ] Tools live: `timeline.list`, `timeline.search` with documented filters
 - [ ] Tools live: `diagnostics.snapshot`, `service.status` (PulseService-only until inventory MCP follow-up)
@@ -501,9 +501,11 @@ Distinct from **Plugin SDK (R13)** (in-process/out-of-process *extensions inside
 
 ## 6. Release plan (advisory)
 
+**Temporary priority (2026-08-02):** MCP M2–M7 (R5–R6) is prioritized ahead of remaining Wave B/C items. **M2 frozen** ([mcp-m2-validation.md](archives/mcp-m2-validation.md)); M3 in progress. R4 shared report generators deferred — M6 will use TypeScript writers over IPC until consolidated.
+
 | Release | Content |
 |---------|---------|
-| **0.2.1-beta** | R0 + R1 |
+| **0.2.1-beta** | R0 + R1 (+ R2/R3 shipped in practice) |
 | **0.3.0-beta** | R2 Timeline Intelligence |
 | **0.3.5-beta** | R3 Inventory (phased) |
 | **0.4.0-beta** | R4 Reports first-class |
