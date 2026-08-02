@@ -19,7 +19,13 @@
         "audio",
         "bluetooth",
         "printers",
-        "battery"
+        "battery",
+        "motherboard",
+        "bios",
+        "cpu",
+        "memory_modules",
+        "storage",
+        "network_adapters"
       ]
     },
     "status": {

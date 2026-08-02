@@ -10,6 +10,12 @@ export const INVENTORY_TOOLS_REGISTERED = [
   "inventory.bluetooth",
   "inventory.printers",
   "inventory.battery",
+  "inventory.motherboard",
+  "inventory.bios",
+  "inventory.cpu",
+  "inventory.memory",
+  "inventory.storage",
+  "inventory.network",
 ] as const;
 
 /** Active v1 tools (handlers registered). Inventory tools are not active yet. */

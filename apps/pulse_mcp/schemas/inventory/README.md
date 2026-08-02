@@ -15,6 +15,16 @@ already ship through `GetInventoryDomain` IPC.
 | `inventory.bluetooth` | Bluetooth | domain-snapshot.json | **Disabled** |
 | `inventory.printers` | Printers | domain-snapshot.json | **Disabled** |
 | `inventory.battery` | Battery | domain-snapshot.json | **Disabled** |
+| `inventory.motherboard` | Motherboard (P2) | domain-snapshot.json | **Disabled** |
+| `inventory.bios` | BIOS (P2) | domain-snapshot.json | **Disabled** |
+| `inventory.cpu` | CPU (P2) | domain-snapshot.json | **Disabled** |
+| `inventory.memory` | Memory modules (P2) | domain-snapshot.json | **Disabled** |
+| `inventory.storage` | Storage devices (P2) | domain-snapshot.json | **Disabled** |
+| `inventory.network` | Network adapters (P2) | domain-snapshot.json | **Disabled** |
+
+`domain-snapshot.json`'s `domain` enum uses `memory_modules` / `network_adapters`
+(snake_case) for the two compound-name P2 domains, matching this schema's
+field-naming convention; other domains are single lowercase words.
 
 Catalog constant: `INVENTORY_TOOLS_REGISTERED` in `src/catalog/v1.ts`.
 
