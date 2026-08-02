@@ -160,4 +160,78 @@ void main() {
     expect(ev.hasKeywords, isTrue);
     expect(ev.keywords.toUnsigned(64), high.toUnsigned(64));
   });
+
+  test('InventoryDomainSnapshot R3 services roundtrip', () {
+    final env = Envelope(
+      requestId: 38,
+      body: InventoryDomainSnapshot(
+        domain: InventoryDomainId.services,
+        status: InventoryStatus.available,
+        generation: 9,
+        cacheTtlMs: 30000,
+        fullResync: true,
+        services: [
+          InventoryServiceEntry(
+            id: 'EventLog',
+            displayName: 'Windows Event Log',
+            state: 'running',
+            startType: 'automatic',
+          ),
+        ],
+      ),
+    );
+    final decoded = decodeEnvelope(encodeEnvelope(env));
+    expect(decoded.body, isA<InventoryDomainSnapshot>());
+    final snap = decoded.body! as InventoryDomainSnapshot;
+    expect(snap.domain, InventoryDomainId.services);
+    expect(snap.status, InventoryStatus.available);
+    expect(snap.generation, 9);
+    expect(snap.services, hasLength(1));
+    expect(snap.services.first.id, 'EventLog');
+  });
+
+  test('InventoryDomainSnapshot R3 drivers roundtrip', () {
+    final env = Envelope(
+      requestId: 39,
+      body: InventoryDomainSnapshot(
+        domain: InventoryDomainId.drivers,
+        status: InventoryStatus.partial,
+        generation: 2,
+        drivers: [
+          InventoryDriverEntry(
+            id: 'Wdf01000',
+            displayName: 'Kernel Mode Driver Frameworks',
+            state: 'running',
+            startType: 'boot',
+            driverType: 'kernel',
+          ),
+        ],
+      ),
+    );
+    final decoded = decodeEnvelope(encodeEnvelope(env));
+    final snap = decoded.body! as InventoryDomainSnapshot;
+    expect(snap.domain, InventoryDomainId.drivers);
+    expect(snap.drivers, hasLength(1));
+    expect(snap.drivers.first.id, 'Wdf01000');
+    expect(snap.drivers.first.driverType, 'kernel');
+  });
+
+  test('GetInventoryDomain request roundtrip', () {
+    final env = Envelope(
+      requestId: 37,
+      body: GetInventoryDomain(
+        domain: InventoryDomainId.services,
+        forceRefresh: true,
+        sinceGeneration: 3,
+        limit: 100,
+      ),
+    );
+    final decoded = decodeEnvelope(encodeEnvelope(env));
+    expect(decoded.body, isA<GetInventoryDomain>());
+    final req = decoded.body! as GetInventoryDomain;
+    expect(req.domain, InventoryDomainId.services);
+    expect(req.forceRefresh, isTrue);
+    expect(req.sinceGeneration, 3);
+    expect(req.limit, 100);
+  });
 }

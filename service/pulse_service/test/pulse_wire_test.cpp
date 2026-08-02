@@ -506,6 +506,42 @@ int main() {
     return 38;
   }
 
+  InventoryDomainSnapshot drivers_snap;
+  drivers_snap.domain = InventoryDomainId::Drivers;
+  drivers_snap.status = InventoryStatus::Partial;
+  drivers_snap.generation = 2;
+  drivers_snap.full_resync = true;
+  InventoryDriverEntry drv;
+  drv.id = "Wdf01000";
+  drv.display_name = "Kernel Mode Driver Frameworks";
+  drv.state = "running";
+  drv.start_type = "boot";
+  drv.driver_type = "kernel";
+  drivers_snap.drivers.push_back(drv);
+  Envelope drivers_env;
+  drivers_env.request_id = 39;
+  drivers_env.body = drivers_snap;
+  std::vector<uint8_t> drivers_payload;
+  if (!EncodeEnvelope(drivers_env, &drivers_payload)) {
+    std::cerr << "InventoryDomainSnapshot drivers encode failed\n";
+    return 39;
+  }
+  Envelope drivers_decoded;
+  if (!DecodeEnvelope(drivers_payload.data(), drivers_payload.size(),
+                      &drivers_decoded) ||
+      !std::holds_alternative<InventoryDomainSnapshot>(drivers_decoded.body)) {
+    std::cerr << "InventoryDomainSnapshot drivers decode failed\n";
+    return 39;
+  }
+  const auto& drivers_out =
+      std::get<InventoryDomainSnapshot>(drivers_decoded.body);
+  if (drivers_out.drivers.size() != 1 ||
+      drivers_out.drivers[0].id != "Wdf01000" ||
+      drivers_out.drivers[0].driver_type != "kernel") {
+    std::cerr << "InventoryDomainSnapshot drivers payload mismatch\n";
+    return 39;
+  }
+
   std::cout << "pulse_wire_tests OK\n";
   return 0;
 }

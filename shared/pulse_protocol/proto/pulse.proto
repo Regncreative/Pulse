@@ -628,6 +628,16 @@ message InventoryServiceEntry {
   string description = 7;
 }
 
+message InventoryDriverEntry {
+  string id = 1;              // stable: SCM driver service key
+  string display_name = 2;
+  string state = 3;
+  string start_type = 4;
+  string binary_path = 5;
+  string description = 6;
+  string driver_type = 7;     // kernel | file_system | adapter | recognizer | other
+}
+
 message GetInventoryDomain {
   InventoryDomainId domain = 1;
   bool force_refresh = 2;
@@ -645,6 +655,7 @@ message InventoryDomainSnapshot {
   bool full_resync = 7;
   uint32 cache_ttl_ms = 8;
   repeated InventoryServiceEntry services = 10;
+  repeated InventoryDriverEntry drivers = 11;
 }
 
 message Envelope {

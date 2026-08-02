@@ -1,5 +1,6 @@
 #include "inventory/inventory_engine.hpp"
 
+#include "inventory/drivers_collector.hpp"
 #include "inventory/services_collector.hpp"
 
 #include <chrono>
@@ -50,12 +51,28 @@ ipc::InventoryDomainSnapshot InventoryEngine::CollectServices(
   return snap;
 }
 
+ipc::InventoryDomainSnapshot InventoryEngine::CollectDrivers(
+    std::uint32_t limit) {
+  const auto collected = DriversCollector::Collect(limit);
+  ipc::InventoryDomainSnapshot snap;
+  snap.domain = ipc::InventoryDomainId::Drivers;
+  snap.status = collected.status;
+  snap.status_detail = collected.status_detail;
+  snap.truncated = collected.truncated;
+  snap.drivers = collected.entries;
+  snap.full_resync = true;
+  snap.cache_ttl_ms = DriversCollector::kCacheTtlMs;
+  snap.generated_at_unix_ms = NowUnixMs();
+  return snap;
+}
+
 ipc::InventoryDomainSnapshot InventoryEngine::CollectFresh(
     const CollectRequest& request) {
   switch (request.domain) {
     case ipc::InventoryDomainId::Services:
       return CollectServices(request.limit);
     case ipc::InventoryDomainId::Drivers:
+      return CollectDrivers(request.limit);
     case ipc::InventoryDomainId::Software:
     case ipc::InventoryDomainId::Usb:
     case ipc::InventoryDomainId::Pci:
@@ -84,35 +101,41 @@ ipc::InventoryDomainSnapshot InventoryEngine::CollectFresh(
   }
 }
 
+ipc::InventoryDomainSnapshot InventoryEngine::ServeCachedOrCollect(
+    CachedDomain* cache, const CollectRequest& request) {
+  const std::int64_t now = NowUnixMs();
+  const bool use_cache =
+      !request.force_refresh && CacheFresh(cache->meta, now);
+  if (use_cache) {
+    auto snap = cache->snapshot;
+    // Incremental diffs land in a follow-up; full snapshot for now.
+    snap.full_resync = true;
+    return snap;
+  }
+
+  auto snap = CollectFresh(request);
+  if (snap.status == ipc::InventoryStatus::Available ||
+      snap.status == ipc::InventoryStatus::Partial) {
+    snap.generation = next_generation_++;
+    cache->meta.generation = snap.generation;
+    cache->meta.generated_at_unix_ms = snap.generated_at_unix_ms;
+    cache->meta.cache_ttl_ms = snap.cache_ttl_ms;
+    cache->snapshot = snap;
+  } else {
+    snap.generation = 0;
+  }
+  return snap;
+}
+
 ipc::InventoryDomainSnapshot InventoryEngine::GetDomain(
     const CollectRequest& request) {
   std::lock_guard lock(mutex_);
-  const std::int64_t now = NowUnixMs();
 
   if (request.domain == ipc::InventoryDomainId::Services) {
-    const bool use_cache =
-        !request.force_refresh && CacheFresh(services_.meta, now);
-    if (use_cache) {
-      auto snap = services_.snapshot;
-      snap.full_resync = (request.since_generation == 0 ||
-                          request.since_generation != services_.meta.generation);
-      // Incremental diffs for services land in a follow-up; full snapshot for now.
-      snap.full_resync = true;
-      return snap;
-    }
-
-    auto snap = CollectFresh(request);
-    if (snap.status == ipc::InventoryStatus::Available ||
-        snap.status == ipc::InventoryStatus::Partial) {
-      snap.generation = next_generation_++;
-      services_.meta.generation = snap.generation;
-      services_.meta.generated_at_unix_ms = snap.generated_at_unix_ms;
-      services_.meta.cache_ttl_ms = snap.cache_ttl_ms;
-      services_.snapshot = snap;
-    } else {
-      snap.generation = 0;
-    }
-    return snap;
+    return ServeCachedOrCollect(&services_, request);
+  }
+  if (request.domain == ipc::InventoryDomainId::Drivers) {
+    return ServeCachedOrCollect(&drivers_, request);
   }
 
   // Unimplemented domains: no cache fill of unsupported beyond response.

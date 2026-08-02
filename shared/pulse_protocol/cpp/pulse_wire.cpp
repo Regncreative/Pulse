@@ -198,6 +198,18 @@ std::vector<uint8_t> EncodeInventoryServiceEntry(const InventoryServiceEntry& m)
   return out;
 }
 
+std::vector<uint8_t> EncodeInventoryDriverEntry(const InventoryDriverEntry& m) {
+  std::vector<uint8_t> out;
+  WriteString(1, m.id, &out);
+  WriteString(2, m.display_name, &out);
+  WriteString(3, m.state, &out);
+  WriteString(4, m.start_type, &out);
+  WriteString(5, m.binary_path, &out);
+  WriteString(6, m.description, &out);
+  WriteString(7, m.driver_type, &out);
+  return out;
+}
+
 std::vector<uint8_t> EncodeGetInventoryDomain(const GetInventoryDomain& m) {
   std::vector<uint8_t> out;
   WriteU32(1, static_cast<uint32_t>(m.domain), &out);
@@ -220,6 +232,9 @@ std::vector<uint8_t> EncodeInventoryDomainSnapshot(
   WriteU32(8, m.cache_ttl_ms, &out);
   for (const auto& e : m.services) {
     WriteBytesField(10, EncodeInventoryServiceEntry(e), &out);
+  }
+  for (const auto& e : m.drivers) {
+    WriteBytesField(11, EncodeInventoryDriverEntry(e), &out);
   }
   return out;
 }
@@ -1065,6 +1080,36 @@ bool DecodeInventoryServiceEntry(const uint8_t* data, size_t len,
   return true;
 }
 
+bool DecodeInventoryDriverEntry(const uint8_t* data, size_t len,
+                                InventoryDriverEntry* m) {
+  const uint8_t* p = data;
+  const uint8_t* end = data + len;
+  while (p < end) {
+    uint64_t tag = 0;
+    if (!ReadVarint(p, end, &tag)) return false;
+    const uint32_t field = static_cast<uint32_t>(tag >> 3);
+    const uint32_t wire = static_cast<uint32_t>(tag & 7);
+    if (field == 1 && wire == 2) {
+      if (!DecodeString(p, end, &m->id)) return false;
+    } else if (field == 2 && wire == 2) {
+      if (!DecodeString(p, end, &m->display_name)) return false;
+    } else if (field == 3 && wire == 2) {
+      if (!DecodeString(p, end, &m->state)) return false;
+    } else if (field == 4 && wire == 2) {
+      if (!DecodeString(p, end, &m->start_type)) return false;
+    } else if (field == 5 && wire == 2) {
+      if (!DecodeString(p, end, &m->binary_path)) return false;
+    } else if (field == 6 && wire == 2) {
+      if (!DecodeString(p, end, &m->description)) return false;
+    } else if (field == 7 && wire == 2) {
+      if (!DecodeString(p, end, &m->driver_type)) return false;
+    } else if (!SkipField(wire, p, end)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool DecodeGetInventoryDomain(const uint8_t* data, size_t len,
                               GetInventoryDomain* m) {
   const uint8_t* p = data;
@@ -1145,6 +1190,16 @@ bool DecodeInventoryDomainSnapshot(const uint8_t* data, size_t len,
         return false;
       }
       m->services.push_back(std::move(entry));
+      p += static_cast<size_t>(blen);
+    } else if (field == 11 && wire == 2) {
+      uint64_t blen = 0;
+      if (!ReadVarint(p, end, &blen)) return false;
+      if (p + blen > end) return false;
+      InventoryDriverEntry entry;
+      if (!DecodeInventoryDriverEntry(p, static_cast<size_t>(blen), &entry)) {
+        return false;
+      }
+      m->drivers.push_back(std::move(entry));
       p += static_cast<size_t>(blen);
     } else if (!SkipField(wire, p, end)) {
       return false;

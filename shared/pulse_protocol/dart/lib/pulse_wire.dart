@@ -153,6 +153,113 @@ class TimelineEventDetail {
   TimelineEvent event;
 }
 
+/// R3 Inventory Engine (ADR-011) — system description catalogs (not live Health).
+enum InventoryDomainId {
+  unspecified,
+  services,
+  drivers,
+  software,
+  usb,
+  pci,
+  displays,
+  audio,
+  bluetooth,
+  printers,
+  battery,
+  motherboard,
+  bios,
+  cpu,
+  memoryModules,
+  storage,
+  networkAdapters,
+}
+
+enum InventoryStatus {
+  unspecified,
+  available,
+  unsupported,
+  accessDenied,
+  partial,
+  error,
+}
+
+class InventoryServiceEntry {
+  InventoryServiceEntry({
+    this.id = '',
+    this.displayName = '',
+    this.state = '',
+    this.startType = '',
+    this.account = '',
+    this.binaryPath = '',
+    this.description = '',
+  });
+  String id;
+  String displayName;
+  String state;
+  String startType;
+  String account;
+  String binaryPath;
+  String description;
+}
+
+class InventoryDriverEntry {
+  InventoryDriverEntry({
+    this.id = '',
+    this.displayName = '',
+    this.state = '',
+    this.startType = '',
+    this.binaryPath = '',
+    this.description = '',
+    this.driverType = '',
+  });
+  String id;
+  String displayName;
+  String state;
+  String startType;
+  String binaryPath;
+  String description;
+  String driverType;
+}
+
+class GetInventoryDomain {
+  GetInventoryDomain({
+    this.domain = InventoryDomainId.unspecified,
+    this.forceRefresh = false,
+    this.sinceGeneration = 0,
+    this.limit = 0,
+  });
+  InventoryDomainId domain;
+  bool forceRefresh;
+  int sinceGeneration;
+  int limit;
+}
+
+class InventoryDomainSnapshot {
+  InventoryDomainSnapshot({
+    this.domain = InventoryDomainId.unspecified,
+    this.status = InventoryStatus.unspecified,
+    this.statusDetail = '',
+    this.truncated = false,
+    this.generation = 0,
+    this.generatedAtUnixMs = 0,
+    this.fullResync = true,
+    this.cacheTtlMs = 0,
+    List<InventoryServiceEntry>? services,
+    List<InventoryDriverEntry>? drivers,
+  })  : services = services ?? <InventoryServiceEntry>[],
+        drivers = drivers ?? <InventoryDriverEntry>[];
+  InventoryDomainId domain;
+  InventoryStatus status;
+  String statusDetail;
+  bool truncated;
+  int generation;
+  int generatedAtUnixMs;
+  bool fullResync;
+  int cacheTtlMs;
+  List<InventoryServiceEntry> services;
+  List<InventoryDriverEntry> drivers;
+}
+
 class GetTimelineSnapshot {
   GetTimelineSnapshot({this.limit = 100, this.channel = 'System'});
   int limit;
@@ -1123,6 +1230,58 @@ Uint8List _encodeTimelineEventDetail(TimelineEventDetail m) {
   return out.toBytes();
 }
 
+Uint8List _encodeInventoryServiceEntry(InventoryServiceEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.displayName, out);
+  _writeString(3, m.state, out);
+  _writeString(4, m.startType, out);
+  _writeString(5, m.account, out);
+  _writeString(6, m.binaryPath, out);
+  _writeString(7, m.description, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeInventoryDriverEntry(InventoryDriverEntry m) {
+  final out = BytesBuilder();
+  _writeString(1, m.id, out);
+  _writeString(2, m.displayName, out);
+  _writeString(3, m.state, out);
+  _writeString(4, m.startType, out);
+  _writeString(5, m.binaryPath, out);
+  _writeString(6, m.description, out);
+  _writeString(7, m.driverType, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeGetInventoryDomain(GetInventoryDomain m) {
+  final out = BytesBuilder();
+  _writeU64(1, m.domain.index, out);
+  _writeBool(2, m.forceRefresh, out);
+  _writeU64(3, m.sinceGeneration, out);
+  _writeU64(4, m.limit, out);
+  return out.toBytes();
+}
+
+Uint8List _encodeInventoryDomainSnapshot(InventoryDomainSnapshot m) {
+  final out = BytesBuilder();
+  _writeU64(1, m.domain.index, out);
+  _writeU64(2, m.status.index, out);
+  _writeString(3, m.statusDetail, out);
+  _writeBool(4, m.truncated, out);
+  _writeU64(5, m.generation, out);
+  _writeU64(6, m.generatedAtUnixMs, out);
+  _writeBool(7, m.fullResync, out);
+  _writeU64(8, m.cacheTtlMs, out);
+  for (final e in m.services) {
+    _writeBytesField(10, _encodeInventoryServiceEntry(e), out);
+  }
+  for (final e in m.drivers) {
+    _writeBytesField(11, _encodeInventoryDriverEntry(e), out);
+  }
+  return out.toBytes();
+}
+
 Uint8List _encodeGetTimelineSnapshot(GetTimelineSnapshot m) {
   final out = BytesBuilder();
   _writeU64(1, m.limit, out);
@@ -1663,6 +1822,10 @@ Uint8List encodeEnvelope(Envelope env) {
     _writeBytesField(35, _encodeGetTimelineEventDetail(body), out);
   } else if (body is TimelineEventDetail) {
     _writeBytesField(36, _encodeTimelineEventDetail(body), out);
+  } else if (body is GetInventoryDomain) {
+    _writeBytesField(37, _encodeGetInventoryDomain(body), out);
+  } else if (body is InventoryDomainSnapshot) {
+    _writeBytesField(38, _encodeInventoryDomainSnapshot(body), out);
   } else if (body is ErrorResponse) {
     _writeBytesField(99, _encodeError(body), out);
   }
@@ -1959,6 +2122,132 @@ TimelineEventDetail _decodeTimelineEventDetail(Uint8List data) {
       m.found = r.readVarint() != 0;
     } else if (field == 2 && wire == 2) {
       m.event = _decodeTimelineEvent(r.readBytes());
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+InventoryDomainId _inventoryDomainIdFromWire(int v) {
+  if (v < 0 || v >= InventoryDomainId.values.length) {
+    return InventoryDomainId.unspecified;
+  }
+  return InventoryDomainId.values[v];
+}
+
+InventoryStatus _inventoryStatusFromWire(int v) {
+  if (v < 0 || v >= InventoryStatus.values.length) {
+    return InventoryStatus.unspecified;
+  }
+  return InventoryStatus.values[v];
+}
+
+InventoryServiceEntry _decodeInventoryServiceEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryServiceEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.displayName = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.state = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.startType = r.readString();
+    } else if (field == 5 && wire == 2) {
+      m.account = r.readString();
+    } else if (field == 6 && wire == 2) {
+      m.binaryPath = r.readString();
+    } else if (field == 7 && wire == 2) {
+      m.description = r.readString();
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+InventoryDriverEntry _decodeInventoryDriverEntry(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryDriverEntry();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 2) {
+      m.id = r.readString();
+    } else if (field == 2 && wire == 2) {
+      m.displayName = r.readString();
+    } else if (field == 3 && wire == 2) {
+      m.state = r.readString();
+    } else if (field == 4 && wire == 2) {
+      m.startType = r.readString();
+    } else if (field == 5 && wire == 2) {
+      m.binaryPath = r.readString();
+    } else if (field == 6 && wire == 2) {
+      m.description = r.readString();
+    } else if (field == 7 && wire == 2) {
+      m.driverType = r.readString();
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+GetInventoryDomain _decodeGetInventoryDomain(Uint8List data) {
+  final r = _Reader(data);
+  final m = GetInventoryDomain();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 0) {
+      m.domain = _inventoryDomainIdFromWire(r.readVarint());
+    } else if (field == 2 && wire == 0) {
+      m.forceRefresh = r.readVarint() != 0;
+    } else if (field == 3 && wire == 0) {
+      m.sinceGeneration = r.readVarint();
+    } else if (field == 4 && wire == 0) {
+      m.limit = r.readVarint();
+    } else {
+      r.skip(wire);
+    }
+  }
+  return m;
+}
+
+InventoryDomainSnapshot _decodeInventoryDomainSnapshot(Uint8List data) {
+  final r = _Reader(data);
+  final m = InventoryDomainSnapshot();
+  while (r.hasMore) {
+    final tag = r.readVarint();
+    final field = tag >> 3;
+    final wire = tag & 7;
+    if (field == 1 && wire == 0) {
+      m.domain = _inventoryDomainIdFromWire(r.readVarint());
+    } else if (field == 2 && wire == 0) {
+      m.status = _inventoryStatusFromWire(r.readVarint());
+    } else if (field == 3 && wire == 2) {
+      m.statusDetail = r.readString();
+    } else if (field == 4 && wire == 0) {
+      m.truncated = r.readVarint() != 0;
+    } else if (field == 5 && wire == 0) {
+      m.generation = r.readVarint();
+    } else if (field == 6 && wire == 0) {
+      m.generatedAtUnixMs = r.readVarint();
+    } else if (field == 7 && wire == 0) {
+      m.fullResync = r.readVarint() != 0;
+    } else if (field == 8 && wire == 0) {
+      m.cacheTtlMs = r.readVarint();
+    } else if (field == 10 && wire == 2) {
+      m.services.add(_decodeInventoryServiceEntry(r.readBytes()));
+    } else if (field == 11 && wire == 2) {
+      m.drivers.add(_decodeInventoryDriverEntry(r.readBytes()));
     } else {
       r.skip(wire);
     }
@@ -2965,6 +3254,8 @@ Envelope decodeEnvelope(Uint8List data) {
             field == 34 ||
             field == 35 ||
             field == 36 ||
+            field == 37 ||
+            field == 38 ||
             field == 99)) {
       final len = r.readVarint();
       final sub = r.data.sublist(r.offset, r.offset + len);
@@ -3035,6 +3326,12 @@ Envelope decodeEnvelope(Uint8List data) {
           break;
         case 36:
           env.body = _decodeTimelineEventDetail(sub);
+          break;
+        case 37:
+          env.body = _decodeGetInventoryDomain(sub);
+          break;
+        case 38:
+          env.body = _decodeInventoryDomainSnapshot(sub);
           break;
         case 99:
           env.body = _decodeError(sub);

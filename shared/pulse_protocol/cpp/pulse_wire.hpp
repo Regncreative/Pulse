@@ -583,6 +583,16 @@ struct InventoryServiceEntry {
   std::string description;
 };
 
+struct InventoryDriverEntry {
+  std::string id;
+  std::string display_name;
+  std::string state;
+  std::string start_type;
+  std::string binary_path;
+  std::string description;
+  std::string driver_type;
+};
+
 struct GetInventoryDomain {
   InventoryDomainId domain = InventoryDomainId::Unspecified;
   bool force_refresh = false;
@@ -600,6 +610,7 @@ struct InventoryDomainSnapshot {
   bool full_resync = true;
   uint32_t cache_ttl_ms = 0;
   std::vector<InventoryServiceEntry> services;
+  std::vector<InventoryDriverEntry> drivers;
 };
 
 struct Envelope {

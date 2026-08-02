@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
-#include <vector>
 
 namespace pulse::inventory {
 
@@ -31,18 +30,22 @@ class InventoryEngine {
   ipc::InventoryDomainSnapshot GetDomain(const CollectRequest& request);
 
  private:
-  ipc::InventoryDomainSnapshot CollectFresh(const CollectRequest& request);
-  ipc::InventoryDomainSnapshot CollectServices(std::uint32_t limit);
-  ipc::InventoryDomainSnapshot MakeUnsupported(
-      ipc::InventoryDomainId domain, std::uint32_t ttl_ms) const;
-
   struct CachedDomain {
     DomainCacheMeta meta;
     ipc::InventoryDomainSnapshot snapshot;
   };
 
+  ipc::InventoryDomainSnapshot CollectFresh(const CollectRequest& request);
+  ipc::InventoryDomainSnapshot CollectServices(std::uint32_t limit);
+  ipc::InventoryDomainSnapshot CollectDrivers(std::uint32_t limit);
+  ipc::InventoryDomainSnapshot MakeUnsupported(
+      ipc::InventoryDomainId domain, std::uint32_t ttl_ms) const;
+  ipc::InventoryDomainSnapshot ServeCachedOrCollect(
+      CachedDomain* cache, const CollectRequest& request);
+
   std::mutex mutex_;
   CachedDomain services_;
+  CachedDomain drivers_;
   std::uint64_t next_generation_ = 1;
 };
 

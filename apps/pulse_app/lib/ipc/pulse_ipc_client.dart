@@ -277,6 +277,38 @@ class PulseIpcClient extends ChangeNotifier {
     return body;
   }
 
+  /// R3 Inventory Engine — lazy domain catalog (never blocks startup).
+  Future<InventoryDomainSnapshot> getInventoryDomain({
+    required InventoryDomainId domain,
+    bool forceRefresh = false,
+    int sinceGeneration = 0,
+    int limit = 0,
+  }) async {
+    final env = Envelope(
+      requestId: _nextRequestId++,
+      body: GetInventoryDomain(
+        domain: domain,
+        forceRefresh: forceRefresh,
+        sinceGeneration: sinceGeneration,
+        limit: limit,
+      ),
+    );
+    final reply = await _request(
+      env,
+      timeout: const Duration(seconds: 30),
+    );
+    final body = reply.body;
+    if (body is ErrorResponse) {
+      throw StateError('${body.message}: ${body.technicalDetail}');
+    }
+    if (body is! InventoryDomainSnapshot) {
+      throw StateError(
+        'Expected InventoryDomainSnapshot, got ${body.runtimeType}',
+      );
+    }
+    return body;
+  }
+
   /// Explicit live subscribe — call only after the historical snapshot finishes.
   Future<void> startLiveMonitoring({String channel = 'System'}) async {
     final env = Envelope(
