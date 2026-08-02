@@ -851,8 +851,17 @@ the MCP Inventory milestone. Active tools stay `mcp.self` only.
 | `inventory.bluetooth` | Bluetooth | Device Instance ID |
 | `inventory.printers` | Printers | Spooler printer name |
 | `inventory.battery` | Battery | Instance ID or `system_power` |
+| `inventory.motherboard` | Motherboard (P2) | Singleton `motherboard` |
+| `inventory.bios` | BIOS (P2) | Singleton `bios` |
+| `inventory.cpu` | CPU (P2) | Singleton `cpu` |
+| `inventory.memory` | Memory modules (P2) | SMBIOS Device Locator string |
+| `inventory.storage` | Storage devices (P2) | SetupAPI disk instance ID |
+| `inventory.network` | Network adapters (P2) | Adapter GUID string |
 
-Payloads must remain structured (no UI-formatted strings). Status enum: `available` / `unsupported` / `access_denied` / `partial` / `error`.
+P2 domains (motherboard/BIOS/CPU/memory/storage/network) shipped in R3 P2;
+schemas registered and disabled the same as P0/P1. Payloads must remain
+structured (no UI-formatted strings). Status enum: `available` / `unsupported`
+/ `access_denied` / `partial` / `error`.
 
 ---
 

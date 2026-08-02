@@ -163,9 +163,12 @@ Wire codecs hand-maintained (`pulse.proto` + C++/Dart `pulse_wire`).
 ## 6. UI
 
 - New **Inventory** shell destination.
-- Hierarchical inventory browser (System / Devices / Software); P2 leaves reserved until collectors ship.
+- Hierarchical inventory browser (System / Devices / Software); all P0/P1/P2 leaves implemented.
 - Virtualized lists; search client-side; refresh control; last-updated + generation.
 - Status banners for unsupported / denied / truncated.
+- P2 detail panel is **sectioned** (Identity / Chassis / Topology / Capabilities /
+  Hardware / Network / Driver, per domain) via `inventory_detail_model.dart` —
+  not a flat key/value dump.
 
 ---
 
@@ -173,8 +176,8 @@ Wire codecs hand-maintained (`pulse.proto` + C++/Dart `pulse_wire`).
 
 | Consumer | R3 | Later |
 |----------|----|-------|
-| PulseMCP | Schema + `available: false` until collector; then `inventory.*` tools | Resources on generation change |
-| Reports | Optional JSON dump of snapshot | Service / Driver / Software + Hardware (USB/PCI) report templates consume Inventory Engine SSOT; System/P2 identity still Health until those collectors ship |
+| PulseMCP | Schema reserved for all 16 domains (P0+P1+P2); `inventory.*` tools registered but **disabled** | Handlers + resources on generation change (MCP Inventory milestone) |
+| Reports | Service / Driver / Software / Hardware (USB/PCI) / **System** (motherboard/BIOS/CPU/memory/storage/network) report templates all consume Inventory Engine SSOT | — |
 
 `service.status` catalog stub flips when `inventory.services` ships (ADR-010 follow-up).
 
