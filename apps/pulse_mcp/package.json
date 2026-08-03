@@ -1,6 +1,6 @@
 {
   "name": "@pulse/mcp",
-  "version": "0.7.2",
+  "version": "1.0.0",
   "private": true,
   "description": "PulseMCP — official Model Context Protocol server for Pulse Windows diagnostics",
   "type": "module",

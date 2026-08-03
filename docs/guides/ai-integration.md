@@ -37,7 +37,14 @@ Unregister removes the Pulse entry **only if Pulse created it** (tracked in `%LO
 
 ## Claude Desktop
 
-Same safety model for `%APPDATA%\Claude\claude_desktop_config.json` (including the Windows `cmd.exe /c` wrapper when needed).
+Same safety model for Claude config files (including the Windows `cmd.exe /c` wrapper when needed):
+
+| Install | Config path |
+|---------|-------------|
+| Classic | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Microsoft Store / MSIX | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json` |
+
+**Register** writes both locations when present. Pulse itself is **not** distributed through the Microsoft Store — only Claude’s Store install affects the config path above.
 
 ## Troubleshooting
 

@@ -1,7 +1,7 @@
 name: pulse
 description: Pulse — Windows diagnostics
 publish_to: "none"
-version: 0.3.2+12
+version: 1.0.0+13
 
 environment:
   sdk: ^3.12.2

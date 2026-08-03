@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Build Pulse beta: Flutter Release payload + VC++ CRT + Inno Setup installer.
+  Build Pulse release: Flutter Release payload + VC++ CRT + Inno Setup installer.
 
 .DESCRIPTION
   Produces:
@@ -13,7 +13,7 @@
   PulseService (--install-start), and launches Pulse — no PowerShell.
 #>
 $ErrorActionPreference = "Stop"
-$Version = "0.3.2-beta"
+$Version = "1.0.0"
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $dist = Join-Path $root "dist\Pulse"
 $flutterBin = @(
@@ -235,7 +235,7 @@ if ($LASTEXITCODE -ne 0) { throw "Inno Setup compile failed" }
 if (-not (Test-Path $setupOut)) { throw "Installer not produced: $setupOut" }
 
 Write-Host ""
-Write-Host "Beta package ready:"
+Write-Host "Release package ready:"
 Write-Host "  Installer (primary): $setupOut"
 Write-Host "  Payload folder:      $dist"
 Write-Host "  Payload zip:         $zip"

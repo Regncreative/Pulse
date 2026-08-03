@@ -2,7 +2,7 @@
 
 ## Recommended
 
-1. Download `Pulse-Setup-<version>-windows-x64.exe`
+1. Download `Pulse-Setup-1.0.0-windows-x64.exe` from [GitHub Releases](https://github.com/Regncreative/Pulse/releases/tag/v1.0.0)
 2. Run the Setup (UAC). It installs Visual C++ runtime, registers PulseService, and launches Pulse.
 3. Open **Settings → AI Integration** if you want MCP for AI clients.
 
@@ -15,7 +15,7 @@ Advanced users can use the `dist\Pulse\` folder (or ZIP of that tree) from packa
 - `PulseMCP.exe` — MCP server (bundled private Node runtime; no system Node.js)
 - `PulseMCP.cmd` — compatibility launcher (same private runtime)
 
-This is **not** a true portable edition. PulseService must be registered with Windows (SCM). Prefer the Setup installer for beta/post-beta. Details: [40 — Portable ZIP vs Windows Service](../architecture/40-portable-vs-service.md).
+This is **not** a true portable edition. PulseService must be registered with Windows (SCM). Prefer the Setup installer for stable installs. Details: [40 — Portable ZIP vs Windows Service](../architecture/40-portable-vs-service.md).
 
 ## Uninstall
 

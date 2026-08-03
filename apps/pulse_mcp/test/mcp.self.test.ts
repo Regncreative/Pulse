@@ -53,8 +53,8 @@ describe("mcp_self", () => {
       generatedAt: string;
     };
     expect(body.ok).toBe(true);
-    expect(body.data.versions.mcpServer).toBe("0.7.2");
-    expect(body.data.versions.pulseApp).toBe("0.3.2-beta");
+    expect(body.data.versions.mcpServer).toBe("1.0.0");
+    expect(body.data.versions.pulseApp).toBe("1.0.0");
     expect(body.data.versions.ipcProtocol).toBe(1);
     expect(body.data.namespaces).toContain("system");
     expect(body.data.namespaces).toContain("process");

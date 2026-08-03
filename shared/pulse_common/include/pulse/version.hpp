@@ -6,14 +6,20 @@
 namespace pulse {
 
 struct VersionInfo {
-  int major = 0;
-  int minor = 3;
-  int patch = 2;
-  const char* label = "beta";
+  int major = 1;
+  int minor = 0;
+  int patch = 0;
+  /// Optional prerelease / channel label (empty for stable).
+  const char* label = "";
 
   std::string ToString() const {
-    return std::to_string(major) + "." + std::to_string(minor) + "." +
-           std::to_string(patch) + "-" + label;
+    std::string s = std::to_string(major) + "." + std::to_string(minor) + "." +
+                    std::to_string(patch);
+    if (label != nullptr && label[0] != '\0') {
+      s.push_back('-');
+      s += label;
+    }
+    return s;
   }
 };
 

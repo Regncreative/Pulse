@@ -16,8 +16,8 @@ function sampleModel(template: ReportModel["template"] = "health"): ReportModel 
     template,
     version: 1,
     exported_at: "2026-08-02T12:00:00.000Z",
-    pulse_version: "0.3.2-beta",
-    mcp_version: "0.7.2",
+    pulse_version: "1.0.0",
+    mcp_version: "1.0.0",
     system_identity: { windows: "Windows 10 Pro", cpu: "Test CPU" },
     sections: {
       health: { cpu: { usagePercent: 12.5 } },

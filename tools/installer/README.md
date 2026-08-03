@@ -3,7 +3,7 @@
 End-user deliverable is built with **Inno Setup 6**:
 
 ```text
-tools/installer/Pulse.iss  →  dist/Pulse-Setup-0.3.2-beta-windows-x64.exe
+tools/installer/Pulse.iss  →  dist/Pulse-Setup-1.0.0-windows-x64.exe
 ```
 
 ## Behavior

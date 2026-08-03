@@ -10,7 +10,7 @@ Clarify packaging modes for operators and close the “true portable” expectat
 
 A **ZIP / folder payload** is a convenient copy of binaries. It is **not** a true portable edition: the service must still be registered with SCM (admin / UAC) and started. Unzipping alone does not replace install.
 
-For **beta and post-beta**, recommend the **service-required** path: Inno Setup (`Pulse-Setup-*.exe`) or elevated `PulseService.exe --install-start` from the payload folder.
+For **stable releases**, recommend the **service-required** path: Inno Setup (`Pulse-Setup-*.exe`) or elevated `PulseService.exe --install-start` from the payload folder.
 
 ## Why the service is required
 
@@ -40,7 +40,7 @@ No. Named-pipe IPC and Event Log collection need PulseService registered and run
 No. It is an optional archive of the same install payload. Treat it as advanced packaging, not a separate product SKU.
 
 **Will there be a true portable SKU later?**  
-Out of scope for beta. Any future portable mode would need an explicit architecture decision; do not assume the ZIP is that mode.
+Out of scope for v1.0. Any future portable mode would need an explicit architecture decision; do not assume the ZIP is that mode.
 
 ## Related
 

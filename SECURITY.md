@@ -4,20 +4,17 @@
 
 | Version | Supported |
 | --- | --- |
-| `0.3.2-beta.x` (pre-release) | Yes — best effort |
-| `0.3.1-beta.x` (pre-release) | Yes — best effort |
-| `0.3.0-beta.x` (pre-release) | Yes — best effort |
-| `0.2.1-beta.x` (pre-release) | Yes — best effort |
-| `0.1.0-beta.x` (pre-release) | Yes — best effort |
-| Older / unsigned experimental builds | No |
+| `1.0.x` (stable) | Yes |
+| `0.3.2-beta.x` (pre-release) | Best effort (upgrade to 1.0.x recommended) |
+| Older beta / unsigned experimental builds | No |
 
-Pulse is currently in **private / pre-public** development. Security reports are welcome from collaborators and will remain private until a fix is available.
+Pulse **1.0.0** is the current stable release. Security reports are welcome and will remain private until a fix is available.
 
 ## Reporting a vulnerability
 
 Please **do not** open a public GitHub issue for security vulnerabilities.
 
-Preferred channel (until a public security contact is published):
+Preferred channel:
 
 1. Contact the repository owner via GitHub private channels / email associated with [Regncreative](https://github.com/Regncreative).
 2. Include:
