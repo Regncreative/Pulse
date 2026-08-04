@@ -45,6 +45,14 @@ flutter run -d windows
 
 Produces `dist\Pulse-Setup-1.0.0-windows-x64.exe`, `dist\Pulse\`, and `dist\Pulse-1.0.0-windows-x64.zip`. See [docs/architecture/25-beta-release.md](docs/architecture/25-beta-release.md) and [docs/releases/v1.0.0.md](docs/releases/v1.0.0.md).
 
+## Package Microsoft Store (MSIX)
+
+```powershell
+.\tools\scripts\package_msix_store.ps1
+```
+
+Produces Store-ready `dist\msix\PulseDiagnostics-1.0.0-Store.msixupload` (unsigned; Partner Center re-signs). Identity must match Partner Center — see [docs/guides/microsoft-store.md](docs/guides/microsoft-store.md).
+
 ## Install service (optional)
 
 ```powershell

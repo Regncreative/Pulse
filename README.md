@@ -336,6 +336,14 @@ Every feature should answer one question: **"What is Windows doing right now?"**
 - Never injects into processes, never hooks, never bypasses security
 - Elevation only when **you** explicitly install the service
 
+<p align="center">
+  <a href="https://www.virustotal.com/gui/file/7311a4809e64f77b9c44dc8fd59d04db68e3f07288e2348b6470807be72c41d3">
+    <img src="docs/readme/virustotal.png" alt="VirusTotal — Pulse-Setup-1.0.0-windows-x64.exe 0/68 detections" width="900" />
+  </a>
+</p>
+
+<p align="center"><em><a href="https://www.virustotal.com/gui/file/7311a4809e64f77b9c44dc8fd59d04db68e3f07288e2348b6470807be72c41d3">VirusTotal</a> — <code>Pulse-Setup-1.0.0-windows-x64.exe</code> · 0/68</em></p>
+
 ---
 
 ## Documentation

@@ -27,8 +27,31 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  msix: ^3.16.12
 
 flutter:
   uses-material-design: true
   assets:
     - assets/branding/
+
+# Microsoft Store identity (Partner Center — must match exactly).
+# Store ID: 9PNDTLNTJ82T
+# Package Family Name: Regncreative.PulseDiagnostics_epm7gp6hnh3h0
+msix_config:
+  display_name: Pulse Diagnostics
+  publisher_display_name: Regncreative
+  identity_name: Regncreative.PulseDiagnostics
+  publisher: CN=72B69D57-C9E8-4280-AF56-B142286B0D20
+  msix_version: 1.0.0.0
+  logo_path: assets/branding/app_icon_512.png
+  trim_logo: false
+  languages: en-us
+  os_min_version: 10.0.17763.0
+  architecture: x64
+  store: true
+  sign_msix: false
+  install_certificate: false
+  output_path: ../../dist/msix
+  output_name: PulseDiagnostics-1.0.0-Store
+  # Desktop bridge / full-trust client (connects to PulseService named pipe).
+  capabilities: runFullTrust, internetClient
