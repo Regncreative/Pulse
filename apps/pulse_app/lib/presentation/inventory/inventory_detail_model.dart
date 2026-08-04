@@ -343,8 +343,7 @@ List<InventoryDetailSection> _sections(
   final result = <InventoryDetailSection>[];
   for (final entry in raw) {
     final fields = <(String, String)>[
-      for (final f in entry.$2)
-        if (f != null) f,
+      for (final f in entry.$2) ?f,
     ];
     if (fields.isEmpty) continue;
     result.add(InventoryDetailSection(title: entry.$1, fields: fields));

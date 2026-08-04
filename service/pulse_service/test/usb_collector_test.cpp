@@ -12,10 +12,10 @@ int main() {
     std::cout << "usb_collector_tests SKIP access_denied\n";
     return 0;
   }
-  if (result.entries.empty() &&
-      result.status == pulse::ipc::InventoryStatus::Available) {
-    std::cerr << "expected at least one USB device on a typical system\n";
-    return 2;
+  // GitHub-hosted runners / VMs often expose no USB devices to SetupAPI.
+  if (result.entries.empty()) {
+    std::cout << "usb_collector_tests SKIP empty (no USB devices visible)\n";
+    return 0;
   }
   for (const auto& e : result.entries) {
     if (e.id.empty()) {

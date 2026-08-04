@@ -643,7 +643,7 @@ class HealthGroupedCard extends StatelessWidget {
                     padding: EdgeInsets.zero,
                     physics: const ClampingScrollPhysics(),
                     itemCount: rows.length,
-                    separatorBuilder: (_, __) => Divider(
+                    separatorBuilder: (_, _) => Divider(
                       height: 1,
                       color: PulseTokens.strokeSubtle,
                     ),

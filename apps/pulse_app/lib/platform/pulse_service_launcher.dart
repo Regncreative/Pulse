@@ -38,12 +38,13 @@ class WindowsPulseServiceLauncher implements PulseServiceLauncher {
     if (!Platform.isWindows) return null;
     final dir = File(Platform.resolvedExecutable).parent.path;
     final sep = Platform.pathSeparator;
+    String join(List<String> parts) => parts.join(sep);
     final candidates = <String>[
-      '$dir${sep}PulseService.exe',
-      '$dir${sep}service${sep}PulseService.exe',
+      join([dir, 'PulseService.exe']),
+      join([dir, 'service', 'PulseService.exe']),
       // Dev layouts: apps/pulse_app/build/... → repo build/service
-      '$dir${sep}..${sep}..${sep}..${sep}..${sep}..${sep}build${sep}service${sep}PulseService.exe',
-      '$dir${sep}..${sep}service${sep}PulseService.exe',
+      join([dir, '..', '..', '..', '..', '..', 'build', 'service', 'PulseService.exe']),
+      join([dir, '..', 'service', 'PulseService.exe']),
     ];
     for (final path in candidates) {
       final normalized = File(path).absolute.path;

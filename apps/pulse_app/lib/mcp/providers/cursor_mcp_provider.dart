@@ -180,7 +180,7 @@ class CursorMcpProvider implements McpClientProvider {
       'configPath': globalConfigPath,
       'serverKey': serverKey,
       'registeredAt': DateTime.now().toUtc().toIso8601String(),
-      if (backupPath != null) 'lastBackupPath': backupPath,
+      'lastBackupPath': ?backupPath,
     };
     final dir = Directory(McpPaths.mcpDir);
     if (!await dir.exists()) await dir.create(recursive: true);

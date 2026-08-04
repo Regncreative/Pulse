@@ -1,7 +1,5 @@
 import 'package:pulse_protocol/pulse_wire.dart';
 
-import 'timeline_display.dart';
-
 enum TimelineRcaConfidence { high, medium, low }
 
 /// Deterministic correlation rule (documented Event IDs only).
