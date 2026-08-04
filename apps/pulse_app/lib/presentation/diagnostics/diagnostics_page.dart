@@ -122,7 +122,6 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   }) {
     final snap = diag.snapshot;
     final busy = diag.actionBusy;
-    // Detail pane is a ListView (unbounded height) — never fillHeight here.
     return switch (_section) {
       _DiagSectionId.service => _ServiceCard(
           snap: snap,
@@ -482,14 +481,12 @@ class _ServiceCard extends StatelessWidget {
     required this.snap,
     required this.status,
     required this.error,
-    this.expand = false,
     this.advanced = false,
   });
 
   final DiagnosticsSnapshot? snap;
   final IpcStatus status;
   final String? error;
-  final bool expand;
   final bool advanced;
 
   @override
@@ -502,7 +499,6 @@ class _ServiceCard extends StatelessWidget {
     return _DiagSection(
       title: 'Service',
       icon: LucideIcons.server,
-      expand: expand,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -653,13 +649,11 @@ class _LiveCard extends StatelessWidget {
     required this.snap,
     required this.timeline,
     required this.status,
-    this.expand = false,
   });
 
   final DiagnosticsSnapshot? snap;
   final TimelineSessionController timeline;
   final IpcStatus status;
-  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -676,7 +670,6 @@ class _LiveCard extends StatelessWidget {
     return _DiagSection(
       title: 'Live Monitoring',
       icon: LucideIcons.radio,
-      expand: expand,
       child: Column(
         children: [
           _kv(
@@ -726,7 +719,6 @@ class _IpcCard extends StatelessWidget {
     required this.onRestart,
     required this.onCopy,
     this.snapshotLatencyMs,
-    this.expand = false,
     this.advanced = false,
   });
 
@@ -737,7 +729,6 @@ class _IpcCard extends StatelessWidget {
   final VoidCallback onRestart;
   final VoidCallback onCopy;
   final int? snapshotLatencyMs;
-  final bool expand;
   final bool advanced;
 
   @override
@@ -747,7 +738,6 @@ class _IpcCard extends StatelessWidget {
     return _DiagSection(
       title: 'IPC',
       icon: LucideIcons.plug,
-      expand: expand,
       trailing: const PulseBadge(
         label: kPipeName,
         compact: true,
@@ -915,14 +905,12 @@ class _PipelineCard extends StatelessWidget {
     required this.connected,
     required this.liveActive,
     required this.timelineCount,
-    this.expand = false,
   });
 
   final DiagnosticsSnapshot? snap;
   final bool connected;
   final bool liveActive;
   final int timelineCount;
-  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -992,7 +980,6 @@ class _PipelineCard extends StatelessWidget {
     return _DiagSection(
       title: 'Event Pipeline',
       icon: LucideIcons.gitBranch,
-      expand: expand,
       child: Column(
         children: [
           for (var i = 0; i < stages.length; i++) ...[
@@ -1071,12 +1058,10 @@ class _CollectorsCard extends StatelessWidget {
   const _CollectorsCard({
     required this.snap,
     required this.error,
-    this.expand = false,
   });
 
   final DiagnosticsSnapshot? snap;
   final String? error;
-  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -1086,7 +1071,6 @@ class _CollectorsCard extends StatelessWidget {
     return _DiagSection(
       title: 'Collectors',
       icon: LucideIcons.activity,
-      expand: expand,
       child: HealthSpecSection(
         compact: true,
         rows: [
@@ -1149,14 +1133,12 @@ class _PerformanceCard extends StatelessWidget {
     required this.snap,
     required this.error,
     required this.frameMetrics,
-    this.expand = false,
     this.advanced = false,
   });
 
   final DiagnosticsSnapshot? snap;
   final String? error;
   final ClientFrameMetrics frameMetrics;
-  final bool expand;
   final bool advanced;
 
   @override
@@ -1164,7 +1146,6 @@ class _PerformanceCard extends StatelessWidget {
     return _DiagSection(
       title: 'Pulse Performance',
       icon: LucideIcons.gauge,
-      expand: expand,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1272,14 +1253,12 @@ class _BudgetsCard extends StatelessWidget {
     required this.status,
     required this.snapshotLatencyMs,
     required this.frameMetrics,
-    this.expand = false,
   });
 
   final DiagnosticsSnapshot? snap;
   final IpcStatus status;
   final int? snapshotLatencyMs;
   final ClientFrameMetrics frameMetrics;
-  final bool expand;
 
   String _vsTarget({
     required String target,
@@ -1303,7 +1282,6 @@ class _BudgetsCard extends StatelessWidget {
     return _DiagSection(
       title: 'Performance budgets',
       icon: LucideIcons.clipboardCheck,
-      expand: expand,
       child: HealthSpecSection(
         compact: true,
         rows: [
@@ -1376,7 +1354,6 @@ class _DeveloperToolsCard extends StatelessWidget {
     required this.onRestartLive,
     required this.onClearTimeline,
     required this.onExport,
-    this.expand = false,
   });
 
   final bool busy;
@@ -1384,14 +1361,12 @@ class _DeveloperToolsCard extends StatelessWidget {
   final VoidCallback onRestartLive;
   final VoidCallback onClearTimeline;
   final VoidCallback onExport;
-  final bool expand;
 
   @override
   Widget build(BuildContext context) {
     return _DiagSection(
       title: 'Developer Tools',
       icon: LucideIcons.wrench,
-      expand: expand,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1442,21 +1417,17 @@ class _DiagSection extends StatelessWidget {
     required this.icon,
     required this.child,
     this.trailing,
-    this.expand = false,
   });
 
   final String title;
   final IconData icon;
   final Widget child;
   final Widget? trailing;
-  final bool expand;
 
   @override
   Widget build(BuildContext context) {
-    // fillHeight only when parent height is bounded (not ListView children).
     return PulseCard(
       elevated: true,
-      fillHeight: expand,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1529,10 +1500,9 @@ Widget _kv(String label, String value) {
 }
 
 class _McpDiagnosticsCard extends StatelessWidget {
-  const _McpDiagnosticsCard({required this.mcp, this.expand = false});
+  const _McpDiagnosticsCard({required this.mcp});
 
   final McpIntegrationController mcp;
-  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -1544,7 +1514,6 @@ class _McpDiagnosticsCard extends StatelessWidget {
     return _DiagSection(
       title: 'MCP',
       icon: LucideIcons.bot,
-      expand: expand,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
