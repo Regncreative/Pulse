@@ -6,6 +6,7 @@ import 'package:pulse/application/client_frame_metrics.dart';
 import 'package:pulse/application/connection_controller.dart';
 import 'package:pulse/application/diagnostics_controller.dart';
 import 'package:pulse/application/health_navigation.dart';
+import 'package:pulse/application/mcp_integration_controller.dart';
 import 'package:pulse/application/service_lifecycle_controller.dart';
 import 'package:pulse/application/settings_controller.dart';
 import 'package:pulse/application/timeline_session_controller.dart';
@@ -79,6 +80,8 @@ Future<(Widget, SettingsController, DiagnosticsController, PulseIpcClient)>
     scm: _RunningScm(),
   );
   lifecycle.refresh();
+  // Provide MCP without load(); page polls via Timer — avoid pumpAndSettle.
+  final mcp = McpIntegrationController(logger: logger);
   final tree = MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: ipc),
@@ -88,6 +91,7 @@ Future<(Widget, SettingsController, DiagnosticsController, PulseIpcClient)>
       ChangeNotifierProvider.value(value: diagnostics),
       ChangeNotifierProvider.value(value: frameMetrics),
       ChangeNotifierProvider.value(value: lifecycle),
+      ChangeNotifierProvider.value(value: mcp),
       ChangeNotifierProvider(create: (_) => HealthNavigation()),
     ],
     child: MaterialApp(
@@ -111,6 +115,12 @@ Future<(Widget, SettingsController, DiagnosticsController, PulseIpcClient)>
   return (tree, settings, diagnostics, ipc);
 }
 
+Future<void> _openSection(WidgetTester tester, String label) async {
+  await tester.tap(find.text(label).first);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 50));
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -123,14 +133,26 @@ void main() {
     expect(settings.showAdvancedDiagnostics, isFalse);
 
     await tester.pumpWidget(tree);
-    await tester.pump(); // allow post-frame startPolling
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(tester.takeException(), isNull);
+
+    await _openSection(tester, 'Health Checks');
     expect(find.text('Performance budgets'), findsOneWidget);
-    expect(find.text('Binary SHA-256'), findsNothing);
-    expect(find.textContaining('Inject'), findsNothing);
+
+    await _openSection(tester, 'Live Monitoring');
     expect(find.text('Events dropped (service)'), findsOneWidget);
+
+    await _openSection(tester, 'Service');
+    expect(find.text('Binary SHA-256'), findsNothing);
+
+    await _openSection(tester, 'Advanced');
+    expect(find.textContaining('Inject'), findsNothing);
+    expect(
+      find.textContaining('Show advanced diagnostics'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('advanced on: identity and developer tools visible',
@@ -148,27 +170,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Live Monitoring'), findsOneWidget);
+    expect(find.text('Live Monitoring'), findsWidgets);
 
-    await tester.scrollUntilVisible(
-      find.text('Performance budgets'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await _openSection(tester, 'Health Checks');
     expect(find.text('Performance budgets'), findsOneWidget);
 
-    await tester.scrollUntilVisible(
-      find.text('Binary SHA-256'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await _openSection(tester, 'Service');
     expect(find.text('Binary SHA-256'), findsOneWidget);
 
-    await tester.scrollUntilVisible(
-      find.text('Inject Test Event'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await _openSection(tester, 'Advanced');
     expect(find.text('Inject Test Event'), findsOneWidget);
   });
 }

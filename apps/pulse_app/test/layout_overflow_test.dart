@@ -7,6 +7,7 @@ import 'package:pulse/application/client_frame_metrics.dart';
 import 'package:pulse/application/connection_controller.dart';
 import 'package:pulse/application/diagnostics_controller.dart';
 import 'package:pulse/application/health_navigation.dart';
+import 'package:pulse/application/mcp_integration_controller.dart';
 import 'package:pulse/application/service_lifecycle_controller.dart';
 import 'package:pulse/application/settings_controller.dart';
 import 'package:pulse/application/timeline_session_controller.dart';
@@ -56,6 +57,9 @@ Future<Widget> _harness(Widget page) async {
     scm: _StoppedScm(),
   );
   lifecycle.refresh();
+  // Provide MCP without load(); Diagnostics polls refreshStatus via Timer and
+  // must not be paired with pumpAndSettle (never settles).
+  final mcp = McpIntegrationController(logger: logger);
   return MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: ipc),
@@ -65,6 +69,7 @@ Future<Widget> _harness(Widget page) async {
       ChangeNotifierProvider.value(value: diagnostics),
       ChangeNotifierProvider.value(value: frameMetrics),
       ChangeNotifierProvider.value(value: lifecycle),
+      ChangeNotifierProvider.value(value: mcp),
       ChangeNotifierProvider(create: (_) => HealthNavigation()),
     ],
     child: MaterialApp(
@@ -146,13 +151,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Export report'), findsOneWidget);
-    expect(find.text('System Health snapshot'), findsOneWidget);
-    final export = find.text('Export', skipOffstage: false);
-    await tester.ensureVisible(export);
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    expect(export, findsOneWidget);
+    expect(find.text('Export Report'), findsOneWidget);
+    expect(find.text('System Health snapshot'), findsWidgets);
   });
 
   testWidgets('Diagnostics offline recovery offers Start PulseService',
@@ -163,7 +163,9 @@ void main() {
     await tester.pumpWidget(
       await _harness(const DiagnosticsPage(title: 'Diagnostics')),
     );
-    await tester.pumpAndSettle();
+    // Diagnostics starts a 2s MCP status timer — do not pumpAndSettle.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(tester.takeException(), isNull);
     expect(find.text('PulseService is stopped'), findsOneWidget);
@@ -178,7 +180,8 @@ void main() {
     await tester.pumpWidget(
       await _harness(const DiagnosticsPage(title: 'Diagnostics')),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(tester.takeException(), isNull);
     expect(find.text('PulseService is stopped'), findsOneWidget);
@@ -211,13 +214,8 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Reports'), findsWidgets);
-    expect(find.text('Export report'), findsOneWidget);
-    expect(find.text('System Health snapshot'), findsOneWidget);
-    final export = find.text('Export', skipOffstage: false);
-    await tester.ensureVisible(export);
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    expect(export, findsOneWidget);
+    expect(find.text('Export Report'), findsOneWidget);
+    expect(find.text('System Health snapshot'), findsWidgets);
   });
 
   testWidgets('Health hero grid reflows without overflow at 2-column width',

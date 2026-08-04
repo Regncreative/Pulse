@@ -122,12 +122,12 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
   }) {
     final snap = diag.snapshot;
     final busy = diag.actionBusy;
+    // Detail pane is a ListView (unbounded height) — never fillHeight here.
     return switch (_section) {
       _DiagSectionId.service => _ServiceCard(
           snap: snap,
           status: ipcStatus,
           error: diag.snapshotError,
-          expand: true,
           advanced: advanced,
         ),
       _DiagSectionId.ipc => _IpcCard(
@@ -135,7 +135,6 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
           snap: snap,
           busy: busy,
           snapshotLatencyMs: diag.lastSnapshotLatencyMs,
-          expand: true,
           advanced: advanced,
           onPing: () => _run(
             () async => diag.ping(),
@@ -157,25 +156,21 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
           snap: snap,
           timeline: timeline,
           status: ipcStatus,
-          expand: true,
         ),
       _DiagSectionId.pipeline => _PipelineCard(
           snap: snap,
           connected: diag.connected,
           liveActive: timeline.liveActive,
           timelineCount: timeline.events.length,
-          expand: true,
         ),
       _DiagSectionId.collectors => _CollectorsCard(
           snap: snap,
           error: diag.snapshotError,
-          expand: true,
         ),
       _DiagSectionId.performance => _PerformanceCard(
           snap: snap,
           error: diag.snapshotError,
           frameMetrics: frameMetrics,
-          expand: true,
           advanced: advanced,
         ),
       _DiagSectionId.healthChecks => _BudgetsCard(
@@ -183,13 +178,11 @@ class _DiagnosticsPageState extends State<DiagnosticsPage> {
           status: ipcStatus,
           snapshotLatencyMs: diag.lastSnapshotLatencyMs,
           frameMetrics: frameMetrics,
-          expand: true,
         ),
-      _DiagSectionId.mcp => _McpDiagnosticsCard(mcp: mcp, expand: true),
+      _DiagSectionId.mcp => _McpDiagnosticsCard(mcp: mcp),
       _DiagSectionId.advanced => advanced
           ? _DeveloperToolsCard(
               busy: busy,
-              expand: true,
               onTestEvent: () => _run(
                 () async {
                   await diag.injectTestEvent();
@@ -1460,8 +1453,7 @@ class _DiagSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Avoid LayoutBuilder here — Diagnostics uses IntrinsicHeight rows, and
-    // LayoutBuilder cannot compute dry layout inside IntrinsicHeight.
+    // fillHeight only when parent height is bounded (not ListView children).
     return PulseCard(
       elevated: true,
       fillHeight: expand,

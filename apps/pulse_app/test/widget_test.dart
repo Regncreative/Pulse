@@ -17,6 +17,8 @@ void main() {
     expect(theme.brightness, Brightness.light);
     final tokens = theme.extension<PulseThemeData>();
     expect(tokens, isNotNull);
-    expect(tokens!.accent, accent);
+    // Light surfaces deepen the accent for contrast (_lightAccent).
+    expect(tokens!.accent, PulseThemeData.light(accent: accent).accent);
+    expect(tokens.accent, isNot(equals(accent)));
   });
 }
