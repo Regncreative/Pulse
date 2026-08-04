@@ -21,6 +21,7 @@
   <img alt="C++" src="https://img.shields.io/badge/service-C%2B%2B%2020-00599C?style=flat-square&logo=cplusplus&logoColor=white" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-22C55E?style=flat-square" />
   <img alt="Privacy" src="https://img.shields.io/badge/privacy-local--first-0EA5E9?style=flat-square" />
+  <a href="https://www.virustotal.com/gui/file/7311a4809e64f77b9c44dc8fd59d04db68e3f07288e2348b6470807be72c41d3"><img alt="VirusTotal" src="https://img.shields.io/badge/VirusTotal-0%2F68%20clean-22C55E?style=flat-square&logo=virustotal&logoColor=white" /></a>
 </p>
 
 <p align="center">
@@ -177,6 +178,21 @@ ETW, WMI, and plugins are intentional future milestones — see [docs/architectu
 4. Skip or complete the short welcome — then open Timeline or System Health
 
 Tip: for troubleshooting without the SCM service, run `service\PulseService.exe --console` from a payload folder.
+
+### VirusTotal
+
+`Pulse-Setup-1.0.0-windows-x64.exe` was scanned on [VirusTotal](https://www.virustotal.com/gui/file/7311a4809e64f77b9c44dc8fd59d04db68e3f07288e2348b6470807be72c41d3) — **0 / 68** security vendors flagged the installer. Clean result across the board.
+
+<p align="center">
+  <a href="https://www.virustotal.com/gui/file/7311a4809e64f77b9c44dc8fd59d04db68e3f07288e2348b6470807be72c41d3">
+    <img src="docs/readme/virustotal.png" alt="VirusTotal — 0/68 detections for Pulse-Setup-1.0.0-windows-x64.exe" width="900" />
+  </a>
+</p>
+
+<p align="center">
+  <em>SHA-256:</em>
+  <code>7311a4809e64f77b9c44dc8fd59d04db68e3f07288e2348b6470807be72c41d3</code>
+</p>
 
 Developers can also build a local package:
 
