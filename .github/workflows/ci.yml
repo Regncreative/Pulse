@@ -7,11 +7,15 @@ on:
 
 jobs:
   service:
+    # windows-latest is Windows Server 2025 + Visual Studio 2026 (vswhere path
+    # Microsoft Visual Studio\18\...). Visual Studio 17 2022 is no longer installed.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v3
       - name: Configure
-        run: cmake -S service/pulse_service -B build/service -G "Visual Studio 17 2022" -A x64
+        run: cmake -S service/pulse_service -B build/service -G "Visual Studio 18 2026" -A x64
       - name: Build
         run: cmake --build build/service --config Release
       - name: Test (ctest)
