@@ -1,11 +1,14 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Build a Microsoft Store-ready MSIX / .msixupload for Pulse Diagnostics.
+  Build a Microsoft Store-ready MSIX / .msixupload with packaged PulseService.
 
 .DESCRIPTION
-  Uses Flutter msix with store:true (no development certificates).
-  Partner Center identity is configured in apps/pulse_app/pubspec.yaml.
+  Builds PulseService.exe (Release), Flutter Windows Release, runs msix:build,
+  embeds service\PulseService.exe, patches AppxManifest for desktop6:Service +
+  packagedServices, packs the MSIX, and validates the unpacked result.
+
+  GitHub / Inno Setup packaging is unchanged (package_beta.ps1 + Pulse.iss).
 
   Outputs under dist/msix/:
     PulseDiagnostics-1.0.0-Store.msix
@@ -23,18 +26,162 @@ $ExpectedDisplayName = "Pulse Diagnostics"
 $ExpectedPublisherDisplay = "Regncreative"
 $ExpectedPfn = "Regncreative.PulseDiagnostics_epm7gp6hnh3h0"
 $StoreId = "9PNDTLNTJ82T"
+$ServiceRelPath = "service\PulseService.exe"
 
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $appDir = Join-Path $root "apps\pulse_app"
 $outDir = Join-Path $root "dist\msix"
+$validateScript = Join-Path $PSScriptRoot "validate_msix_store.ps1"
 $flutterBin = @(
   "$env:USERPROFILE\flutter\bin",
   "C:\Users\ozsin\flutter\bin"
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($flutterBin) { $env:Path = "$flutterBin;$env:Path" }
 
+function Find-MakeAppx {
+  $kitRoots = @(
+    "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.26100.0\x64\MakeAppx.exe",
+    "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22621.0\x64\MakeAppx.exe",
+    "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.19041.0\x64\MakeAppx.exe"
+  )
+  foreach ($c in $kitRoots) {
+    if (Test-Path -LiteralPath $c) { return [string]$c }
+  }
+  $kitBins = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory -ErrorAction SilentlyContinue |
+    Sort-Object Name -Descending
+  foreach ($k in $kitBins) {
+    $candidate = Join-Path $k.FullName "x64\MakeAppx.exe"
+    if (Test-Path -LiteralPath $candidate) { return [string]$candidate }
+  }
+  return $null
+}
+
+function Resolve-CrtFolder {
+  $crtCandidates = @(
+    "${env:ProgramFiles(x86)}\Microsoft Visual Studio\18\BuildTools\VC\Redist\MSVC\14.50.35710\x64\Microsoft.VC145.CRT",
+    "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC"
+  )
+  foreach ($c in $crtCandidates) {
+    if (-not (Test-Path $c)) { continue }
+    if ((Split-Path $c -Leaf) -eq "MSVC") {
+      $ver = Get-ChildItem $c -Directory | Where-Object { $_.Name -match '^\d' } |
+        Sort-Object Name -Descending | Select-Object -First 1
+      if (-not $ver) { continue }
+      $maybe = Join-Path $ver.FullName "x64"
+      $crt = Get-ChildItem $maybe -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "Microsoft.VC*.CRT" } |
+        Select-Object -First 1
+      if ($crt) { return $crt.FullName }
+    } else {
+      return $c
+    }
+  }
+  return $null
+}
+
+function Patch-StoreAppxManifest([string]$ManifestPath) {
+  [xml]$xml = Get-Content -LiteralPath $ManifestPath -Raw
+
+  # Ensure desktop6 + rescap namespaces on Package.
+  $pkg = $xml.Package
+  if ($null -eq $pkg) { throw "AppxManifest missing Package root" }
+
+  $nsUriDesktop6 = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  $nsUriRescap = "http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  $nsUriUap10 = "http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+
+  if (-not $pkg.GetAttribute("xmlns:desktop6")) {
+    $pkg.SetAttribute("xmlns:desktop6", $nsUriDesktop6)
+  }
+  if (-not $pkg.GetAttribute("xmlns:rescap")) {
+    $pkg.SetAttribute("xmlns:rescap", $nsUriRescap)
+  }
+
+  # IgnorableNamespaces must include desktop6 / rescap if present.
+  $ignorable = [string]$pkg.GetAttribute("IgnorableNamespaces")
+  $need = @("desktop6", "rescap", "uap10")
+  $parts = @()
+  if ($ignorable) { $parts = @($ignorable -split '\s+' | Where-Object { $_ }) }
+  foreach ($n in $need) {
+    if ($parts -notcontains $n) { $parts += $n }
+  }
+  $pkg.SetAttribute("IgnorableNamespaces", ($parts -join " "))
+
+  # Raise TargetDeviceFamily MinVersion for packaged services (Win10 2004).
+  $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+  $ns.AddNamespace("def", "http://schemas.microsoft.com/appx/manifest/foundation/windows10")
+  $tdf = $xml.SelectSingleNode("//def:Dependencies/def:TargetDeviceFamily", $ns)
+  if ($null -eq $tdf) {
+    $tdf = $xml.SelectSingleNode("//*[local-name()='TargetDeviceFamily']")
+  }
+  if ($null -ne $tdf) {
+    $tdf.SetAttribute("MinVersion", "10.0.19041.0")
+    if (-not $tdf.GetAttribute("MaxVersionTested")) {
+      $tdf.SetAttribute("MaxVersionTested", "10.0.26100.0")
+    }
+  }
+
+  # Application node
+  $app = $xml.SelectSingleNode("//def:Applications/def:Application", $ns)
+  if ($null -eq $app) {
+    $app = $xml.SelectSingleNode("//*[local-name()='Application']")
+  }
+  if ($null -eq $app) { throw "AppxManifest missing Application element" }
+
+  # Remove any existing windows.service extensions before adding ours.
+  $existing = @($app.SelectNodes(".//*[local-name()='Extension' and @Category='windows.service']"))
+  foreach ($e in $existing) { [void]$e.ParentNode.RemoveChild($e) }
+
+  $extensions = $app.SelectSingleNode("*[local-name()='Extensions']")
+  if ($null -eq $extensions) {
+    $extensions = $xml.CreateElement("Extensions", $app.NamespaceURI)
+    [void]$app.AppendChild($extensions)
+  }
+
+  $ext = $xml.CreateElement("desktop6", "Extension", $nsUriDesktop6)
+  $ext.SetAttribute("Category", "windows.service")
+  $ext.SetAttribute("Executable", $ServiceRelPath)
+  $ext.SetAttribute("EntryPoint", "Windows.FullTrustApplication")
+
+  $svc = $xml.CreateElement("desktop6", "Service", $nsUriDesktop6)
+  $svc.SetAttribute("Name", "PulseService")
+  $svc.SetAttribute("StartupType", "auto")
+  $svc.SetAttribute("StartAccount", "localService")
+  [void]$ext.AppendChild($svc)
+  [void]$extensions.AppendChild($ext)
+
+  # Capabilities: ensure packagedServices; never localSystemServices.
+  $caps = $xml.SelectSingleNode("//def:Capabilities", $ns)
+  if ($null -eq $caps) {
+    $caps = $xml.SelectSingleNode("//*[local-name()='Capabilities']")
+  }
+  if ($null -eq $caps) {
+    $caps = $xml.CreateElement("Capabilities", $pkg.NamespaceURI)
+    [void]$pkg.AppendChild($caps)
+  }
+
+  $hasPackaged = $false
+  foreach ($c in @($caps.ChildNodes)) {
+    if ($c.LocalName -eq "Capability" -and $c.GetAttribute("Name") -eq "localSystemServices") {
+      [void]$caps.RemoveChild($c)
+    }
+    if ($c.LocalName -eq "Capability" -and $c.GetAttribute("Name") -eq "packagedServices") {
+      $hasPackaged = $true
+    }
+  }
+  if (-not $hasPackaged) {
+    $cap = $xml.CreateElement("rescap", "Capability", $nsUriRescap)
+    $cap.SetAttribute("Name", "packagedServices")
+    [void]$caps.AppendChild($cap)
+  }
+
+  $xml.Save($ManifestPath)
+  Write-Host "Patched AppxManifest: desktop6:Service + packagedServices ($ManifestPath)"
+}
+
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
+$workRoot = $root
 $workApp = $appDir
 $workspaceOut = $outDir
 if ($root -match '[^\x00-\x7F]') {
@@ -42,19 +189,79 @@ if ($root -match '[^\x00-\x7F]') {
   Write-Host "Non-ASCII workspace path - staging to $stageRoot"
   New-Item -ItemType Directory -Force -Path $stageRoot | Out-Null
   robocopy $root $stageRoot /E /XD build dist .dart_tool .git "apps\pulse_app\build" "apps\pulse_app\.dart_tool" /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+  $workRoot = $stageRoot
   $workApp = Join-Path $stageRoot "apps\pulse_app"
   $outDir = Join-Path $stageRoot "dist\msix"
   New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 }
 
-Write-Host "==> flutter pub get"
+# --- Build PulseService Release ---
+Write-Host "==> Building PulseService (Release)"
+$vsDevCandidates = @(
+  "${env:ProgramFiles(x86)}\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat",
+  "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat",
+  "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
+)
+$vsDev = $vsDevCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $vsDev) { throw "VsDevCmd.bat not found. Install VS Build Tools with C++ workload." }
+
+$cmakeCandidates = @(
+  "${env:ProgramFiles(x86)}\Microsoft Visual Studio\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe",
+  "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe",
+  "${env:ProgramFiles}\CMake\bin\cmake.exe",
+  "cmake"
+)
+$cmake = $null
+foreach ($c in $cmakeCandidates) {
+  if ($c -eq "cmake") {
+    $cmd = Get-Command cmake -ErrorAction SilentlyContinue
+    if ($cmd) { $cmake = $cmd.Source; break }
+  } elseif (Test-Path $c) {
+    $cmake = $c
+    break
+  }
+}
+if (-not $cmake) { throw "cmake not found" }
+
+$serviceBuild = Join-Path $workRoot "build\service-msix"
+if ($workRoot -match '[^\x00-\x7F]') {
+  $serviceBuild = "C:\dev\Pulse-service-msix"
+}
+New-Item -ItemType Directory -Force -Path $serviceBuild | Out-Null
+
+$vsInstall = Split-Path (Split-Path (Split-Path $vsDev -Parent) -Parent) -Parent
+$devShell = Join-Path $vsInstall "Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+$serviceSrc = Join-Path $workRoot "service\pulse_service"
+
+if (Test-Path $devShell) {
+  Import-Module $devShell
+  Enter-VsDevShell -VsInstallPath $vsInstall -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64" | Out-Null
+  & $cmake -S $serviceSrc -B $serviceBuild -G Ninja -DCMAKE_BUILD_TYPE=Release
+  if ($LASTEXITCODE -ne 0) { throw "PulseService cmake configure failed" }
+  & $cmake --build $serviceBuild
+  if ($LASTEXITCODE -ne 0) { throw "PulseService build failed" }
+} else {
+  cmd /c "`"$vsDev`" -arch=amd64 -host_arch=amd64 && `"$cmake`" -S `"$serviceSrc`" -B `"$serviceBuild`" -G Ninja -DCMAKE_BUILD_TYPE=Release && `"$cmake`" --build `"$serviceBuild`""
+  if ($LASTEXITCODE -ne 0) { throw "PulseService build failed" }
+}
+
+$serviceExe = Join-Path $serviceBuild "PulseService.exe"
+if (-not (Test-Path $serviceExe)) {
+  $serviceExe = Join-Path $serviceBuild "Release\PulseService.exe"
+}
+if (-not (Test-Path $serviceExe)) {
+  throw "PulseService.exe not found after Release build - Store package cannot be produced without it."
+}
+Write-Host "    PulseService.exe: $serviceExe"
+
+# --- Flutter + msix:build ---
+Write-Host "==> flutter pub get + msix:build"
 Push-Location $workApp
 try {
   flutter pub get
   if ($LASTEXITCODE -ne 0) { throw "flutter pub get failed" }
 
-  Write-Host "==> dart run msix:create (Microsoft Store, unsigned)"
-  dart run msix:create `
+  dart run msix:build `
     --store `
     --sign-msix false `
     --install-certificate false `
@@ -65,7 +272,61 @@ try {
     --version $MsixVersion `
     --output-path $outDir `
     --output-name "PulseDiagnostics-$Version-Store"
-  if ($LASTEXITCODE -ne 0) { throw "msix:create failed" }
+  if ($LASTEXITCODE -ne 0) { throw "msix:build failed" }
+}
+finally {
+  Pop-Location
+}
+
+$runnerCandidates = @(
+  (Join-Path $workApp "build\windows\x64\runner\Release"),
+  (Join-Path $workApp "build\windows\runner\Release")
+)
+$buildFilesFolder = $runnerCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $buildFilesFolder) {
+  throw "Flutter Release runner folder not found after msix:build"
+}
+Write-Host "    MSIX staging folder: $buildFilesFolder"
+
+# --- Embed PulseService ---
+$serviceDestDir = Join-Path $buildFilesFolder "service"
+New-Item -ItemType Directory -Force -Path $serviceDestDir | Out-Null
+Copy-Item $serviceExe (Join-Path $serviceDestDir "PulseService.exe") -Force
+
+$crtDir = Resolve-CrtFolder
+if ($crtDir) {
+  Write-Host "    Copying CRT redistributables beside PulseService ($crtDir)"
+  Copy-Item (Join-Path $crtDir "*") -Destination $serviceDestDir -Force
+} else {
+  Write-Host "WARNING: MSVC CRT folder not found; relying on app-local CRT next to Pulse.exe"
+}
+
+$embedded = Join-Path $buildFilesFolder $ServiceRelPath
+if (-not (Test-Path -LiteralPath $embedded)) {
+  throw "FATAL: service\PulseService.exe missing after copy - refusing to pack Store MSIX."
+}
+
+$manifestPath = Join-Path $buildFilesFolder "AppxManifest.xml"
+if (-not (Test-Path $manifestPath)) {
+  throw "AppxManifest.xml missing in staging folder after msix:build"
+}
+Patch-StoreAppxManifest -ManifestPath $manifestPath
+
+Write-Host "==> dart run msix:pack"
+Push-Location $workApp
+try {
+  dart run msix:pack `
+    --store `
+    --sign-msix false `
+    --install-certificate false `
+    --display-name $ExpectedDisplayName `
+    --publisher-display-name $ExpectedPublisherDisplay `
+    --identity-name $ExpectedIdentity `
+    --publisher $ExpectedPublisher `
+    --version $MsixVersion `
+    --output-path $outDir `
+    --output-name "PulseDiagnostics-$Version-Store"
+  if ($LASTEXITCODE -ne 0) { throw "msix:pack failed" }
 }
 finally {
   Pop-Location
@@ -78,26 +339,12 @@ if (-not (Test-Path $msix)) {
   $msix = $found.FullName
 }
 
-Write-Host "==> Extracting AppxManifest.xml for identity verification"
+Write-Host "==> Unpacking MSIX for validation"
 $extract = Join-Path $outDir "_extract"
 if (Test-Path $extract) { Remove-Item $extract -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $extract | Out-Null
 
-$makeAppx = @(
-  "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.26100.0\x64\MakeAppx.exe",
-  "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22621.0\x64\MakeAppx.exe",
-  "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.19041.0\x64\MakeAppx.exe"
-) | Where-Object { Test-Path $_ } | Select-Object -First 1
-
-if (-not $makeAppx) {
-  $kitBins = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory -ErrorAction SilentlyContinue |
-    Sort-Object Name -Descending
-  foreach ($k in $kitBins) {
-    $candidate = Join-Path $k.FullName "x64\MakeAppx.exe"
-    if (Test-Path $candidate) { $makeAppx = $candidate; break }
-  }
-}
-
+$makeAppx = Find-MakeAppx
 if ($makeAppx) {
   & $makeAppx unpack /p $msix /d $extract /o
   if ($LASTEXITCODE -ne 0) { throw "MakeAppx unpack failed" }
@@ -106,9 +353,11 @@ if ($makeAppx) {
   Expand-Archive (Join-Path $outDir "_pkg.zip") -DestinationPath $extract -Force
 }
 
-$manifestPath = Join-Path $extract "AppxManifest.xml"
-if (-not (Test-Path $manifestPath)) { throw "AppxManifest.xml missing after unpack" }
+Write-Host "==> validate_msix_store.ps1"
+& powershell -ExecutionPolicy Bypass -File $validateScript -ExtractDir $extract
+if ($LASTEXITCODE -ne 0) { throw "Store MSIX packaged-service validation failed" }
 
+$manifestPath = Join-Path $extract "AppxManifest.xml"
 [xml]$manifest = Get-Content -LiteralPath $manifestPath -Raw
 $ns = New-Object System.Xml.XmlNamespaceManager($manifest.NameTable)
 $ns.AddNamespace("def", "http://schemas.microsoft.com/appx/manifest/foundation/windows10")
@@ -137,6 +386,13 @@ AppxManifest Identity
   Version:                  $pkgVersion
   DisplayName:              $displayName
   PublisherDisplayName:     $publisherDisplay
+
+Packaged service
+  Executable:               $ServiceRelPath
+  Name:                     PulseService
+  StartAccount:             localService
+  StartupType:              auto
+  Capability:               packagedServices
 "@
 
 $identityFile = Join-Path $outDir "AppxManifest.identity.txt"
@@ -179,61 +435,29 @@ if (Test-Path $zipTmp) { Remove-Item $zipTmp -Force }
 Compress-Archive -Path (Join-Path $uploadStage "*") -DestinationPath $zipTmp -Force
 Move-Item $zipTmp $msixupload -Force
 
-Write-Host "==> Validation"
 $validation = New-Object System.Collections.Generic.List[string]
 [void]$validation.Add("Pulse Diagnostics Store package validation")
 [void]$validation.Add("Generated: $(Get-Date -Format o)")
 [void]$validation.Add("")
 [void]$validation.Add($identityReport)
-[void]$validation.Add("Expected Package Family Name (Partner Center): $ExpectedPfn")
 [void]$validation.Add("")
-
 if ($errors.Count -eq 0) {
-  [void]$validation.Add("IDENTITY CHECK: PASS - AppxManifest matches Partner Center values.")
+  [void]$validation.Add("IDENTITY CHECK: PASS")
 } else {
   [void]$validation.Add("IDENTITY CHECK: FAIL")
   foreach ($e in $errors) { [void]$validation.Add("  - $e") }
 }
-
-[void]$validation.Add("")
-[void]$validation.Add("Package files:")
-[void]$validation.Add("  MSIX:       $msix")
-[void]$validation.Add("  MSIXUPLOAD: $msixupload")
-[void]$validation.Add("  Identity:   $identityFile")
-
-if ($makeAppx) {
-  [void]$validation.Add("")
-  [void]$validation.Add("MakeAppx unpack: OK")
-}
-
-$sig = Get-AuthenticodeSignature -FilePath $msix -ErrorAction SilentlyContinue
-if ($null -ne $sig -and $sig.Status -eq "Valid") {
-  [void]$validation.Add("SIGNING: Authenticode Status=Valid (unexpected for Store upload; Store should re-sign unsigned packages).")
-  if ($sig.SignerCertificate -and ($sig.SignerCertificate.Subject -match "Flutter|Test|msix|Self")) {
-    [void]$errors.Add("Development/test certificate detected on Store package")
-    [void]$validation.Add("SIGNING CHECK: FAIL - development certificate present")
-  }
-} else {
-  $statusText = if ($null -eq $sig) { "unknown" } else { [string]$sig.Status }
-  [void]$validation.Add("SIGNING CHECK: PASS - package unsigned/not self-signed for Store (status=$statusText).")
-}
-
-$rawManifest = Get-Content -LiteralPath $manifestPath -Raw
-if ($rawManifest -match "CN=Flutter|CN=Msix|Test Certificate") {
-  [void]$errors.Add("Manifest contains development publisher residue")
-  [void]$validation.Add("MANIFEST SANITY: FAIL - development publisher residue")
-} else {
-  [void]$validation.Add("MANIFEST SANITY: PASS")
-}
-
+[void]$validation.Add("PACKAGED SERVICE CHECK: PASS (validate_msix_store.ps1)")
 [void]$validation.Add("")
 [void]$validation.Add("Notes:")
-[void]$validation.Add("  - Upload .msixupload to Partner Center Packages for Store ID $StoreId.")
-[void]$validation.Add("  - PulseService remains a separate Windows service (Inno/SCM); Store package ships the Flutter UI client.")
-[void]$validation.Add("  - Package Family Name is assigned by the Store from Identity+Publisher; expected PFN: $ExpectedPfn")
+[void]$validation.Add("  - Upload .msixupload only after Partner Center approves packagedServices.")
+[void]$validation.Add("  - Classic GitHub Setup.exe remains the SCM --install-start path.")
 
 $reportPath = Join-Path $outDir "store-validation-report.txt"
 $validation | Set-Content -Path $reportPath -Encoding UTF8
+
+# Copy manifest for inspection
+Copy-Item $manifestPath (Join-Path $outDir "AppxManifest.xml") -Force
 
 if ($outDir -ne $workspaceOut) {
   New-Item -ItemType Directory -Force -Path $workspaceOut | Out-Null

@@ -38,6 +38,29 @@ jobs:
         working-directory: apps/pulse_app
         run: flutter test
 
+  store_msix:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v3
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Build and validate Store MSIX (packaged PulseService)
+        run: powershell -ExecutionPolicy Bypass -File .\tools\scripts\package_msix_store.ps1
+      - name: Upload Store package artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulse-store-msix
+          path: |
+            dist/msix/*.msix
+            dist/msix/*.msixupload
+            dist/msix/AppxManifest.xml
+            dist/msix/store-validation-report.txt
+            dist/msix/AppxManifest.identity.txt
+          if-no-files-found: warn
+
   pulse_mcp:
     runs-on: windows-latest
     steps:

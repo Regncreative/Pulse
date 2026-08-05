@@ -46,12 +46,14 @@ msix_config:
   logo_path: assets/branding/app_icon_512.png
   trim_logo: false
   languages: en-us
-  os_min_version: 10.0.17763.0
+  # Packaged services require Windows 10 version 2004 (10.0.19041.0)+.
+  os_min_version: 10.0.19041.0
   architecture: x64
   store: true
   sign_msix: false
   install_certificate: false
   output_path: ../../dist/msix
   output_name: PulseDiagnostics-1.0.0-Store
-  # Desktop bridge / full-trust client (connects to PulseService named pipe).
-  capabilities: runFullTrust, internetClient
+  # Desktop bridge client + LocalService packaged PulseService (desktop6:Service).
+  # Partner Center must approve the packagedServices restricted capability.
+  capabilities: runFullTrust, internetClient, packagedServices

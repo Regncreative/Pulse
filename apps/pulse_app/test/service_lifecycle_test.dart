@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pulse/application/service_lifecycle_controller.dart';
 import 'package:pulse/logging/app_logger.dart';
+import 'package:pulse/platform/pulse_deployment.dart';
 import 'package:pulse/platform/pulse_service_launcher.dart';
 import 'package:pulse/platform/pulse_service_scm.dart';
 import 'package:pulse/presentation/utils/pulse_user_errors.dart';
@@ -230,6 +231,57 @@ void main() {
     await future;
 
     expect(launcher.calls, ['--start', '--install-start']);
+    expect(life.lastSuccess, contains('started'));
+  });
+
+  test('Store packaged: never repair or install-start', () async {
+    final scm = _FakeScm(
+      const PulseServiceScmSnapshot(state: PulseServiceScmState.notInstalled),
+    );
+    final launcher = _FakeLauncher();
+    final life = ServiceLifecycleController(
+      logger: AppLogger(),
+      scm: scm,
+      launcher: launcher,
+      deployment: const FixedPulseDeployment(isPackagedMsix: true),
+    );
+    life.refresh();
+
+    expect(life.isPackagedMsix, isTrue);
+    expect(life.canRepair, isFalse);
+    expect(life.primaryActionLabel, isNull);
+    expect(life.recoveryMessage, contains('Store'));
+
+    await expectLater(
+      life.repairInstall(),
+      throwsA(isA<PulseServiceLaunchException>()),
+    );
+    await expectLater(
+      life.runPrimaryRecoveryAction(),
+      throwsA(isA<PulseServiceLaunchException>()),
+    );
+    expect(launcher.calls, isEmpty);
+  });
+
+  test('Store packaged: start uses --start only', () async {
+    final scm = _FakeScm(
+      const PulseServiceScmSnapshot(state: PulseServiceScmState.stopped),
+    );
+    final launcher = _FakeLauncher();
+    final life = ServiceLifecycleController(
+      logger: AppLogger(),
+      scm: scm,
+      launcher: launcher,
+      deployment: const FixedPulseDeployment(isPackagedMsix: true),
+    );
+    life.refresh();
+
+    final future = life.startService();
+    scm.snapshot =
+        const PulseServiceScmSnapshot(state: PulseServiceScmState.running);
+    await future;
+
+    expect(launcher.calls, ['--start']);
     expect(life.lastSuccess, contains('started'));
   });
 }

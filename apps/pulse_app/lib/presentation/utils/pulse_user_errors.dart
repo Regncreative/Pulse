@@ -40,12 +40,23 @@ abstract final class PulseUserErrors {
         lower.contains('uac')) {
       return 'Administrator approval is required to control PulseService.';
     }
-    if (lower.contains('not installed')) {
+    if (lower.contains('not installed') ||
+        lower.contains('not registered by this store') ||
+        lower.contains('repair or reinstall pulse diagnostics from the microsoft store')) {
+      if (lower.contains('store')) {
+        return 'PulseService is registered by the Store package. '
+            'Repair or reinstall Pulse Diagnostics from the Microsoft Store.';
+      }
       return 'PulseService is not installed. Use Repair / Install service.';
     }
     if (lower.contains('pulseservice.exe was not found') ||
         lower.contains('pulseservice.exe is missing') ||
-        lower.contains('could not locate the installed pulseservice')) {
+        lower.contains('could not locate the installed pulseservice') ||
+        lower.contains('could not locate pulseservice in this store')) {
+      if (lower.contains('store')) {
+        return 'PulseService is missing from this Store package. '
+            'Repair or reinstall Pulse Diagnostics from the Microsoft Store.';
+      }
       return 'PulseService.exe is missing from the install folder. '
           'Reinstall Pulse, then try Repair / Install service.';
     }

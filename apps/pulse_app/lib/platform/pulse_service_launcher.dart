@@ -13,7 +13,8 @@ const int _kServiceQueryConfig = 0x0001;
 
 /// Locates PulseService.exe and runs elevated CLI actions.
 abstract class PulseServiceLauncher {
-  /// Package-local binary used for install / repair / uninstall.
+  /// Package-local binary used for install / repair / uninstall (classic)
+  /// and for start/stop when SCM ImagePath is unavailable.
   String? resolvePackageServiceExePath();
 
   /// Installed service ImagePath from SCM (start / stop / restart).
@@ -21,8 +22,11 @@ abstract class PulseServiceLauncher {
 
   /// Runs `PulseService.exe <args>` elevated and waits for exit.
   ///
-  /// Start/stop/restart prefer the SCM-installed binary. Install/repair require
-  /// a package-local `PulseService.exe` (beside Pulse or under `service\`).
+  /// Classic: Start/stop/restart prefer the SCM-installed binary. Install/repair
+  /// require a package-local `PulseService.exe` (beside Pulse or under `service\`).
+  ///
+  /// Store/MSIX: install/uninstall are refused; start/stop use the package-local
+  /// or SCM path without CreateService.
   Future<int> runElevated(
     String args, {
     Duration timeout = const Duration(seconds: 45),

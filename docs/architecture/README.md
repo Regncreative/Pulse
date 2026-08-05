@@ -68,6 +68,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 38 | [Intelligence rule inventory](38-timeline-intelligence-rules-inventory.md) | Pre-R2 38 → R2 **68** catalog |
 | 39 | [Inventory Engine (R3) plan](39-inventory-engine-r3.md) | Approved — ADR-011 Accepted; implementation in progress |
 | 40 | [Portable ZIP vs Windows Service](40-portable-vs-service.md) | FAQ — ZIP is not a true portable SKU; PulseService required |
+| 41 | [Store packaged PulseService](41-store-packaged-service.md) | MSIX desktop6:Service vs classic Inno SCM |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 

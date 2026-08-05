@@ -109,7 +109,7 @@ class ServiceLifecycleControls extends StatelessWidget {
     final busy = life.actionBusy || life.isTransitioning;
 
     final buttons = <Widget>[
-      if (life.canRepair || life.state == PulseServiceScmState.notInstalled)
+      if (life.canRepair)
         PulseButton(
           label: 'Repair / Install',
           icon: LucideIcons.wrench,

@@ -10,10 +10,28 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <appmodel.h>
 #include <winsvc.h>
 
 namespace pulse {
 namespace {
+
+/// True when this process has an MSIX / Store package identity.
+bool IsRunningAsPackagedApp() {
+  UINT32 length = 0;
+  const LONG rc = GetCurrentPackageFullName(&length, nullptr);
+  return rc == ERROR_INSUFFICIENT_BUFFER;
+}
+
+int RefusePackagedScmSelfInstall(const wchar_t* action) {
+  std::wcerr
+      << L"PulseService " << action
+      << L" is not allowed under an MSIX / Microsoft Store package.\n"
+      << L"Windows registers PulseService via the package AppxManifest "
+         L"(desktop6:Service).\n"
+      << L"Use --start / --stop / --restart, or repair the app from the Store.\n";
+  return 3;
+}
 
 SERVICE_STATUS_HANDLE g_status_handle = nullptr;
 SERVICE_STATUS g_status{};
@@ -146,6 +164,10 @@ void ServiceCore::Stop() {
 }
 
 int InstallService() {
+  if (IsRunningAsPackagedApp()) {
+    return RefusePackagedScmSelfInstall(L"--install");
+  }
+
   wchar_t path[MAX_PATH];
   if (!GetModuleFileNameW(nullptr, path, MAX_PATH)) return 1;
 
@@ -407,6 +429,10 @@ int PrintServiceStatus() {
 }
 
 int UninstallService() {
+  if (IsRunningAsPackagedApp()) {
+    return RefusePackagedScmSelfInstall(L"--uninstall");
+  }
+
   SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
   if (!scm) return 1;
   SC_HANDLE svc = OpenServiceW(scm, L"PulseService", SERVICE_STOP | DELETE);
