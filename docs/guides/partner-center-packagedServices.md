@@ -6,7 +6,8 @@
 **Product:** Pulse Diagnostics  
 **Package identity:** `Regncreative.PulseDiagnostics`  
 **Publisher:** `CN=72B69D57-C9E8-4280-AF56-B142286B0D20`  
-**Package family name:** `Regncreative.PulseDiagnostics_epm7gp6hnh3h0`
+**Package family name:** `Regncreative.PulseDiagnostics_epm7gp6hnh3h0`  
+**Package version (current build):** `1.0.1.0` (bumped from `1.0.0.0` for packaged-service contents)
 
 **Branch (local):** `store/packaged-service` — not merged to `master` until approval.
 
