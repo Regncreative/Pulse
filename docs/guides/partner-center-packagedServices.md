@@ -69,5 +69,6 @@ Until then:
 
 ## Related docs
 
-- [microsoft-store.md](../guides/microsoft-store.md)
+- **Engineering whitepaper (submit with capability request):** [packagedServices-business-justification.md](../store/packagedServices-business-justification.md)
+- [microsoft-store.md](microsoft-store.md)
 - [41-store-packaged-service.md](../architecture/41-store-packaged-service.md)

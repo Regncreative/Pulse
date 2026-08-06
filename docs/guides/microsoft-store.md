@@ -83,9 +83,14 @@ Outputs (`dist/msix/`):
 
 ## Partner Center — `packagedServices` justification
 
-Copy into the restricted capability request:
+**Full engineering whitepaper (preferred attachment for Microsoft):**  
+[docs/store/packagedServices-business-justification.md](../store/packagedServices-business-justification.md)
+
+Short paste for the capability form (summary only — attach the whitepaper for detail):
 
 > Pulse Diagnostics is a read-only Windows observability application. Continuous collection of Windows Event Log data, system health metrics, and hardware/inventory diagnostics runs in a background Win32 service (`PulseService`) under the Local Service account so observation continues independently of the Flutter UI process lifecycle and does not require elevating the interactive user session. The service uses only officially supported Windows APIs, never injects into processes, and writes operational state under ProgramData—not into the package install directory. We request the `packagedServices` restricted capability so Microsoft Store can install and register this Local Service packaged service via the AppxManifest (`desktop6:Service`, `StartAccount=localService`). We do not require `localSystemServices` or Local System. Without this capability, the Store package cannot provide the core diagnostics experience and fails certification as an unusable feature.
+
+Checklist and submission notes: [partner-center-packagedServices.md](partner-center-packagedServices.md).
 
 ## Migration / coexistence notes
 
