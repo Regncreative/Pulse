@@ -296,7 +296,7 @@ flowchart TD
 - [x] Diagnostics MCP section (version, policy, uptime, metrics, subscriptions, log path)
 - [x] `PulseMCP.exe` + private `runtime\` + `mcp\` in installer payload (`package_pulsemcp.ps1`)
 - [x] Pipe max instances ≥ 8 (`kMaxPipeInstances`)
-- [x] Cursor global registration + unregister (Pulse-owned only); Claude Desktop provider; ChatGPT stub
+- [x] Cursor global registration + unregister (Pulse-owned only); Claude Desktop; Windsurf; Cline; VS Code / Copilot (local stdio); ChatGPT stub removed
 - [x] Privacy / AI disclosure copy in Settings → AI Integration
 
 #### R7 — MCP M8 Streamable HTTP (optional) (XL)

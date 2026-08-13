@@ -17,7 +17,7 @@ Pulse is a three-layer Windows observability platform:
 | `Pulse.exe` | Flutter UI |
 | `PulseService.exe` | Windows collectors + named-pipe IPC server |
 
-External AI assistants (Claude Desktop, Cursor, VS Code, ChatGPT, Gemini Desktop, and other MCP clients) should consume Pulse diagnostics **without** embedding an LLM or vendor API keys inside Pulse.
+External AI assistants (Claude Desktop, Cursor, Windsurf, Cline, VS Code / GitHub Copilot, and other **local stdio** MCP clients) should consume Pulse diagnostics **without** embedding an LLM or vendor API keys inside Pulse. Remote HTTP MCP (e.g. ChatGPT connectors) is out of scope for the local stdio product.
 
 The [Model Context Protocol](https://modelcontextprotocol.io/specification/2025-11-25/) defines JSON-RPC over **stdio** and **Streamable HTTP**. Pulse must implement MCP **exactly** via an official SDK — no custom AI protocol.
 
@@ -144,7 +144,7 @@ Expose MCP **Resources** with subscription support for CPU, Memory, GPU, Network
 
 ### Positive
 
-- Claude / Cursor / VS Code / ChatGPT-compatible clients work via standard MCP config.
+- Claude / Cursor / Windsurf / Cline / VS Code (Copilot Agent) work via local stdio MCP config.
 - Clear blast radius: MCP crashes do not take down collectors or UI.
 - Official SDK tracks MCP evolution (Resources, Prompts, Sampling, HTTP, Auth).
 - Aligns with AGENTS.md: observation only, local-first, no telemetry from Pulse itself.

@@ -41,8 +41,9 @@ flowchart TB
   subgraph clients [MCP Clients]
     Claude[Claude Desktop]
     Cursor[Cursor]
-    VSCode[VS Code]
-    Other[ChatGPT / Gemini / …]
+    Windsurf[Windsurf]
+    Cline[Cline]
+    VSCode[VS Code / Copilot]
   end
 
   subgraph pulse [Pulse Product]
@@ -53,14 +54,16 @@ flowchart TB
 
   Claude -->|stdio MCP| MCP
   Cursor -->|stdio MCP| MCP
+  Windsurf -->|stdio MCP| MCP
+  Cline -->|stdio MCP| MCP
   VSCode -->|stdio MCP| MCP
-  Other -.->|Streamable HTTP later| MCP
 
   UI -->|named pipe IPC| SVC
   MCP -->|named pipe IPC| SVC
   UI -.->|MCP status IPC or local status file| MCP
 ```
 
+Pulse uses the **local MCP stdio transport**. No remote MCP endpoint is required. Streamable HTTP / remote ChatGPT connectors are **out of scope** for the current product (observation remains local-only).
 ### Versioning
 
 | Artifact | Version source |
@@ -793,10 +796,34 @@ Policy file: `%LOCALAPPDATA%\Pulse\mcp\policy.json` (`{ "enabled": false }`)
 
 ## 14. Client configuration (stdio)
 
+Supported local clients (registration from Settings → AI Integration):
+
+| Client | Windows config |
+|--------|----------------|
+| Cursor | `%USERPROFILE%\.cursor\mcp.json` (`mcpServers`) |
+| Claude Desktop | `%APPDATA%\Claude\claude_desktop_config.json` (+ Store path) |
+| Windsurf | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` |
+| Cline | VS Code `globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json` (+ optional `~\.cline\mcp.json`) |
+| VS Code / GitHub Copilot | `%APPDATA%\Code\User\mcp.json` (`servers`, `"type":"stdio"`) |
+
 ```json
 {
   "mcpServers": {
     "pulse": {
+      "command": "C:\\Program Files\\Pulse\\PulseMCP.exe",
+      "args": []
+    }
+  }
+}
+```
+
+VS Code user `mcp.json`:
+
+```json
+{
+  "servers": {
+    "pulse": {
+      "type": "stdio",
       "command": "C:\\Program Files\\Pulse\\PulseMCP.exe",
       "args": []
     }
@@ -816,6 +843,8 @@ Dev:
   }
 }
 ```
+
+User guide: [ai-integration.md](../guides/ai-integration.md).
 
 ---
 

@@ -948,6 +948,53 @@ class PulseTheme {
       canvasColor: tokens.canvas,
       cardColor: tokens.surface,
       colorScheme: colorScheme,
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return tokens.textDisabled;
+          }
+          // Keep thumb clearly visible on hover/pressed against track.
+          if (states.contains(WidgetState.selected)) {
+            return tokens.onAccent;
+          }
+          return brightness == Brightness.dark
+              ? const Color(0xFFE8ECF0)
+              : const Color(0xFFFFFFFF);
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return tokens.strokeSubtle;
+          }
+          if (states.contains(WidgetState.selected)) {
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.pressed)) {
+              return tokens.accentMuted;
+            }
+            return tokens.accent;
+          }
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.pressed)) {
+            return tokens.stroke;
+          }
+          return tokens.strokeSubtle;
+        }),
+        overlayColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered)) {
+            return tokens.accent.withValues(alpha: 0.08);
+          }
+          if (states.contains(WidgetState.pressed) ||
+              states.contains(WidgetState.focused)) {
+            return tokens.accent.withValues(alpha: 0.12);
+          }
+          return Colors.transparent;
+        }),
+        trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return Colors.transparent;
+          }
+          return tokens.stroke.withValues(alpha: 0.9);
+        }),
+      ),
       textTheme: textTheme,
       dividerColor: tokens.strokeSubtle,
       dividerTheme: DividerThemeData(

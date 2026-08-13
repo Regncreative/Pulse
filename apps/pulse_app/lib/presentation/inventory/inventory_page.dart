@@ -336,7 +336,8 @@ class _InventoryPageState extends State<InventoryPage>
 
   List<_InventoryRow> _allRows() {
     final snap = _displaySnapshot;
-    if (snap == null) return const [];
+    // Growable empty list — callers may sort/mutate (const [] is unmodifiable).
+    if (snap == null) return <_InventoryRow>[];
     // While holding the previous domain, still render its rows (prior frame).
     // Once the selected domain is cached, rows match _domain.
     final rows = <_InventoryRow>[];
@@ -703,7 +704,7 @@ class _InventoryPageState extends State<InventoryPage>
   }
 
   List<_InventoryRow> _visibleRows() {
-    var rows = _allRows();
+    var rows = List<_InventoryRow>.of(_allRows());
     final q = _filter.trim().toLowerCase();
     if (q.isNotEmpty) {
       rows = rows

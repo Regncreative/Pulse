@@ -79,6 +79,15 @@ class _SystemHealthPageState extends State<SystemHealthPage> {
   }
 
   void _onHealthNavigation() {
+    if (_healthNav?.requestOverview == true) {
+      _healthNav?.consumeOverview();
+      if (!mounted) return;
+      setState(() {
+        _customizeMode = false;
+        _selectedPanel = null;
+      });
+      return;
+    }
     final pending = _healthNav?.pendingPanel;
     if (pending == null) return;
     _healthNav?.consume();

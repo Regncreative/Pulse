@@ -1,3 +1,5 @@
+import '../application/assistant_controller.dart';
+import '../application/background_mode_controller.dart';
 import '../application/client_frame_metrics.dart';
 import '../application/connection_controller.dart';
 import '../application/diagnostics_controller.dart';
@@ -5,6 +7,7 @@ import '../application/health_navigation.dart';
 import '../application/mcp_integration_controller.dart';
 import '../application/service_lifecycle_controller.dart';
 import '../application/settings_controller.dart';
+import '../application/shell_navigation.dart';
 import '../application/timeline_library_controller.dart';
 import '../application/timeline_session_controller.dart';
 import '../ipc/pulse_ipc_client.dart';
@@ -23,6 +26,9 @@ class AppServices {
     required this.clientFrameMetrics,
     required this.healthNavigation,
     required this.mcpIntegration,
+    required this.shellNavigation,
+    required this.backgroundMode,
+    required this.assistant,
   });
 
   final PulseIpcClient ipcClient;
@@ -36,6 +42,9 @@ class AppServices {
   final ClientFrameMetrics clientFrameMetrics;
   final HealthNavigation healthNavigation;
   final McpIntegrationController mcpIntegration;
+  final ShellNavigation shellNavigation;
+  final BackgroundModeController backgroundMode;
+  final AssistantController assistant;
 
   static Future<AppServices> create() async {
     final logger = AppLogger();
@@ -65,6 +74,14 @@ class AppServices {
     final healthNavigation = HealthNavigation();
     final mcpIntegration = McpIntegrationController(logger: logger);
     await mcpIntegration.load();
+    final shellNavigation = ShellNavigation();
+    final backgroundMode = BackgroundModeController(
+      settings: settings,
+      ipc: ipc,
+      shellNavigation: shellNavigation,
+      logger: logger,
+    );
+    final assistant = AssistantController(settings: settings, ipc: ipc);
 
     // Attach before start so the connecting→connected edge is never missed.
     // Snapshot loading always goes through TimelineSessionController.reloadSnapshot
@@ -84,6 +101,9 @@ class AppServices {
       clientFrameMetrics: frameMetrics,
       healthNavigation: healthNavigation,
       mcpIntegration: mcpIntegration,
+      shellNavigation: shellNavigation,
+      backgroundMode: backgroundMode,
+      assistant: assistant,
     );
   }
 }

@@ -10,6 +10,7 @@ import 'package:pulse/application/health_navigation.dart';
 import 'package:pulse/application/mcp_integration_controller.dart';
 import 'package:pulse/application/service_lifecycle_controller.dart';
 import 'package:pulse/application/settings_controller.dart';
+import 'package:pulse/application/shell_navigation.dart';
 import 'package:pulse/application/timeline_session_controller.dart';
 import 'package:pulse/ipc/pulse_ipc_client.dart';
 import 'package:pulse/logging/app_logger.dart';
@@ -71,6 +72,7 @@ Future<Widget> _harness(Widget page) async {
       ChangeNotifierProvider.value(value: lifecycle),
       ChangeNotifierProvider.value(value: mcp),
       ChangeNotifierProvider(create: (_) => HealthNavigation()),
+      ChangeNotifierProvider(create: (_) => ShellNavigation()),
     ],
     child: MaterialApp(
       debugShowCheckedModeBanner: false,

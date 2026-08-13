@@ -35,6 +35,11 @@ void main() {
     await a.setPerformanceMode('performance');
     await a.setShowAdvancedDiagnostics(true);
     await a.setExportDirectory(r'C:\PulseExports');
+    await a.setBackgroundMode(true);
+    await a.setStartWithWindows(true);
+    await a.setSystemNotifications(true);
+    await a.setNotificationsPaused(true);
+    await a.setNotificationCooldownMinutes(30);
     await a.completeWelcome();
 
     final b = SettingsController(logger: AppLogger());
@@ -60,6 +65,11 @@ void main() {
     expect(b.performanceMode, 'performance');
     expect(b.showAdvancedDiagnostics, isTrue);
     expect(b.exportDirectory, r'C:\PulseExports');
+    expect(b.backgroundMode, isTrue);
+    expect(b.startWithWindows, isTrue);
+    expect(b.systemNotifications, isTrue);
+    expect(b.notificationsPaused, isTrue);
+    expect(b.notificationCooldownMinutes, 30);
     expect(b.materialThemeMode, ThemeMode.light);
     expect(b.resolvedAccent, PulseThemeData.accentPurple);
   });
@@ -90,6 +100,9 @@ void main() {
     await a.setShowAdvancedDiagnostics(true);
     await a.setExportDirectory('/tmp/pulse');
     await a.setThemeMode('system');
+    await a.setBackgroundMode(true);
+    await a.setSystemNotifications(true);
+    await a.setNotificationCooldownMinutes(60);
 
     final map = a.toMap();
     expect(map['byte_unit_binary'], isFalse);
@@ -98,6 +111,9 @@ void main() {
     expect(map['performance_mode'], 'performance');
     expect(map['show_advanced_diagnostics'], isTrue);
     expect(map['export_directory'], '/tmp/pulse');
+    expect(map['background_mode'], isTrue);
+    expect(map['system_notifications'], isTrue);
+    expect(map['notification_cooldown_minutes'], 60);
 
     SharedPreferences.setMockInitialValues({});
     final b = SettingsController(logger: AppLogger());
@@ -111,6 +127,9 @@ void main() {
     expect(b.showAdvancedDiagnostics, isTrue);
     expect(b.exportDirectory, '/tmp/pulse');
     expect(b.themeMode, 'system');
+    expect(b.backgroundMode, isTrue);
+    expect(b.systemNotifications, isTrue);
+    expect(b.notificationCooldownMinutes, 60);
 
     final c = SettingsController(logger: AppLogger());
     await c.load();

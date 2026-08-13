@@ -37,8 +37,18 @@ class SettingsController extends ChangeNotifier {
   static const _kPerformanceMode = 'performance.mode';
   static const _kShowAdvancedDiagnostics = 'diagnostics.show_advanced';
   static const _kExportDirectory = 'exports.directory';
+  static const _kBackgroundMode = 'background.mode';
+  static const _kStartWithWindows = 'background.start_with_windows';
+  static const _kSystemNotifications = 'background.system_notifications';
+  static const _kNotificationsPaused = 'background.notifications_paused';
+  static const _kNotificationCooldownMinutes =
+      'background.notification_cooldown_minutes';
+  static const _kAssistantLocalAiProvider = 'assistant.local_ai.provider_id';
+  static const _kAssistantLocalAiModel = 'assistant.local_ai.model_id';
 
   static const String buildDate = '2026-08-02';
+  /// Default cooldown between repeat notifications for the same alert kind.
+  static const int defaultNotificationCooldownMinutes = 15;
   static const int defaultCustomAccentArgb = 0xFF60CDFF;
   static const String defaultSettingsExportFileName = 'settings-export.json';
   static const String releasesUrl =
@@ -118,6 +128,28 @@ class SettingsController extends ChangeNotifier {
   /// Empty = Documents/Pulse default. Absolute path when set.
   String exportDirectory = '';
 
+  /// Keep Pulse.exe alive in the system tray when the main window is closed.
+  bool backgroundMode = false;
+
+  /// Register Pulse.exe for user-session startup (not PulseService).
+  bool startWithWindows = false;
+
+  /// Allow local Windows notifications for sustained critical conditions.
+  /// Default off (privacy / roadmap R10).
+  bool systemNotifications = false;
+
+  /// Temporary mute from the tray menu (persisted).
+  bool notificationsPaused = false;
+
+  /// Minutes between repeat notifications for the same alert kind.
+  int notificationCooldownMinutes = defaultNotificationCooldownMinutes;
+
+  /// Persisted Assistant local runtime id (`ollama`, `lm_studio`, …).
+  String? assistantLocalAiProviderId;
+
+  /// Persisted Assistant model id for the selected runtime.
+  String? assistantLocalAiModelId;
+
   ThemeMode get materialThemeMode {
     switch (themeMode) {
       case 'system':
@@ -193,6 +225,18 @@ class SettingsController extends ChangeNotifier {
     performanceMode = _normalizePerformanceMode(p.getString(_kPerformanceMode));
     showAdvancedDiagnostics = p.getBool(_kShowAdvancedDiagnostics) ?? false;
     exportDirectory = p.getString(_kExportDirectory) ?? '';
+    backgroundMode = p.getBool(_kBackgroundMode) ?? false;
+    startWithWindows = p.getBool(_kStartWithWindows) ?? false;
+    systemNotifications = p.getBool(_kSystemNotifications) ?? false;
+    notificationsPaused = p.getBool(_kNotificationsPaused) ?? false;
+    notificationCooldownMinutes =
+        (p.getInt(_kNotificationCooldownMinutes) ??
+                defaultNotificationCooldownMinutes)
+            .clamp(1, 180);
+    assistantLocalAiProviderId =
+        _normalizeOptionalId(p.getString(_kAssistantLocalAiProvider));
+    assistantLocalAiModelId =
+        _normalizeOptionalId(p.getString(_kAssistantLocalAiModel));
     logger.debugEnabled = debugLogging;
     _ready = true;
     notifyListeners();
@@ -227,6 +271,39 @@ class SettingsController extends ChangeNotifier {
   Future<void> setCompactMode(bool value) async {
     compactMode = value;
     await _prefs?.setBool(_kCompact, value);
+    notifyListeners();
+  }
+
+  Future<void> setBackgroundMode(bool value) async {
+    backgroundMode = value;
+    await _prefs?.setBool(_kBackgroundMode, value);
+    notifyListeners();
+  }
+
+  Future<void> setStartWithWindows(bool value) async {
+    startWithWindows = value;
+    await _prefs?.setBool(_kStartWithWindows, value);
+    notifyListeners();
+  }
+
+  Future<void> setSystemNotifications(bool value) async {
+    systemNotifications = value;
+    await _prefs?.setBool(_kSystemNotifications, value);
+    notifyListeners();
+  }
+
+  Future<void> setNotificationsPaused(bool value) async {
+    notificationsPaused = value;
+    await _prefs?.setBool(_kNotificationsPaused, value);
+    notifyListeners();
+  }
+
+  Future<void> setNotificationCooldownMinutes(int value) async {
+    notificationCooldownMinutes = value.clamp(1, 180);
+    await _prefs?.setInt(
+      _kNotificationCooldownMinutes,
+      notificationCooldownMinutes,
+    );
     notifyListeners();
   }
 
@@ -431,9 +508,47 @@ class SettingsController extends ChangeNotifier {
     performanceMode = 'balanced';
     showAdvancedDiagnostics = false;
     exportDirectory = '';
+    backgroundMode = false;
+    startWithWindows = false;
+    systemNotifications = false;
+    notificationsPaused = false;
+    notificationCooldownMinutes = defaultNotificationCooldownMinutes;
+    assistantLocalAiProviderId = null;
+    assistantLocalAiModelId = null;
     logger.debugEnabled = false;
     await _prefs?.clear();
     notifyListeners();
+  }
+
+  Future<void> setAssistantLocalAiSelection({
+    String? providerId,
+    String? modelId,
+  }) async {
+    assistantLocalAiProviderId = _normalizeOptionalId(providerId);
+    assistantLocalAiModelId = _normalizeOptionalId(modelId);
+    final p = _prefs;
+    if (p != null) {
+      if (assistantLocalAiProviderId == null) {
+        await p.remove(_kAssistantLocalAiProvider);
+      } else {
+        await p.setString(
+          _kAssistantLocalAiProvider,
+          assistantLocalAiProviderId!,
+        );
+      }
+      if (assistantLocalAiModelId == null) {
+        await p.remove(_kAssistantLocalAiModel);
+      } else {
+        await p.setString(_kAssistantLocalAiModel, assistantLocalAiModelId!);
+      }
+    }
+    notifyListeners();
+  }
+
+  String? _normalizeOptionalId(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed;
   }
 
   Map<String, dynamic> toMap() => {
@@ -462,6 +577,13 @@ class SettingsController extends ChangeNotifier {
         'performance_mode': performanceMode,
         'show_advanced_diagnostics': showAdvancedDiagnostics,
         'export_directory': exportDirectory,
+        'background_mode': backgroundMode,
+        'start_with_windows': startWithWindows,
+        'system_notifications': systemNotifications,
+        'notifications_paused': notificationsPaused,
+        'notification_cooldown_minutes': notificationCooldownMinutes,
+        'assistant_local_ai_provider_id': assistantLocalAiProviderId,
+        'assistant_local_ai_model_id': assistantLocalAiModelId,
       };
 
   /// Applies a settings map (from export JSON) and persists each field.
@@ -546,6 +668,32 @@ class SettingsController extends ChangeNotifier {
     if (map['export_directory'] is String) {
       exportDirectory = (map['export_directory'] as String).trim();
     }
+    if (map['background_mode'] is bool) {
+      backgroundMode = map['background_mode'] as bool;
+    }
+    if (map['start_with_windows'] is bool) {
+      startWithWindows = map['start_with_windows'] as bool;
+    }
+    if (map['system_notifications'] is bool) {
+      systemNotifications = map['system_notifications'] as bool;
+    }
+    if (map['notifications_paused'] is bool) {
+      notificationsPaused = map['notifications_paused'] as bool;
+    }
+    if (map['notification_cooldown_minutes'] is int) {
+      notificationCooldownMinutes =
+          (map['notification_cooldown_minutes'] as int).clamp(1, 180);
+    }
+    if (map.containsKey('assistant_local_ai_provider_id')) {
+      assistantLocalAiProviderId = _normalizeOptionalId(
+        map['assistant_local_ai_provider_id']?.toString(),
+      );
+    }
+    if (map.containsKey('assistant_local_ai_model_id')) {
+      assistantLocalAiModelId = _normalizeOptionalId(
+        map['assistant_local_ai_model_id']?.toString(),
+      );
+    }
 
     final p = _prefs;
     if (p != null) {
@@ -581,6 +729,24 @@ class SettingsController extends ChangeNotifier {
       await p.setString(_kPerformanceMode, performanceMode);
       await p.setBool(_kShowAdvancedDiagnostics, showAdvancedDiagnostics);
       await p.setString(_kExportDirectory, exportDirectory);
+      await p.setBool(_kBackgroundMode, backgroundMode);
+      await p.setBool(_kStartWithWindows, startWithWindows);
+      await p.setBool(_kSystemNotifications, systemNotifications);
+      await p.setBool(_kNotificationsPaused, notificationsPaused);
+      await p.setInt(_kNotificationCooldownMinutes, notificationCooldownMinutes);
+      if (assistantLocalAiProviderId == null) {
+        await p.remove(_kAssistantLocalAiProvider);
+      } else {
+        await p.setString(
+          _kAssistantLocalAiProvider,
+          assistantLocalAiProviderId!,
+        );
+      }
+      if (assistantLocalAiModelId == null) {
+        await p.remove(_kAssistantLocalAiModel);
+      } else {
+        await p.setString(_kAssistantLocalAiModel, assistantLocalAiModelId!);
+      }
     }
     notifyListeners();
   }

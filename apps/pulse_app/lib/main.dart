@@ -7,11 +7,13 @@ import 'app/pulse_app.dart';
 import 'app/theme/pulse_theme.dart';
 import 'di/app_services.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await windowManager.ensureInitialized();
   await Window.initialize();
+
+  final launchHidden = args.contains('--background');
 
   const windowOptions = WindowOptions(
     size: Size(PulseTokens.windowDefaultWidth, PulseTokens.windowDefaultHeight),
@@ -39,8 +41,15 @@ Future<void> main() async {
         // Theme solid fill remains.
       }
     }
-    await windowManager.show();
-    await windowManager.focus();
+
+    await services.backgroundMode.start(launchHidden: launchHidden);
+
+    final hideOnLaunch =
+        launchHidden && services.settingsController.backgroundMode;
+    if (!hideOnLaunch) {
+      await windowManager.show();
+      await windowManager.focus();
+    }
   });
 }
 
@@ -64,6 +73,9 @@ class PulseRoot extends StatelessWidget {
         ChangeNotifierProvider.value(value: services.clientFrameMetrics),
         ChangeNotifierProvider.value(value: services.healthNavigation),
         ChangeNotifierProvider.value(value: services.mcpIntegration),
+        ChangeNotifierProvider.value(value: services.shellNavigation),
+        ChangeNotifierProvider.value(value: services.backgroundMode),
+        ChangeNotifierProvider.value(value: services.assistant),
       ],
       child: PulseApp(),
     );

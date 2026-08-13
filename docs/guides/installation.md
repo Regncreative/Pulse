@@ -2,7 +2,7 @@
 
 ## Recommended
 
-1. Download `Pulse-Setup-1.0.0-windows-x64.exe` from [GitHub Releases](https://github.com/Regncreative/Pulse/releases/tag/v1.0.0)
+1. Download `Pulse-Setup-1.1.0-windows-x64.exe` from [GitHub Releases](https://github.com/Regncreative/Pulse/releases/tag/v1.1.0)
 2. Run the Setup (UAC). It installs Visual C++ runtime, registers PulseService, and launches Pulse.
 3. Open **Settings → AI Integration** if you want MCP for AI clients.
 

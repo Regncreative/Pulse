@@ -68,8 +68,8 @@ Outputs (`dist/msix/`):
 
 | File | Role |
 |------|------|
-| `PulseDiagnostics-1.0.1-Store.msix` | Store-oriented MSIX (unsigned — Store re-signs) |
-| `PulseDiagnostics-1.0.1-Store.msixupload` | Partner Center upload package |
+| `PulseDiagnostics-1.1.0-Store.msix` | Store-oriented MSIX (unsigned — Store re-signs) |
+| `PulseDiagnostics-1.1.0-Store.msixupload` | Partner Center upload package |
 | `AppxManifest.identity.txt` | Identity + service verification dump |
 | `store-validation-report.txt` | Validation report |
 | `AppxManifest.xml` | Extracted manifest copy |

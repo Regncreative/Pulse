@@ -6,7 +6,7 @@ Ship a **normal Windows installer** so a clean PC reaches Connected without Powe
 
 ## Primary deliverable
 
-`dist/Pulse-Setup-1.0.0-windows-x64.exe` (Inno Setup)
+`dist/Pulse-Setup-1.1.0-windows-x64.exe` (Inno Setup)
 
 The installer (admin / UAC):
 
@@ -27,9 +27,9 @@ Prerequisites: Flutter, VS C++ Build Tools, [Inno Setup 6](https://jrsoftware.or
 
 | Output | Role |
 |--------|------|
-| `dist/Pulse-Setup-1.0.0-windows-x64.exe` | **End-user installer** |
+| `dist/Pulse-Setup-1.1.0-windows-x64.exe` | **End-user installer** |
 | `dist/Pulse/` | Payload used by Inno |
-| `dist/Pulse-1.0.0-windows-x64.zip` | Optional payload archive (**not** a true portable SKU — see [40](40-portable-vs-service.md)) |
+| `dist/Pulse-1.1.0-windows-x64.zip` | Optional payload archive (**not** a true portable SKU — see [40](40-portable-vs-service.md)) |
 
 ## Fresh machine checklist
 
@@ -41,9 +41,9 @@ Prerequisites: Flutter, VS C++ Build Tools, [Inno Setup 6](https://jrsoftware.or
 6. Timeline, System Health, Inventory, and Reports populate as expected
 7. Reboot → PulseService still Running (auto-start) → Pulse reconnects
 8. Optional: **Settings → AI Integration** for PulseMCP
-9. Open **Diagnostics** → confirm service version **1.0.0**
+9. Open **Diagnostics** → confirm service version **1.1.0**
 
-Full stability procedures: [35-product-stability.md](35-product-stability.md). Release notes: [v1.0.0.md](../releases/v1.0.0.md).
+Full stability procedures: [35-product-stability.md](35-product-stability.md). Release notes: [v1.1.0.md](../releases/v1.1.0.md).
 
 ## Service CLI (developers)
 

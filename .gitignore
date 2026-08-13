@@ -64,3 +64,6 @@ ProgramData/
 # Packaging caches (official Node zip for private PulseMCP runtime)
 tools/cache/
 
+# Store justification export intermediates (PDF/DOCX outputs are kept)
+docs/store/_export_build/
+

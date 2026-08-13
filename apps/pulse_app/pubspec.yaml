@@ -1,7 +1,7 @@
 name: pulse
 description: Pulse — Windows diagnostics
 publish_to: "none"
-version: 1.0.0+13
+version: 1.1.0+14
 
 environment:
   sdk: ^3.12.2
@@ -20,8 +20,12 @@ dependencies:
   flutter_svg: ^2.3.0
   shared_preferences: ^2.5.3
   path_provider: ^2.1.5
+  path: ^1.9.1
   archive: ^4.0.7
   pdf: ^3.11.1
+  tray_manager: ^0.5.3
+  local_notifier: ^0.1.6
+  launch_at_startup: ^0.5.1
 
 dev_dependencies:
   flutter_test:
@@ -42,7 +46,7 @@ msix_config:
   publisher_display_name: Regncreative
   identity_name: Regncreative.PulseDiagnostics
   publisher: CN=72B69D57-C9E8-4280-AF56-B142286B0D20
-  msix_version: 1.0.1.0
+  msix_version: 1.1.0.0
   logo_path: assets/branding/app_icon_512.png
   trim_logo: false
   languages: en-us
@@ -53,7 +57,7 @@ msix_config:
   sign_msix: false
   install_certificate: false
   output_path: ../../dist/msix
-  output_name: PulseDiagnostics-1.0.1-Store
+  output_name: PulseDiagnostics-1.1.0-Store
   # Desktop bridge client + LocalService packaged PulseService (desktop6:Service).
   # Partner Center must approve the packagedServices restricted capability.
   capabilities: runFullTrust, internetClient, packagedServices

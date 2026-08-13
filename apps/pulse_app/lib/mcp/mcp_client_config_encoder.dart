@@ -14,7 +14,7 @@ import 'mcp_launch_resolver.dart';
 class McpClientConfigEncoder {
   const McpClientConfigEncoder();
 
-  /// JSON object written under `mcpServers.pulse`.
+  /// JSON object written under `mcpServers.pulse` (Cursor, Claude, Windsurf, Cline).
   Map<String, dynamic> forAiClient(
     McpLaunchCommand launch, {
     Map<String, String> env = const {},
@@ -30,6 +30,20 @@ class McpClientConfigEncoder {
       'command': launch.command,
       'args': List<String>.from(launch.args),
       'env': Map<String, String>.from(env),
+    };
+  }
+
+  /// VS Code / GitHub Copilot `mcp.json` entry under top-level `servers`.
+  ///
+  /// Uses `"type": "stdio"` per current VS Code MCP schema.
+  Map<String, dynamic> forVsCodeClient(
+    McpLaunchCommand launch, {
+    Map<String, String> env = const {},
+  }) {
+    final base = forAiClient(launch, env: env);
+    return <String, dynamic>{
+      'type': 'stdio',
+      ...base,
     };
   }
 

@@ -7,7 +7,7 @@ namespace pulse {
 
 struct VersionInfo {
   int major = 1;
-  int minor = 0;
+  int minor = 1;
   int patch = 0;
   /// Optional prerelease / channel label (empty for stable).
   const char* label = "";

@@ -10,12 +10,14 @@ import '../mcp/mcp_paths.dart';
 import '../mcp/mcp_policy_store.dart';
 import '../mcp/mcp_process_supervisor.dart';
 import '../mcp/mcp_status.dart';
-import '../mcp/providers/chatgpt_mcp_provider.dart';
 import '../mcp/providers/claude_desktop_mcp_provider.dart';
+import '../mcp/providers/cline_mcp_provider.dart';
 import '../mcp/providers/cursor_mcp_provider.dart';
 import '../mcp/providers/mcp_client_provider.dart';
+import '../mcp/providers/vscode_mcp_provider.dart';
+import '../mcp/providers/windsurf_mcp_provider.dart';
 
-/// Settings + Diagnostics surface for Pulse MCP productization (M7).
+/// Settings + Diagnostics surface for Pulse MCP productization (M7+).
 class McpIntegrationController extends ChangeNotifier {
   McpIntegrationController({
     required this.logger,
@@ -33,7 +35,9 @@ class McpIntegrationController extends ChangeNotifier {
             [
               CursorMcpProvider(),
               ClaudeDesktopMcpProvider(),
-              const ChatGptMcpProvider(),
+              WindsurfMcpProvider(),
+              ClineMcpProvider(),
+              VsCodeMcpProvider(),
             ];
 
   static const _kEnabled = 'mcp.bridge_enabled';
@@ -161,8 +165,8 @@ class McpIntegrationController extends ChangeNotifier {
       launchCommand = launch;
       final provider = _providers.firstWhere((p) => p.id == id);
       final detection = await provider.detect();
-      if (!detection.installed && id != McpClientId.chatgpt) {
-        // Still allow writing global config if path is known (Cursor soft path).
+      if (!detection.installed) {
+        // Still allow writing global config if path is known (soft path).
         if (detection.configPath == null) {
           return McpRegistrationResult(
             ok: false,

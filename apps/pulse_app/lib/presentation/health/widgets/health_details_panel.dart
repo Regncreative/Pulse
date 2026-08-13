@@ -11,6 +11,7 @@ import '../../../application/settings_controller.dart';
 import '../../../ipc/pulse_ipc_client.dart';
 import '../../design_system/design_system.dart';
 import '../health_cards.dart';
+import '../health_utilization_colors.dart';
 import '../health_view_models.dart';
 import 'health_spec_rows.dart';
 import 'process_app_icon.dart';
@@ -2000,7 +2001,9 @@ class _UsageGauge extends StatelessWidget {
               painter: _UsageDonutPainter(
                 percent: pct ?? 0,
                 hasValue: pct != null,
-                accent: PulseTokens.accent,
+                accent: pct != null
+                    ? HealthUtilizationColors.forPercent(pct)
+                    : HealthUtilizationColors.neutral,
                 track: PulseTokens.strokeSubtle,
                 strokeWidth: compact ? 8 : 11,
               ),
@@ -2591,7 +2594,9 @@ class _MiniCoreSparkline extends StatelessWidget {
                 : CustomPaint(
                     painter: HealthSparklinePainter(
                       values: values,
-                      color: PulseTokens.accent,
+                      color: values.isEmpty
+                          ? HealthUtilizationColors.neutral
+                          : HealthUtilizationColors.forPercent(values.last),
                     ),
                     child: const SizedBox.expand(),
                   ),
@@ -2611,6 +2616,11 @@ class _HistorySparkline extends StatelessWidget {
   final List<double> values;
   final bool fillHeight;
 
+  Color get _color {
+    if (values.isEmpty) return HealthUtilizationColors.neutral;
+    return HealthUtilizationColors.forPercent(values.last);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (values.length < 2) {
@@ -2628,7 +2638,7 @@ class _HistorySparkline extends StatelessWidget {
       return CustomPaint(
         painter: HealthSparklinePainter(
           values: values,
-          color: PulseTokens.accent,
+          color: _color,
         ),
         child: const SizedBox.expand(),
       );
@@ -2640,7 +2650,7 @@ class _HistorySparkline extends StatelessWidget {
       child: CustomPaint(
         painter: HealthSparklinePainter(
           values: values,
-          color: PulseTokens.accent,
+          color: _color,
         ),
       ),
     );

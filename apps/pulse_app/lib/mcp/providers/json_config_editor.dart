@@ -57,4 +57,15 @@ class JsonConfigEditor {
     }
     return root;
   }
+
+  /// VS Code / Copilot user or workspace `mcp.json` uses top-level `servers`.
+  Map<String, dynamic> ensureVsCodeServers(Map<String, dynamic> root) {
+    final existing = root['servers'];
+    if (existing is Map) {
+      root['servers'] = Map<String, dynamic>.from(existing);
+    } else {
+      root['servers'] = <String, dynamic>{};
+    }
+    return root;
+  }
 }

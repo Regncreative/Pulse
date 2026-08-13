@@ -4,11 +4,12 @@
 
 | Version | Supported |
 | --- | --- |
-| `1.0.x` (stable) | Yes |
-| `0.3.2-beta.x` (pre-release) | Best effort (upgrade to 1.0.x recommended) |
+| `1.1.x` (stable) | Yes |
+| `1.0.x` (stable) | Best effort (upgrade to 1.1.x recommended) |
+| `0.3.2-beta.x` (pre-release) | No |
 | Older beta / unsigned experimental builds | No |
 
-Pulse **1.0.0** is the current stable release. Security reports are welcome and will remain private until a fix is available.
+Pulse **1.1.0** is the current stable release. Security reports are welcome and will remain private until a fix is available.
 
 ## Reporting a vulnerability
 

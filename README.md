@@ -16,7 +16,7 @@
 <p align="center">
   <img alt="Windows" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4?style=flat-square&logo=windows&logoColor=white" />
   <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Regncreative/Pulse/ci.yml?branch=master&style=flat-square&label=CI" />
-  <img alt="Release" src="https://img.shields.io/badge/release-v1.0.0-22C55E?style=flat-square" />
+  <img alt="Release" src="https://img.shields.io/badge/release-v1.1.0-22C55E?style=flat-square" />
   <img alt="Flutter" src="https://img.shields.io/badge/UI-Flutter-02569B?style=flat-square&logo=flutter&logoColor=white" />
   <img alt="C++" src="https://img.shields.io/badge/service-C%2B%2B%2020-00599C?style=flat-square&logo=cplusplus&logoColor=white" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-22C55E?style=flat-square" />
@@ -172,7 +172,7 @@ ETW, WMI, and plugins are intentional future milestones — see [docs/architectu
 
 ### For everyone (stable installer)
 
-1. Download **`Pulse-Setup-1.0.0-windows-x64.exe`** from [GitHub Releases](https://github.com/Regncreative/Pulse/releases/tag/v1.0.0)
+1. Download **`Pulse-Setup-1.1.0-windows-x64.exe`** from [GitHub Releases](https://github.com/Regncreative/Pulse/releases/tag/v1.1.0)
 2. Run the installer and accept the UAC prompt
 3. PulseService is registered and started automatically
 4. Skip or complete the short welcome — then open Timeline or System Health
@@ -200,7 +200,7 @@ Developers can also build a local package:
 .\tools\scripts\package_beta.ps1
 ```
 
-Output: `dist\Pulse-Setup-1.0.0-windows-x64.exe`, `dist\Pulse\`, and `dist\Pulse-1.0.0-windows-x64.zip`
+Output: `dist\Pulse-Setup-1.1.0-windows-x64.exe`, `dist\Pulse\`, and `dist\Pulse-1.1.0-windows-x64.zip`
 
 ### For developers (day-to-day)
 
@@ -317,6 +317,7 @@ Pulse/
 - [x] Timeline search, filters, date presets, session export
 - [x] Stable installer (`package_beta.ps1` → Inno Setup)
 - [x] **v1.0.0** stable release
+- [x] **v1.1.0** feature release (Assistant, Store MSIX)
 - [ ] GitHub Releases auto-update
 - [ ] Crash / WER timeline
 - [ ] ETW engine (future milestone)
@@ -352,6 +353,7 @@ Every feature should answer one question: **"What is Windows doing right now?"**
 |---|---|
 | [AGENTS.md](AGENTS.md) | Product vision, principles, AI / development rules |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [docs/releases/v1.1.0.md](docs/releases/v1.1.0.md) | v1.1.0 release notes |
 | [docs/releases/v1.0.0.md](docs/releases/v1.0.0.md) | v1.0.0 release notes |
 | [docs/architecture/README.md](docs/architecture/README.md) | Full architecture package + ADRs |
 | [docs/architecture/24-health-metrics-task-manager.md](docs/architecture/24-health-metrics-task-manager.md) | Health metrics vs Task Manager |

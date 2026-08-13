@@ -3,20 +3,26 @@ import '../mcp_launch_resolver.dart';
 enum McpClientId {
   cursor,
   claudeDesktop,
-  chatgpt,
+  windsurf,
+  cline,
+  vsCode,
 }
 
 extension McpClientIdX on McpClientId {
   String get wireName => switch (this) {
         McpClientId.cursor => 'cursor',
         McpClientId.claudeDesktop => 'claude_desktop',
-        McpClientId.chatgpt => 'chatgpt',
+        McpClientId.windsurf => 'windsurf',
+        McpClientId.cline => 'cline',
+        McpClientId.vsCode => 'vscode',
       };
 
   String get displayName => switch (this) {
         McpClientId.cursor => 'Cursor',
         McpClientId.claudeDesktop => 'Claude Desktop',
-        McpClientId.chatgpt => 'ChatGPT',
+        McpClientId.windsurf => 'Windsurf',
+        McpClientId.cline => 'Cline',
+        McpClientId.vsCode => 'VS Code / GitHub Copilot',
       };
 }
 
@@ -46,7 +52,7 @@ class McpRegistrationResult {
   final String? backupPath;
 }
 
-/// Abstraction for AI-client MCP registration (Cursor today; others later).
+/// Abstraction for local stdio MCP client registration (PulseMCP.exe).
 abstract class McpClientProvider {
   McpClientId get id;
 

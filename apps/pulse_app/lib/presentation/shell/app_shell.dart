@@ -10,8 +10,11 @@ import '../../app/theme/pulse_window_chrome.dart';
 import '../../application/diagnostics_controller.dart';
 import '../../application/health_navigation.dart';
 import '../../application/settings_controller.dart';
+import '../../application/shell_navigation.dart';
 import '../../application/timeline_session_controller.dart';
 import '../../ipc/pulse_ipc_client.dart';
+import '../assistant/assistant_host.dart';
+import '../assistant/assistant_page.dart';
 import '../components/pulse_content_frame.dart';
 import '../components/pulse_mica.dart';
 import '../components/pulse_sidebar.dart';
@@ -35,7 +38,8 @@ abstract final class PulseShellPages {
   static const reports = 3;
   static const diagnostics = 4;
   static const settings = 5;
-  static const count = 6;
+  static const assistant = 6;
+  static const count = 7;
 }
 
 class AppShell extends StatefulWidget {
@@ -48,6 +52,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = PulseShellPages.timeline;
   bool _paletteOpen = false;
+  ShellNavigation? _shellNav;
 
   /// Stable page instances — IndexedStack keeps state alive so Timeline ↔
   /// Inventory never tears down Inventory (root cause of the open flash).
@@ -99,6 +104,7 @@ class _AppShellState extends State<AppShell> {
     'Reports',
     'Diagnostics',
     'Settings',
+    'Assistant',
   ];
 
   @override
@@ -107,7 +113,36 @@ class _AppShellState extends State<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _syncPageVisibility(_index);
+      _shellNav = context.read<ShellNavigation>();
+      _shellNav!.addListener(_onShellNavigation);
+      _onShellNavigation();
     });
+  }
+
+  @override
+  void dispose() {
+    _shellNav?.removeListener(_onShellNavigation);
+    super.dispose();
+  }
+
+  void _onShellNavigation() {
+    final nav = _shellNav;
+    if (nav == null || !mounted) return;
+    final page = nav.pendingShellPage;
+    final panel = nav.pendingHealthPanel;
+    final clearPanel = nav.clearHealthPanel;
+    if (page == null && panel == null && !clearPanel) return;
+
+    if (page != null) {
+      _selectPage(page);
+    }
+    final healthNav = context.read<HealthNavigation>();
+    if (clearPanel) {
+      healthNav.clearPanel();
+    } else if (panel != null) {
+      healthNav.openPanel(panel);
+    }
+    nav.consume();
   }
 
   void _selectPage(int index) {
@@ -213,6 +248,23 @@ class _AppShellState extends State<AppShell> {
         icon: LucideIcons.settings,
         keywords: const ['navigate', 'page', 'preferences'],
         onInvoke: () => go(PulseShellPages.settings),
+      ),
+      PulseCommand(
+        id: 'nav.assistant',
+        title: 'Go to Assistant',
+        subtitle: 'Local AI diagnostics chat',
+        icon: LucideIcons.bot,
+        keywords: const ['assistant', 'ai', 'chat', 'ollama', 'lm studio'],
+        onInvoke: () => go(PulseShellPages.assistant),
+      ),
+      PulseCommand(
+        id: 'nav.aiIntegration',
+        title: 'Go to AI Integration',
+        icon: LucideIcons.bot,
+        keywords: const ['mcp', 'cursor', 'claude', 'copilot'],
+        onInvoke: () {
+          context.read<ShellNavigation>().openAiIntegrationSettings();
+        },
       ),
       PulseCommand(
         id: 'theme.cycle',
@@ -339,38 +391,46 @@ class _AppShellState extends State<AppShell> {
         autofocus: true,
         child: Scaffold(
           backgroundColor: Colors.transparent,
-          body: Column(
-            children: [
-              PulseTitleBar(
-                onOpenSearch: () => _openCommandPalette(),
-              ),
-              Expanded(
-                child: Row(
-                  children: [
-                    PulseSidebar(
-                      selectedIndex: _index,
-                      onSelected: _selectPage,
-                      items: _nav,
-                      footer: const _SidebarConnectionFooter(),
-                    ),
-                    Expanded(
-                      child: PulseMicaBackground(
-                        child: PulseContentFrame(
-                          // Keep every page Element alive. AnimatedSwitcher was
-                          // fading through a transparent frame (mica/canvas flash)
-                          // and disposing Inventory on every leave.
-                          child: IndexedStack(
-                            index: _index,
-                            sizing: StackFit.expand,
-                            children: _pages,
+          body: AssistantHost(
+            child: Column(
+              children: [
+                PulseTitleBar(
+                  onOpenSearch: () => _openCommandPalette(),
+                ),
+                Expanded(
+                  child: Row(
+                    children: [
+                      PulseSidebar(
+                        selectedIndex: _index,
+                        onSelected: _selectPage,
+                        items: _nav,
+                        pinnedItem: const PulseNavItem(
+                          label: 'Assistant',
+                          icon: LucideIcons.bot,
+                          selectedIcon: LucideIcons.bot,
+                        ),
+                        pinnedIndex: PulseShellPages.assistant,
+                        footer: const _SidebarConnectionFooter(),
+                      ),
+                      Expanded(
+                        child: PulseMicaBackground(
+                          child: PulseContentFrame(
+                            // Keep every page Element alive. AnimatedSwitcher was
+                            // fading through a transparent frame (mica/canvas flash)
+                            // and disposing Inventory on every leave.
+                            child: IndexedStack(
+                              index: _index,
+                              sizing: StackFit.expand,
+                              children: _pages,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -390,6 +450,9 @@ class _AppShellState extends State<AppShell> {
       case PulseShellPages.diagnostics:
         return DiagnosticsPage(title: title);
       case PulseShellPages.settings:
+        return SettingsPage(title: title);
+      case PulseShellPages.assistant:
+        return AssistantPage(title: title);
       default:
         return SettingsPage(title: title);
     }

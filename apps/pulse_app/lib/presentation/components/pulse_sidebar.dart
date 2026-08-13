@@ -22,12 +22,18 @@ class PulseSidebar extends StatelessWidget {
     required this.selectedIndex,
     required this.onSelected,
     required this.items,
+    this.pinnedItem,
+    this.pinnedIndex,
     this.footer,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final List<PulseNavItem> items;
+
+  /// Optional nav item pinned above the footer (e.g. Assistant).
+  final PulseNavItem? pinnedItem;
+  final int? pinnedIndex;
   final Widget? footer;
 
   @override
@@ -117,6 +123,23 @@ class PulseSidebar extends StatelessWidget {
               },
             ),
           ),
+          if (pinnedItem != null && pinnedIndex != null) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Divider(
+                height: 1,
+                color: PulseTokens.strokeSubtle.withValues(alpha: 0.9),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+              child: _SidebarTile(
+                item: pinnedItem!,
+                selected: selectedIndex == pinnedIndex,
+                onTap: () => onSelected(pinnedIndex!),
+              ),
+            ),
+          ],
           if (footer != null) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),

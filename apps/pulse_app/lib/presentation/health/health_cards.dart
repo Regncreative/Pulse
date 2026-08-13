@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/theme/pulse_theme.dart';
 import '../components/pulse_badge.dart';
 import '../components/pulse_card.dart';
+import 'health_utilization_colors.dart';
 import 'health_view_models.dart';
 
 /// Top-of-page posture card — primary entry for System Health (TASK-007.1).
@@ -343,7 +344,6 @@ class HealthHeroCard extends StatelessWidget {
           if (progress != null)
             _HealthProgressBar(
               value: progress,
-              tone: metric.status,
             )
           else if (metric.sparkline.length >= 2)
             SizedBox(
@@ -352,7 +352,7 @@ class HealthHeroCard extends StatelessWidget {
               child: CustomPaint(
                 painter: HealthSparklinePainter(
                   values: metric.sparkline,
-                  color: PulseTokens.accent,
+                  color: healthMetricChartColor(metric),
                 ),
               ),
             ),
@@ -364,18 +364,13 @@ class HealthHeroCard extends StatelessWidget {
 }
 
 class _HealthProgressBar extends StatelessWidget {
-  const _HealthProgressBar({required this.value, required this.tone});
+  const _HealthProgressBar({required this.value});
 
   final double value;
-  final HealthStatus tone;
 
   @override
   Widget build(BuildContext context) {
-    final fill = switch (tone) {
-      HealthStatus.elevated => PulseTokens.error,
-      HealthStatus.fair => PulseTokens.warning,
-      _ => PulseTokens.accent,
-    };
+    final fill = HealthUtilizationColors.forPercent(value * 100.0);
     return ClipRRect(
       borderRadius: BorderRadius.circular(PulseTokens.radiusPill),
       child: SizedBox(
@@ -478,6 +473,8 @@ class HealthSparklineTile extends StatelessWidget {
 
   static const double sparklineHeight = 94;
 
+  Color get _chartColor => healthMetricChartColor(metric);
+
   @override
   Widget build(BuildContext context) {
     final borderColor = selected
@@ -535,7 +532,7 @@ class HealthSparklineTile extends StatelessWidget {
               child: CustomPaint(
                 painter: HealthSparklinePainter(
                   values: metric.sparkline,
-                  color: PulseTokens.accent,
+                  color: _chartColor,
                 ),
                 child: const SizedBox.expand(),
               ),
@@ -547,7 +544,7 @@ class HealthSparklineTile extends StatelessWidget {
               child: CustomPaint(
                 painter: HealthSparklinePainter(
                   values: metric.sparkline,
-                  color: PulseTokens.accent,
+                  color: _chartColor,
                 ),
               ),
             ),
@@ -734,7 +731,6 @@ class _DetailRow extends StatelessWidget {
             SizedBox(height: compact ? 6 : 10),
             _HealthProgressBar(
               value: row.progress!,
-              tone: statusFromPercent(row.progress! * 100),
             ),
           ],
         ],

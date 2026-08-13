@@ -69,6 +69,7 @@ Each feature should answer: **"What is Windows doing right now?"**
 | 39 | [Inventory Engine (R3) plan](39-inventory-engine-r3.md) | Approved — ADR-011 Accepted; implementation in progress |
 | 40 | [Portable ZIP vs Windows Service](40-portable-vs-service.md) | FAQ — ZIP is not a true portable SKU; PulseService required |
 | 41 | [Store packaged PulseService](41-store-packaged-service.md) | MSIX desktop6:Service vs classic Inno SCM |
+| 42 | [Background tray & alerts](background-tray-and-alerts.md) | Tray lifecycle, hide-on-close, local notifications |
 
 **Architecture Decision Records:** [decisions/](decisions/)
 

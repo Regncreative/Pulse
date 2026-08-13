@@ -10,6 +10,7 @@ import '../../application/connection_controller.dart';
 import '../../application/diagnostics_controller.dart';
 import '../../application/mcp_integration_controller.dart';
 import '../../application/settings_controller.dart';
+import '../../application/shell_navigation.dart';
 import '../../application/timeline_session_controller.dart';
 import '../../app/theme/pulse_theme.dart';
 import '../../ipc/pulse_ipc_client.dart';
@@ -22,6 +23,7 @@ import '../components/pulse_card.dart';
 import '../components/pulse_section_header.dart';
 import '../utils/pulse_snack.dart';
 import '../utils/pulse_user_errors.dart';
+import 'settings_category.dart';
 
 /// Snap arbitrary persisted caps onto the Settings dropdown presets.
 int _nearestTimelineCap(int value) {
@@ -38,44 +40,47 @@ int _nearestTimelineCap(int value) {
   return best;
 }
 
-enum _SettingsCategory {
-  general,
-  appearance,
-  systemHealth,
-  timeline,
-  diagnostics,
-  performance,
-  privacy,
-  aiIntegration,
-  updates,
-  developer,
+int _nearestCooldown(int value) {
+  const presets = [5, 15, 30, 60];
+  var best = presets.first;
+  var bestDelta = (value - best).abs();
+  for (final p in presets.skip(1)) {
+    final d = (value - p).abs();
+    if (d < bestDelta) {
+      best = p;
+      bestDelta = d;
+    }
+  }
+  return best;
 }
 
-extension on _SettingsCategory {
+extension on SettingsCategoryId {
   String get label => switch (this) {
-        _SettingsCategory.general => 'General',
-        _SettingsCategory.appearance => 'Appearance',
-        _SettingsCategory.systemHealth => 'System Health',
-        _SettingsCategory.timeline => 'Timeline',
-        _SettingsCategory.diagnostics => 'Diagnostics',
-        _SettingsCategory.performance => 'Performance',
-        _SettingsCategory.privacy => 'Privacy',
-        _SettingsCategory.aiIntegration => 'AI Integration',
-        _SettingsCategory.updates => 'Updates',
-        _SettingsCategory.developer => 'Developer',
+        SettingsCategoryId.general => 'General',
+        SettingsCategoryId.appearance => 'Appearance',
+        SettingsCategoryId.background => 'Background',
+        SettingsCategoryId.systemHealth => 'System Health',
+        SettingsCategoryId.timeline => 'Timeline',
+        SettingsCategoryId.diagnostics => 'Diagnostics',
+        SettingsCategoryId.performance => 'Performance',
+        SettingsCategoryId.privacy => 'Privacy',
+        SettingsCategoryId.aiIntegration => 'AI Integration',
+        SettingsCategoryId.updates => 'Updates',
+        SettingsCategoryId.developer => 'Developer',
       };
 
   IconData get icon => switch (this) {
-        _SettingsCategory.general => LucideIcons.settings,
-        _SettingsCategory.appearance => LucideIcons.palette,
-        _SettingsCategory.systemHealth => LucideIcons.heartPulse,
-        _SettingsCategory.timeline => LucideIcons.listOrdered,
-        _SettingsCategory.diagnostics => LucideIcons.bug,
-        _SettingsCategory.performance => LucideIcons.gauge,
-        _SettingsCategory.privacy => LucideIcons.shieldCheck,
-        _SettingsCategory.aiIntegration => LucideIcons.bot,
-        _SettingsCategory.updates => LucideIcons.download,
-        _SettingsCategory.developer => LucideIcons.codeXml,
+        SettingsCategoryId.general => LucideIcons.settings,
+        SettingsCategoryId.appearance => LucideIcons.palette,
+        SettingsCategoryId.background => LucideIcons.panelBottom,
+        SettingsCategoryId.systemHealth => LucideIcons.heartPulse,
+        SettingsCategoryId.timeline => LucideIcons.listOrdered,
+        SettingsCategoryId.diagnostics => LucideIcons.bug,
+        SettingsCategoryId.performance => LucideIcons.gauge,
+        SettingsCategoryId.privacy => LucideIcons.shieldCheck,
+        SettingsCategoryId.aiIntegration => LucideIcons.bot,
+        SettingsCategoryId.updates => LucideIcons.download,
+        SettingsCategoryId.developer => LucideIcons.codeXml,
       };
 }
 
@@ -89,8 +94,9 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  _SettingsCategory _category = _SettingsCategory.general;
+  SettingsCategoryId _category = SettingsCategoryId.general;
   late final TextEditingController _customHexController;
+  ShellNavigation? _shellNav;
 
   @override
   void initState() {
@@ -101,13 +107,30 @@ class _SettingsPageState extends State<SettingsPage> {
       unawaited(context.read<DiagnosticsController>().refresh());
       final settings = context.read<SettingsController>();
       _syncHexField(settings.customAccentArgb);
+      try {
+        _shellNav = context.read<ShellNavigation>();
+        _shellNav!.addListener(_onShellNavigation);
+        _onShellNavigation();
+      } on ProviderNotFoundException {
+        // Isolated widget tests may omit ShellNavigation.
+      }
     });
   }
 
   @override
   void dispose() {
+    _shellNav?.removeListener(_onShellNavigation);
     _customHexController.dispose();
     super.dispose();
+  }
+
+  void _onShellNavigation() {
+    final nav = _shellNav;
+    if (nav == null || !mounted) return;
+    final category = nav.pendingSettingsCategory;
+    if (category == null) return;
+    setState(() => _category = category);
+    nav.consumeSettingsCategory();
   }
 
   void _syncHexField(int argb) {
@@ -251,26 +274,28 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  String _categorySubtitle(_SettingsCategory category) {
+  String _categorySubtitle(SettingsCategoryId category) {
     return switch (category) {
-      _SettingsCategory.general =>
+      SettingsCategoryId.general =>
         'Welcome and onboarding. Density and motion live under Appearance.',
-      _SettingsCategory.appearance =>
+      SettingsCategoryId.appearance =>
         'Theme, accent color, density, text size, and motion.',
-      _SettingsCategory.systemHealth =>
+      SettingsCategoryId.background =>
+        'System tray, startup, and local critical-condition notifications.',
+      SettingsCategoryId.systemHealth =>
         'Units and display preferences for System Health.',
-      _SettingsCategory.timeline =>
+      SettingsCategoryId.timeline =>
         'In-memory event buffer and live monitoring.',
-      _SettingsCategory.diagnostics =>
+      SettingsCategoryId.diagnostics =>
         'Local logging and advanced diagnostic surfaces.',
-      _SettingsCategory.performance =>
+      SettingsCategoryId.performance =>
         'Balance responsiveness, detail, and battery.',
-      _SettingsCategory.privacy =>
+      SettingsCategoryId.privacy =>
         'Everything stays on this PC. No accounts or telemetry.',
-      _SettingsCategory.aiIntegration =>
+      SettingsCategoryId.aiIntegration =>
         'Opt-in Pulse MCP for AI clients. Observation only. Consent required.',
-      _SettingsCategory.updates => 'App and service version information.',
-      _SettingsCategory.developer =>
+      SettingsCategoryId.updates => 'App and service version information.',
+      SettingsCategoryId.developer =>
         'Export, import, and reset local preferences.',
     };
   }
@@ -286,38 +311,48 @@ class _SettingsPageState extends State<SettingsPage> {
       final det = mcp.detections[p.id];
       final reg = mcp.registered[p.id] == true;
       final installed = det?.installed == true;
+      final subtitle = !installed
+          ? 'Not installed'
+          : (reg
+              ? 'Registered · ${det?.configPath ?? ''}'
+              : (det?.detail ?? 'Detected'));
       clientRows.add(const SoftDivider(indent: 52));
       clientRows.add(
         _SettingsRow(
           icon: LucideIcons.sparkles,
           title: p.id.displayName,
-          subtitle: installed
-              ? (reg
-                  ? 'Registered · ${det?.configPath ?? ''}'
-                  : (det?.detail ?? 'Detected'))
-              : (det?.detail ?? 'Not detected'),
+          subtitle: subtitle,
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (p.id != McpClientId.chatgpt)
-                PulseButton(
-                  label: reg ? 'Unregister' : 'Register',
-                  icon: reg ? LucideIcons.unlink : LucideIcons.link,
-                  variant: PulseButtonVariant.secondary,
-                  onPressed: mcp.busy
-                      ? null
-                      : () async {
-                          final result = reg
-                              ? await mcp.unregisterClient(p.id)
-                              : await mcp.registerClient(p.id);
-                          if (!context.mounted) return;
-                          _snack(
-                            context,
-                            result.message,
-                            error: !result.ok,
-                          );
-                        },
-                ),
+              Icon(
+                installed
+                    ? (reg ? LucideIcons.circleCheck : LucideIcons.circle)
+                    : LucideIcons.circleDashed,
+                size: 16,
+                color: installed
+                    ? (reg ? PulseTokens.success : PulseTokens.textSecondary)
+                    : PulseTokens.textTertiary,
+              ),
+              const SizedBox(width: 8),
+              PulseButton(
+                label: reg ? 'Unregister' : 'Register',
+                icon: reg ? LucideIcons.unlink : LucideIcons.link,
+                variant: PulseButtonVariant.secondary,
+                onPressed: mcp.busy
+                    ? null
+                    : () async {
+                        final result = reg
+                            ? await mcp.unregisterClient(p.id)
+                            : await mcp.registerClient(p.id);
+                        if (!context.mounted) return;
+                        _snack(
+                          context,
+                          result.message,
+                          error: !result.ok,
+                        );
+                      },
+              ),
             ],
           ),
         ),
@@ -328,6 +363,17 @@ class _SettingsPageState extends State<SettingsPage> {
       _SettingsGroup(
         title: 'Pulse MCP',
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              'Pulse uses the local MCP stdio transport. No remote MCP endpoint is required.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: PulseTokens.textSecondary,
+                    height: 1.4,
+                  ),
+            ),
+          ),
+          const SoftDivider(indent: 52),
           _SettingsRow(
             icon: LucideIcons.bot,
             title: 'Enable Pulse MCP',
@@ -420,13 +466,13 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       const SizedBox(height: PulseTokens.spaceMd),
       _SettingsGroup(
-        title: 'AI clients',
+        title: 'AI Tool Integrations',
         children: [
           _SettingsRow(
             icon: LucideIcons.info,
             title: 'Registration',
             subtitle:
-                'Writes only the Pulse MCP server entry. Other MCP servers are left untouched. Config is backed up first.',
+                'Writes only the Pulse MCP server entry (local stdio). Other MCP servers are left untouched. Config is backed up first.',
           ),
           ...clientRows,
         ],
@@ -465,7 +511,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   List<Widget> _buildCategoryContent(
     BuildContext context, {
-    required _SettingsCategory category,
+    required SettingsCategoryId category,
     required SettingsController settings,
     required McpIntegrationController mcp,
     required TimelineSessionController timeline,
@@ -474,7 +520,7 @@ class _SettingsPageState extends State<SettingsPage> {
     required String windowsLabel,
   }) {
     return switch (category) {
-      _SettingsCategory.general => [
+      SettingsCategoryId.general => [
           _SettingsGroup(
             title: 'Onboarding',
             children: [
@@ -498,7 +544,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ],
-      _SettingsCategory.appearance => [
+      SettingsCategoryId.appearance => [
           _SettingsGroup(
             title: 'Theme',
             children: [
@@ -736,7 +782,123 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ],
-      _SettingsCategory.systemHealth => [
+      SettingsCategoryId.background => [
+          _SettingsGroup(
+            title: 'Tray',
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text(
+                  'Background Mode keeps Pulse running in the system tray so it can monitor your system and notify you about critical conditions even when the main window is closed.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: PulseTokens.textSecondary,
+                        height: 1.4,
+                      ),
+                ),
+              ),
+              const SoftDivider(indent: 52),
+              _SettingsRow(
+                icon: LucideIcons.panelBottom,
+                title: 'Background Mode',
+                subtitle:
+                    'Keep Pulse running in the system tray when the window is closed.',
+                trailing: Switch(
+                  value: settings.backgroundMode,
+                  onChanged: (v) async {
+                    await settings.setBackgroundMode(v);
+                    if (context.mounted) {
+                      _snack(
+                        context,
+                        v ? 'Background Mode on' : 'Background Mode off',
+                      );
+                    }
+                  },
+                ),
+              ),
+              const SoftDivider(indent: 52),
+              _SettingsRow(
+                icon: LucideIcons.power,
+                title: 'Start Pulse with Windows',
+                subtitle:
+                    'Launch Pulse in the background when Windows starts (user session only).',
+                trailing: Switch(
+                  value: settings.startWithWindows,
+                  onChanged: (v) async {
+                    await settings.setStartWithWindows(v);
+                    if (context.mounted) {
+                      _snack(
+                        context,
+                        v
+                            ? 'Start with Windows enabled'
+                            : 'Start with Windows disabled',
+                      );
+                    }
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Text(
+                  'PulseService continues to run independently. Exiting Pulse only closes the desktop application.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: PulseTokens.textTertiary,
+                        height: 1.4,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          _SettingsGroup(
+            title: 'Notifications',
+            children: [
+              _SettingsRow(
+                icon: LucideIcons.bell,
+                title: 'System Notifications',
+                subtitle:
+                    'Allow Pulse to notify you when critical system conditions are detected.',
+                trailing: Switch(
+                  value: settings.systemNotifications,
+                  onChanged: (v) async {
+                    await settings.setSystemNotifications(v);
+                    if (context.mounted) {
+                      _snack(
+                        context,
+                        v
+                            ? 'System notifications on'
+                            : 'System notifications off',
+                      );
+                    }
+                  },
+                ),
+              ),
+              const SoftDivider(indent: 52),
+              _SettingsRow(
+                icon: LucideIcons.timer,
+                title: 'Notification cooldown',
+                subtitle:
+                    '${settings.notificationCooldownMinutes} min between repeats for the same alert',
+                trailing: DropdownButton<int>(
+                  value: _nearestCooldown(settings.notificationCooldownMinutes),
+                  underline: const SizedBox.shrink(),
+                  items: const [
+                    DropdownMenuItem(value: 5, child: Text('5 min')),
+                    DropdownMenuItem(value: 15, child: Text('15 min')),
+                    DropdownMenuItem(value: 30, child: Text('30 min')),
+                    DropdownMenuItem(value: 60, child: Text('60 min')),
+                  ],
+                  onChanged: (v) async {
+                    if (v == null) return;
+                    await settings.setNotificationCooldownMinutes(v);
+                    if (context.mounted) {
+                      _snack(context, 'Cooldown set to $v min');
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      SettingsCategoryId.systemHealth => [
           _SettingsGroup(
             title: 'Units',
             children: [
@@ -804,7 +966,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ],
-      _SettingsCategory.timeline => [
+      SettingsCategoryId.timeline => [
           _SettingsGroup(
             title: 'Buffer',
             children: [
@@ -899,7 +1061,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ],
-      _SettingsCategory.diagnostics => [
+      SettingsCategoryId.diagnostics => [
           _SettingsGroup(
             title: 'Logging',
             children: [
@@ -980,7 +1142,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ],
-      _SettingsCategory.performance => [
+      SettingsCategoryId.performance => [
           _SettingsGroup(
             title: 'Mode',
             children: [
@@ -1023,8 +1185,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ],
-      _SettingsCategory.aiIntegration => _buildAiIntegration(context, mcp),
-      _SettingsCategory.privacy => [
+      SettingsCategoryId.aiIntegration => _buildAiIntegration(context, mcp),
+      SettingsCategoryId.privacy => [
           _SettingsGroup(
             title: 'Local-first',
             children: [
@@ -1091,7 +1253,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ],
-      _SettingsCategory.updates => [
+      SettingsCategoryId.updates => [
           _SettingsGroup(
             title: 'About',
             children: [
@@ -1152,7 +1314,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ],
-      _SettingsCategory.developer => [
+      SettingsCategoryId.developer => [
           _SettingsGroup(
             title: 'Settings data',
             children: [
@@ -1287,8 +1449,8 @@ class _CategoryRail extends StatelessWidget {
     required this.onSelect,
   });
 
-  final _SettingsCategory selected;
-  final ValueChanged<_SettingsCategory> onSelect;
+  final SettingsCategoryId selected;
+  final ValueChanged<SettingsCategoryId> onSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -1297,7 +1459,7 @@ class _CategoryRail extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: ListView(
         children: [
-          for (final category in _SettingsCategory.values)
+          for (final category in SettingsCategoryId.values)
             _CategoryTile(
               category: category,
               selected: category == selected,
@@ -1316,7 +1478,7 @@ class _CategoryTile extends StatefulWidget {
     required this.onTap,
   });
 
-  final _SettingsCategory category;
+  final SettingsCategoryId category;
   final bool selected;
   final VoidCallback onTap;
 

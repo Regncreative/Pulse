@@ -3,8 +3,8 @@
 const String kProductName = 'Pulse';
 const String kServiceName = 'PulseService';
 const String kPipeName = r'\\.\pipe\PulseService';
-const String kAppVersion = '1.0.0';
-const String kServiceVersionExpected = '1.0.0';
+const String kAppVersion = '1.1.0';
+const String kServiceVersionExpected = '1.1.0';
 const int kProtocolVersion = 1;
 const int kMaxFramePayloadBytes = 2 * 1024 * 1024;
 const int kFrameMagic0 = 0x50; // P

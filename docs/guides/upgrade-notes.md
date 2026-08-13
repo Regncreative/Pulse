@@ -1,5 +1,14 @@
 # Upgrade notes
 
+## To 1.1.0
+
+- Installer: `Pulse-Setup-1.1.0-windows-x64.exe`
+- Product stamp is **`1.1.0`** (UI, PulseService, PulseMCP)
+- After upgrading from **1.0.0**:
+  1. Confirm Diagnostics → App / Service show **1.1.0**
+  2. Open **Assistant** from the sidebar to select Local AI provider/model if desired
+  3. If you use MCP: **Settings → AI Integration → Unregister → Register**
+
 ## To 1.0.0 (stable)
 
 - Installer: `Pulse-Setup-1.0.0-windows-x64.exe`

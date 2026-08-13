@@ -1,72 +1,136 @@
-# Pulse AI Integration (MCP)
+# AI Integration (Pulse MCP)
 
-Pulse exposes a read-only [Model Context Protocol](https://modelcontextprotocol.io/) server (**PulseMCP**) so AI clients can observe Windows diagnostics through Pulse — without changing Windows.
+Pulse exposes Windows diagnostics to local AI coding tools through **PulseMCP.exe** — a first-class [Model Context Protocol](https://modelcontextprotocol.io/) server.
 
-## Principles
+**Pulse uses the local MCP stdio transport. No remote MCP endpoint is required.**
 
-- **Opt-in.** MCP is disabled until you enable it in **Settings → AI Integration**.
-- **Observation only.** Tools never inject, patch, or elevate silently.
-- **Local-first.** Pulse does not upload data. Your AI client might — read its privacy policy.
-- **Consent.** Pulse never edits Cursor/Claude config until you click **Register**.
+Architecture: [33 — PulseMCP](../architecture/33-mcp-bridge.md) · [ADR-010](../architecture/decisions/ADR-010-mcp-first-class-product.md)
 
-## Requirements
+---
 
-- PulseService running
-- PulseMCP installed (Setup installs `PulseMCP.exe` + private `runtime\` + `mcp\`)
-- An MCP-capable client (Cursor, Claude Desktop; ChatGPT reserved)
+## Supported clients (local stdio)
 
-End users do **not** need a system Node.js installation. The installer ships a private Node runtime used only by PulseMCP.
+| Client | Config path (Windows) | Top-level key |
+|--------|----------------------|---------------|
+| **Cursor** | `%USERPROFILE%\.cursor\mcp.json` | `mcpServers` |
+| **Claude Desktop** | `%APPDATA%\Claude\claude_desktop_config.json` (+ Store Claude package path when present) | `mcpServers` |
+| **Windsurf** | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` | `mcpServers` |
+| **Cline** | `%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json` (and Insiders/VSCodium equivalents); optional CLI `%USERPROFILE%\.cline\mcp.json` | `mcpServers` |
+| **VS Code / GitHub Copilot** | `%APPDATA%\Code\User\mcp.json` (user profile; also Insiders/VSCodium when present) | `servers` |
 
-## Enable
+All of these launch the same **PulseMCP.exe** over **stdio**. PulseService remains the diagnostics source via named pipe IPC.
+
+ChatGPT is **not** supported: it requires remote HTTP MCP, which Pulse does not expose.
+
+---
+
+## Prerequisites
+
+- Pulse installed (or PulseMCP built from `apps/pulse_mcp`)
+- **PulseService** running
+- An MCP-capable local client from the table above
+- In Pulse **Settings → AI Integration**: enable **Pulse MCP** (opt-in; default off)
+
+---
+
+## Register from Pulse
 
 1. Open **Settings → AI Integration**
-2. Turn on **Enable Pulse MCP**
-3. Optionally enable **Start Pulse MCP automatically with Pulse** (status heartbeat)
-4. Under **AI clients**, click **Register** for Cursor (global) or Claude Desktop
-5. Restart the AI client if it was already open
+2. Enable **Pulse MCP**
+3. Under **AI Tool Integrations**, click **Register** for each installed client
+4. Restart the AI client so it reloads MCP config
 
-Policy file: `%LOCALAPPDATA%\Pulse\mcp\policy.json`
+**Consent.** Pulse never edits Cursor / Claude / Windsurf / Cline / VS Code config until you click **Register**.
 
-## Cursor (global)
+On Windows, when the Pulse install path contains spaces (default: `C:\Program Files\Pulse\...`), registration uses a `cmd.exe /c` wrapper so clients do not split the path at the first space.
 
-Pulse writes `%USERPROFILE%\.cursor\mcp.json` and merges only the `pulse` server entry. Other MCP servers are left unchanged. A backup `*.pulse-backup-*` is created first.
+Registration:
 
-On Windows, when the Pulse install path contains spaces (default: `C:\Program Files\Pulse\...`), registration uses a `cmd.exe /c` wrapper so Cursor does not split the path at the first space.
+- Backs up the target JSON first
+- Writes **only** the `pulse` server entry
+- Leaves every other MCP server untouched
+- Is idempotent (re-register updates the Pulse entry)
 
-Unregister removes the Pulse entry **only if Pulse created it** (tracked in `%LOCALAPPDATA%\Pulse\mcp\client-registrations.json`).
+**Unregister** removes only the Pulse entry, and only if Pulse created the registration marker.
 
-## Claude Desktop
+If a client shows **Not installed**, detection did not find that product — you can still Register when a known config path exists (soft path), or install the client first.
 
-Same safety model for Claude config files (including the Windows `cmd.exe /c` wrapper when needed):
+---
 
-| Install | Config path |
-|---------|-------------|
-| Classic | `%APPDATA%\Claude\claude_desktop_config.json` |
-| Microsoft Store / MSIX | `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json` |
+## Manual config examples
 
-**Register** writes both locations when present. Pulse itself is **not** distributed through the Microsoft Store — only Claude’s Store install affects the config path above.
+### Cursor / Windsurf / Claude / Cline (`mcpServers`)
+
+```json
+{
+  "mcpServers": {
+    "pulse": {
+      "command": "C:\\Program Files\\Pulse\\PulseMCP.exe",
+      "args": [],
+      "env": {}
+    }
+  }
+}
+```
+
+With spaces (equivalent to Pulse’s Windows wrapper):
+
+```json
+{
+  "mcpServers": {
+    "pulse": {
+      "command": "cmd.exe",
+      "args": ["/c", "C:\\Program Files\\Pulse\\PulseMCP.exe"],
+      "env": {}
+    }
+  }
+}
+```
+
+### VS Code / GitHub Copilot (`servers`)
+
+User profile `mcp.json` (Command Palette → **MCP: Open User Configuration**):
+
+```json
+{
+  "servers": {
+    "pulse": {
+      "type": "stdio",
+      "command": "C:\\Program Files\\Pulse\\PulseMCP.exe",
+      "args": [],
+      "env": {}
+    }
+  }
+}
+```
+
+After registration, use Copilot **Agent** mode so tools from PulseMCP are available.
+
+---
+
+## Security
+
+- PulseMCP runs as a **local child process** of the AI client
+- Talks to PulseService only over the existing **named pipe**
+- Policy-controlled (`%LOCALAPPDATA%\Pulse\mcp\policy.json`)
+- Does **not** listen on HTTP, open a network port, or send telemetry
+- Observation-only tools (no OS mutation)
+
+---
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
+| Tools missing after upgrade | Re-Register; restart the AI client |
 | `POLICY_DISABLED` | Enable Pulse MCP in Settings |
-| Tools missing after upgrade | Re-Register; restart Cursor |
-| `'C:\Program' is not recognized` | Re-Register after upgrading — install path spaces need `cmd.exe /c` wrapper |
-| PulseMCP not found | Reinstall Pulse (Setup must include `PulseMCP.exe` + `runtime\`) |
-| Invalid JSON in Cursor config | Restore `mcp.json.pulse-backup-*` |
-| Service pipe offline | Start PulseService from Diagnostics |
+| Service unavailable | Start PulseService |
+| Invalid JSON in client config | Restore `*.pulse-backup-*` next to the config file |
+| VS Code tools not visible | Confirm `servers` (not `mcpServers`) in user `mcp.json`; use Agent mode |
 
-Logs: `%LOCALAPPDATA%\Pulse\logs\pulsemcp\`
+---
 
-## Security
+## Related
 
-- Config edits require an explicit Register / Unregister click
-- Backups before write
-- JSON validated before replace
-- Uninstall runs `--cleanup-registrations` for Pulse-owned entries only
-
-## Upgrade notes
-
-- Policy and registration markers survive app upgrades under `%LOCALAPPDATA%\Pulse\mcp\`
-- Re-register after moving the install directory so the launch command path stays correct
+- [33 — PulseMCP architecture](../architecture/33-mcp-bridge.md)
+- Settings UI: **AI Integration**
