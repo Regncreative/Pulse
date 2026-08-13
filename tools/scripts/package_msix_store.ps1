@@ -59,6 +59,7 @@ function Find-MakeAppx {
 function Resolve-CrtFolder {
   $crtCandidates = @(
     "${env:ProgramFiles(x86)}\Microsoft Visual Studio\18\BuildTools\VC\Redist\MSVC\14.50.35710\x64\Microsoft.VC145.CRT",
+    "${env:ProgramFiles}\Microsoft Visual Studio\18\Enterprise\VC\Redist\MSVC",
     "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC"
   )
   foreach ($c in $crtCandidates) {
@@ -199,6 +200,7 @@ if ($root -match '[^\x00-\x7F]') {
 Write-Host "==> Building PulseService (Release)"
 $vsDevCandidates = @(
   "${env:ProgramFiles(x86)}\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat",
+  "${env:ProgramFiles}\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat",
   "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat",
   "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
 )
@@ -207,6 +209,7 @@ if (-not $vsDev) { throw "VsDevCmd.bat not found. Install VS Build Tools with C+
 
 $cmakeCandidates = @(
   "${env:ProgramFiles(x86)}\Microsoft Visual Studio\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe",
+  "${env:ProgramFiles}\Microsoft Visual Studio\18\Enterprise\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe",
   "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe",
   "${env:ProgramFiles}\CMake\bin\cmake.exe",
   "cmake"

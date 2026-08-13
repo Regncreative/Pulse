@@ -18,12 +18,10 @@ import '../platform/pulse_service_scm.dart';
 class ServiceLifecycleController extends ChangeNotifier {
   ServiceLifecycleController({
     required this.logger,
-    PulseServiceScm scm = const WindowsPulseServiceScm(),
-    PulseServiceLauncher launcher = const WindowsPulseServiceLauncher(),
-    PulseDeployment deployment = const WindowsPulseDeployment(),
-  })  : _scm = scm,
-        _launcher = launcher,
-        _deployment = deployment;
+    this._scm = const WindowsPulseServiceScm(),
+    this._launcher = const WindowsPulseServiceLauncher(),
+    this._deployment = const WindowsPulseDeployment(),
+  });
 
   final AppLogger logger;
   final PulseServiceScm _scm;

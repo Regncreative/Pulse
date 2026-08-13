@@ -51,9 +51,7 @@ class _AlertSlot {
 
 /// Debounced alert engine. Call [onSample] with wall-clock [now] for tests.
 class AlertStateEngine {
-  // ignore: prefer_initializing_formals — keep public named param `thresholds`.
-  AlertStateEngine({AlertThresholds thresholds = const AlertThresholds()})
-      : _thresholds = thresholds;
+  AlertStateEngine({this._thresholds = const AlertThresholds()});
 
   AlertThresholds _thresholds;
   final Map<AlertKind, _AlertSlot> _slots = {
