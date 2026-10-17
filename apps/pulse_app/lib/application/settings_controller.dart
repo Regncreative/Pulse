@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app/theme/pulse_theme.dart';
+import '../assistant/local_ai_http.dart';
 import '../logging/app_logger.dart';
 import '../platform/export_writer.dart';
 
@@ -50,6 +51,8 @@ class SettingsController extends ChangeNotifier {
       'background.notification_cooldown_minutes';
   static const _kAssistantLocalAiProvider = 'assistant.local_ai.provider_id';
   static const _kAssistantLocalAiModel = 'assistant.local_ai.model_id';
+  static const _kAssistantOllamaPort = 'assistant.ollama.port';
+  static const _kAssistantLmStudioPort = 'assistant.lm_studio.port';
 
   static const String buildDate = '2026-10-14';
   /// Default cooldown between repeat notifications for the same alert kind.
@@ -167,6 +170,12 @@ class SettingsController extends ChangeNotifier {
   /// Persisted Assistant model id for the selected runtime.
   String? assistantLocalAiModelId;
 
+  /// Port of Ollama on 127.0.0.1. The address itself is fixed.
+  int assistantOllamaPort = LocalAiLoopback.ollamaDefaultPort;
+
+  /// Port of the LM Studio server on 127.0.0.1. The address itself is fixed.
+  int assistantLmStudioPort = LocalAiLoopback.lmStudioDefaultPort;
+
   ThemeMode get materialThemeMode {
     switch (themeMode) {
       case 'system':
@@ -262,6 +271,14 @@ class SettingsController extends ChangeNotifier {
         _normalizeOptionalId(p.getString(_kAssistantLocalAiProvider));
     assistantLocalAiModelId =
         _normalizeOptionalId(p.getString(_kAssistantLocalAiModel));
+    assistantOllamaPort = _normalizePort(
+      p.getInt(_kAssistantOllamaPort),
+      LocalAiLoopback.ollamaDefaultPort,
+    );
+    assistantLmStudioPort = _normalizePort(
+      p.getInt(_kAssistantLmStudioPort),
+      LocalAiLoopback.lmStudioDefaultPort,
+    );
     logger.debugEnabled = debugLogging;
     _ready = true;
     notifyListeners();
@@ -554,6 +571,8 @@ class SettingsController extends ChangeNotifier {
     notificationCooldownMinutes = defaultNotificationCooldownMinutes;
     assistantLocalAiProviderId = null;
     assistantLocalAiModelId = null;
+    assistantOllamaPort = LocalAiLoopback.ollamaDefaultPort;
+    assistantLmStudioPort = LocalAiLoopback.lmStudioDefaultPort;
     logger.debugEnabled = false;
     await _prefs?.clear();
     notifyListeners();
@@ -583,6 +602,27 @@ class SettingsController extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  /// Saves the Ollama port. Returns false for a port outside 1-65535.
+  Future<bool> setAssistantOllamaPort(int port) async {
+    if (!LocalAiLoopback.isValidPort(port)) return false;
+    assistantOllamaPort = port;
+    await _prefs?.setInt(_kAssistantOllamaPort, port);
+    notifyListeners();
+    return true;
+  }
+
+  /// Saves the LM Studio port. Returns false for a port outside 1-65535.
+  Future<bool> setAssistantLmStudioPort(int port) async {
+    if (!LocalAiLoopback.isValidPort(port)) return false;
+    assistantLmStudioPort = port;
+    await _prefs?.setInt(_kAssistantLmStudioPort, port);
+    notifyListeners();
+    return true;
+  }
+
+  int _normalizePort(Object? value, int fallback) =>
+      value is int && LocalAiLoopback.isValidPort(value) ? value : fallback;
 
   String? _normalizeOptionalId(String? value) {
     final trimmed = value?.trim();
@@ -625,6 +665,10 @@ class SettingsController extends ChangeNotifier {
         'notification_cooldown_minutes': notificationCooldownMinutes,
         'assistant_local_ai_provider_id': assistantLocalAiProviderId,
         'assistant_local_ai_model_id': assistantLocalAiModelId,
+        // Ports only. The LM Studio token lives in Credential Manager and is
+        // never part of the settings export.
+        'assistant_ollama_port': assistantOllamaPort,
+        'assistant_lm_studio_port': assistantLmStudioPort,
       };
 
   /// Applies a settings map (from export JSON) and persists each field.
@@ -741,6 +785,18 @@ class SettingsController extends ChangeNotifier {
         map['assistant_local_ai_model_id']?.toString(),
       );
     }
+    if (map.containsKey('assistant_ollama_port')) {
+      assistantOllamaPort = _normalizePort(
+        map['assistant_ollama_port'],
+        LocalAiLoopback.ollamaDefaultPort,
+      );
+    }
+    if (map.containsKey('assistant_lm_studio_port')) {
+      assistantLmStudioPort = _normalizePort(
+        map['assistant_lm_studio_port'],
+        LocalAiLoopback.lmStudioDefaultPort,
+      );
+    }
 
     final p = _prefs;
     if (p != null) {
@@ -789,6 +845,8 @@ class SettingsController extends ChangeNotifier {
       await p.setBool(_kSystemNotifications, systemNotifications);
       await p.setBool(_kNotificationsPaused, notificationsPaused);
       await p.setInt(_kNotificationCooldownMinutes, notificationCooldownMinutes);
+      await p.setInt(_kAssistantOllamaPort, assistantOllamaPort);
+      await p.setInt(_kAssistantLmStudioPort, assistantLmStudioPort);
       if (assistantLocalAiProviderId == null) {
         await p.remove(_kAssistantLocalAiProvider);
       } else {

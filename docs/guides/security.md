@@ -22,8 +22,17 @@ Only these features use the network, and only when you use them:
 
 | Feature | What is sent | Where |
 |---------|--------------|-------|
-| **Assistant** (optional) | Your question and the diagnostics it needs | A local AI runtime on `localhost` (Ollama / LM Studio). Pulse refuses non-local endpoints. |
+| **Assistant** (optional) | Your question and the diagnostics it needs | A local AI runtime on this PC (Ollama / LM Studio) at `127.0.0.1`. See below. |
 | **Check for updates** (GitHub edition, optional) | An ordinary HTTPS request with Pulse's version in the User-Agent | `api.github.com`, only when you click *Check* or turn on weekly checks |
+
+## Assistant: this PC only
+
+Diagnostic data never leaves this PC, and there is no setting that changes that.
+
+- The Assistant connects only to `127.0.0.1` or `::1`. Names such as `localhost` are refused, because the hosts file can point them at another machine.
+- Settings → Privacy → Assistant lets you change the **port** of Ollama or LM Studio. There is no field for an address, so other computers on your network and cloud services cannot be configured.
+- Redirects are never followed and system or environment proxies are ignored, so a local server cannot pass your data on.
+- The optional **LM Studio API key** is kept in Windows Credential Manager (this PC only, not roaming). It is never written to settings, the settings export, logs, reports or diagnostics bundles. *Reset all settings* removes it.
 
 ## Exports and shared reports
 

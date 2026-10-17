@@ -5,6 +5,17 @@ All notable changes to Pulse are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Assistant ports and LM Studio API key** (Settings → Privacy → Assistant): change the Ollama or LM Studio port on this PC; the optional key is kept in Windows Credential Manager, never in settings, logs or exports
+- "Local AI not found" now lists what Pulse checked, e.g. *LM Studio server is not running on 127.0.0.1:1234. Start it in LM Studio → Developer.*
+
+### Security
+
+- The Assistant connects only to `127.0.0.1` / `::1`: `localhost` is refused, redirects are never followed and proxies are ignored. There is no option to reach another computer or a cloud service
+
 ## [1.4.0] — 2026-10-14
 
 ### Added

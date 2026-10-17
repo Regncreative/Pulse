@@ -190,6 +190,19 @@ class _EmptyLocalAiState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusLines = context.select<AssistantController, String>(
+      (c) => c.providerStatusLines.join(_lineBreak),
+    );
+    return _buildEmpty(
+      context,
+      statusLines.isEmpty ? const [] : statusLines.split(_lineBreak),
+    );
+  }
+
+  // Joined into one string so `select` compares by value, not list identity.
+  static const _lineBreak = '\n';
+
+  Widget _buildEmpty(BuildContext context, List<String> statusLines) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
       child: Column(
@@ -287,6 +300,40 @@ class _EmptyLocalAiState extends StatelessWidget {
                             _RuntimeChip(label: 'LM Studio'),
                           ],
                         ),
+                        if (statusLines.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          Text(
+                            'What Pulse checked',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(color: PulseTokens.textTertiary),
+                          ),
+                          const SizedBox(height: 6),
+                          for (final line in statusLines)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                line,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: PulseTokens.textSecondary,
+                                      height: 1.4,
+                                    ),
+                              ),
+                            ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Ports and the LM Studio API key are in '
+                            'Settings → Privacy.',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: PulseTokens.textTertiary),
+                          ),
+                        ],
                       ],
                     ),
                   ),

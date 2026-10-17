@@ -143,6 +143,30 @@ void main() {
     expect(find.text('Text size'), findsOneWidget);
   });
 
+  testWidgets('Privacy shows the loopback-only Assistant ports', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(640, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(await _harness(const SettingsPage(title: 'Settings')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Privacy').first);
+    await tester.tap(find.text('Privacy').first);
+    await tester.pumpAndSettle();
+
+    await tester.dragUntilVisible(
+      find.text('LM Studio API key'),
+      find.byType(ListView).last,
+      const Offset(0, -200),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('This PC only'), findsOneWidget);
+    expect(find.text('Ollama port'), findsOneWidget);
+    expect(find.text('LM Studio port'), findsOneWidget);
+    expect(find.text('1234'), findsOneWidget);
+    // There is no field for an address, only the fixed 127.0.0.1 prefix.
+    expect(find.text('127.0.0.1 : '), findsNWidgets(2));
+  });
+
   testWidgets('Reports page has no overflow at narrow width', (tester) async {
     await tester.binding.setSurfaceSize(const Size(480, 720));
     addTearDown(() => tester.binding.setSurfaceSize(null));

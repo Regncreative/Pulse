@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:pulse_protocol/pulse_constants.dart';
 
+import '../../application/assistant_controller.dart';
 import '../../application/connection_controller.dart';
 import '../../application/diagnostics_controller.dart';
 import '../../application/settings_controller.dart';
@@ -13,8 +14,10 @@ import '../../application/shell_navigation.dart';
 import '../../application/timeline_session_controller.dart';
 import '../../application/update_check_controller.dart';
 import '../../app/theme/pulse_theme.dart';
+import '../../assistant/local_ai_http.dart';
 import '../../ipc/pulse_ipc_client.dart';
 import '../../platform/browser.dart';
+import '../../platform/local_ai_token_store.dart';
 import '../../platform/pulse_deployment.dart';
 import '../components/pulse_app_bar.dart';
 import '../components/pulse_badge.dart';
@@ -1039,9 +1042,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     context,
                     title: 'Reset all settings?',
                     body:
-                        'Timeline preferences and interface options return to defaults.',
+                        'Timeline preferences and interface options return to '
+                        'defaults. A saved LM Studio API key is removed.',
                     onConfirm: () async {
+                      final tokenStore = _assistantTokenStore(context);
                       await settings.resetAll();
+                      tokenStore?.delete();
                       await timeline.applyLiveMonitoringPreference();
                     },
                   ),
@@ -1049,6 +1055,8 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
+          const SizedBox(height: PulseTokens.spaceLg),
+          const _AssistantConnectionGroup(),
         ],
       SettingsCategoryId.updates => [
           // The Store edition is updated by the Store.
@@ -1228,9 +1236,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     context,
                     title: 'Reset all settings?',
                     body:
-                        'Timeline preferences and interface options return to defaults.',
+                        'Timeline preferences and interface options return to '
+                        'defaults. A saved LM Studio API key is removed.',
                     onConfirm: () async {
+                      final tokenStore = _assistantTokenStore(context);
                       await settings.resetAll();
+                      tokenStore?.delete();
                       await timeline.applyLiveMonitoringPreference();
                     },
                   ),
@@ -1463,6 +1474,235 @@ class _UpdatesGroup extends StatelessWidget {
               if (value) await updates.checkAutomaticallyIfDue();
             },
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The Assistant's token store, or null in widget tests without one.
+LocalAiTokenStore? _assistantTokenStore(BuildContext context) {
+  try {
+    return context.read<AssistantController>().tokenStore;
+  } on ProviderNotFoundException {
+    return null;
+  }
+}
+
+/// Ports and the optional LM Studio API key for the local Assistant.
+///
+/// The address is fixed to 127.0.0.1: diagnostic data never leaves this PC,
+/// so there is deliberately no field for another host.
+class _AssistantConnectionGroup extends StatefulWidget {
+  const _AssistantConnectionGroup();
+
+  @override
+  State<_AssistantConnectionGroup> createState() =>
+      _AssistantConnectionGroupState();
+}
+
+class _AssistantConnectionGroupState extends State<_AssistantConnectionGroup> {
+  late final TextEditingController _ollamaPort;
+  late final TextEditingController _lmStudioPort;
+  bool _hasToken = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final settings = context.read<SettingsController>();
+    _ollamaPort =
+        TextEditingController(text: '${settings.assistantOllamaPort}');
+    _lmStudioPort =
+        TextEditingController(text: '${settings.assistantLmStudioPort}');
+    _hasToken = _assistantTokenStore(context)?.read() != null;
+  }
+
+  @override
+  void dispose() {
+    _ollamaPort.dispose();
+    _lmStudioPort.dispose();
+    super.dispose();
+  }
+
+  void _refreshAssistant() {
+    try {
+      context.read<AssistantController>().unawaitedRefresh();
+    } on ProviderNotFoundException {
+      // Isolated widget tests may omit the Assistant.
+    }
+  }
+
+  Future<void> _savePort(
+    TextEditingController controller,
+    Future<bool> Function(int port) save,
+    int current,
+  ) async {
+    final port = int.tryParse(controller.text.trim());
+    final saved = port != null && await save(port);
+    if (!mounted) return;
+    if (!saved) {
+      controller.text = '$current';
+      PulseSnack.error(
+        context,
+        'Enter a port from ${LocalAiLoopback.minPort} to '
+        '${LocalAiLoopback.maxPort}.',
+      );
+      return;
+    }
+    PulseSnack.success(context, 'Port saved');
+    _refreshAssistant();
+  }
+
+  Future<void> _addToken() async {
+    final store = _assistantTokenStore(context);
+    if (store == null) return;
+    final controller = TextEditingController();
+    final token = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: PulseTokens.surfaceElevated,
+        title: const Text('LM Studio API key'),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          enableSuggestions: false,
+          autocorrect: false,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Paste the key from LM Studio → Developer',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (token == null || token.isEmpty || !mounted) return;
+    if (!store.write(token)) {
+      PulseSnack.error(
+        context,
+        'Windows could not save the key. Details are in the Pulse log.',
+      );
+      return;
+    }
+    setState(() => _hasToken = true);
+    PulseSnack.success(context, 'API key saved');
+    _refreshAssistant();
+  }
+
+  void _removeToken() {
+    final store = _assistantTokenStore(context);
+    if (store == null) return;
+    if (!store.delete()) {
+      PulseSnack.error(
+        context,
+        'Windows could not remove the key. Details are in the Pulse log.',
+      );
+      return;
+    }
+    setState(() => _hasToken = false);
+    PulseSnack.success(context, 'API key removed');
+    _refreshAssistant();
+  }
+
+  Widget _portField(
+    TextEditingController controller,
+    Future<bool> Function(int port) save,
+    int current,
+  ) {
+    return SizedBox(
+      width: 160,
+      child: TextField(
+        controller: controller,
+        decoration: const InputDecoration(
+          prefixText: '127.0.0.1 : ',
+          isDense: true,
+        ),
+        keyboardType: TextInputType.number,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(5),
+        ],
+        onSubmitted: (_) => _savePort(controller, save, current),
+        onTapOutside: (_) {
+          if (controller.text.trim() != '$current') {
+            unawaited(_savePort(controller, save, current));
+          }
+          FocusManager.instance.primaryFocus?.unfocus();
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsController>();
+    return _SettingsGroup(
+      title: 'Assistant',
+      children: [
+        _SettingsRow(
+          icon: LucideIcons.lock,
+          title: 'This PC only',
+          subtitle: 'The Assistant talks only to a local AI on 127.0.0.1. '
+              'Other computers and cloud services are not supported.',
+          trailing: Icon(
+            LucideIcons.check,
+            size: 18,
+            color: PulseTokens.success,
+          ),
+        ),
+        const SoftDivider(indent: 52),
+        _SettingsRow(
+          icon: LucideIcons.bot,
+          title: 'Ollama port',
+          subtitle: 'Default ${LocalAiLoopback.ollamaDefaultPort}',
+          trailing: _portField(
+            _ollamaPort,
+            settings.setAssistantOllamaPort,
+            settings.assistantOllamaPort,
+          ),
+        ),
+        const SoftDivider(indent: 52),
+        _SettingsRow(
+          icon: LucideIcons.bot,
+          title: 'LM Studio port',
+          subtitle: 'Default ${LocalAiLoopback.lmStudioDefaultPort}',
+          trailing: _portField(
+            _lmStudioPort,
+            settings.setAssistantLmStudioPort,
+            settings.assistantLmStudioPort,
+          ),
+        ),
+        const SoftDivider(indent: 52),
+        _SettingsRow(
+          icon: LucideIcons.keyRound,
+          title: 'LM Studio API key',
+          subtitle: _hasToken
+              ? 'Saved in Windows Credential Manager. Never written to '
+                  'settings, logs or exports.'
+              : 'Only needed when "Require API key" is on in LM Studio. '
+                  'Kept in Windows Credential Manager.',
+          trailing: _hasToken
+              ? PulseButton(
+                  label: 'Remove',
+                  icon: LucideIcons.trash2,
+                  variant: PulseButtonVariant.secondary,
+                  onPressed: _removeToken,
+                )
+              : PulseButton(
+                  label: 'Add key',
+                  icon: LucideIcons.plus,
+                  variant: PulseButtonVariant.secondary,
+                  onPressed: _addToken,
+                ),
         ),
       ],
     );

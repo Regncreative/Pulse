@@ -535,12 +535,103 @@ void main() {
     });
   });
 
-  test('localhost guard rejects remote hosts', () {
-    expect(
-      () => DartLocalAiHttpClient.assertLocalhost(
-        Uri.parse('http://example.com/api'),
-      ),
-      throwsArgumentError,
-    );
+  group('loopback guard', () {
+    test('accepts literal loopback addresses', () {
+      for (final uri in ['http://127.0.0.1:11434', 'http://[::1]:1234']) {
+        expect(
+          () => DartLocalAiHttpClient.assertLocalhost(Uri.parse(uri)),
+          returnsNormally,
+          reason: uri,
+        );
+      }
+    });
+
+    test('rejects names, other loopback addresses and remote hosts', () {
+      for (final uri in [
+        'http://localhost:11434',
+        'http://LOCALHOST:11434',
+        'http://127.0.0.2:11434',
+        'http://0.0.0.0:11434',
+        'http://192.168.1.5:11434',
+        'http://example.com/api',
+        'ftp://127.0.0.1/',
+      ]) {
+        expect(
+          () => DartLocalAiHttpClient.assertLocalhost(Uri.parse(uri)),
+          throwsArgumentError,
+          reason: uri,
+        );
+      }
+    });
+
+    test('client refuses a non-loopback host before connecting', () async {
+      const client = DartLocalAiHttpClient();
+      await expectLater(
+        client.get(Uri.parse('http://localhost:11434/api/tags')),
+        throwsArgumentError,
+      );
+    });
+
+    test('redirects are reported, never followed', () async {
+      // The redirect target is also on loopback so the test stays offline;
+      // what matters is that the client never makes the second request.
+      final target = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      var targetHits = 0;
+      target.listen((request) {
+        targetHits++;
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..write('{"models":[]}')
+          ..close();
+      });
+      final redirector =
+          await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      redirector.listen((request) {
+        request.response
+          ..statusCode = HttpStatus.found
+          ..headers.set(
+            HttpHeaders.locationHeader,
+            'http://127.0.0.1:${target.port}/api/tags',
+          )
+          ..close();
+      });
+      addTearDown(() async {
+        await target.close(force: true);
+        await redirector.close(force: true);
+      });
+
+      const client = DartLocalAiHttpClient();
+      final get = await client.get(
+        Uri.parse('http://127.0.0.1:${redirector.port}/api/tags'),
+      );
+      final post = await client.post(
+        Uri.parse('http://127.0.0.1:${redirector.port}/api/chat'),
+        body: '{}',
+      );
+
+      expect(get.statusCode, HttpStatus.found);
+      expect(post.statusCode, HttpStatus.found);
+      expect(targetHits, 0);
+    });
+
+    test('a redirect surfaces as a provider error, not a model list', () async {
+      final redirector =
+          await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      redirector.listen((request) {
+        request.response
+          ..statusCode = HttpStatus.movedPermanently
+          ..headers.set(HttpHeaders.locationHeader, 'http://example.com/')
+          ..close();
+      });
+      addTearDown(() => redirector.close(force: true));
+
+      final provider = OllamaProvider(
+        baseUri: Uri.parse('http://127.0.0.1:${redirector.port}'),
+      );
+      final status = await provider.probe();
+
+      expect(status.state, LocalAiConnectionState.error);
+      expect(status.models, isEmpty);
+    });
   });
 }

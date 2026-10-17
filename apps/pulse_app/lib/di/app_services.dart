@@ -19,6 +19,7 @@ import '../application/update_check_controller.dart';
 import '../ipc/pulse_ipc_client.dart';
 import '../logging/app_log_file.dart';
 import '../logging/app_logger.dart';
+import '../platform/local_ai_token_store.dart';
 import '../platform/pulse_deployment.dart';
 
 class AppServices {
@@ -93,7 +94,11 @@ class AppServices {
       shellNavigation: shellNavigation,
       logger: logger,
     );
-    final assistant = AssistantController(settings: settings, ipc: ipc);
+    final assistant = AssistantController(
+      settings: settings,
+      ipc: ipc,
+      tokenStore: WindowsCredentialTokenStore(logger: logger),
+    );
     final updateCheck = UpdateCheckController(settings: settings, logger: logger);
     // GitHub edition only, and only when the user turned it on.
     if (!const WindowsPulseDeployment().isPackagedMsix) {

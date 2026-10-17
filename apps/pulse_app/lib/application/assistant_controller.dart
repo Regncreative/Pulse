@@ -10,6 +10,7 @@ import '../assistant/local_ai_types.dart';
 import '../assistant/providers/lm_studio_provider.dart';
 import '../assistant/providers/ollama_provider.dart';
 import '../ipc/pulse_ipc_client.dart';
+import '../platform/local_ai_token_store.dart';
 import 'settings_controller.dart';
 
 /// Session-scoped Pulse Assistant state (local LLM chat + read-only tools).
@@ -20,7 +21,9 @@ class AssistantController extends ChangeNotifier {
     SettingsController? settings,
     PulseIpcClient? ipc,
     AssistantOrchestrator? orchestrator,
+    LocalAiTokenStore? tokenStore,
   })  : _settings = settings,
+        tokenStore = tokenStore ?? MemoryLocalAiTokenStore(),
         _registry = registry ??
             LocalAiProviderRegistry(
               providers: [
@@ -39,6 +42,9 @@ class AssistantController extends ChangeNotifier {
 
   final SettingsController? _settings;
   final LocalAiProviderRegistry _registry;
+
+  /// Optional LM Studio API token (Windows Credential Manager in the app).
+  final LocalAiTokenStore tokenStore;
   final AssistantToolLayer _tools;
   late final AssistantOrchestrator _orchestrator;
 
@@ -133,12 +139,20 @@ class AssistantController extends ChangeNotifier {
 
   bool get hasModelSelection => selectedModel != null;
 
+  /// What each runtime reported, e.g. "Ollama is not running on
+  /// 127.0.0.1:11434", so the empty state says where Pulse looked.
+  List<String> get providerStatusLines => [
+        for (final p in _registry.providers)
+          ?_snapshot.statusFor(p.id)?.detail,
+      ];
+
   Future<void> load() async {
     _snapshot = const LocalAiDiscoverySnapshot(
       state: LocalAiConnectionState.checking,
       providerStatuses: {},
     );
     notifyListeners();
+    _applyConnectionSettings();
     _registry.preferredProviderId = _settings?.assistantLocalAiProviderId;
     _registry.preferredModelId = _settings?.assistantLocalAiModelId;
     _snapshot = await _registry.refresh();
@@ -181,6 +195,7 @@ class AssistantController extends ChangeNotifier {
     );
     notifyListeners();
     try {
+      _applyConnectionSettings();
       final statuses = <String, LocalAiProviderStatus>{};
       for (final p in _registry.providers) {
         try {
@@ -435,6 +450,22 @@ class AssistantController extends ChangeNotifier {
   }
 
   String _nextId() => 'm${++_idSeq}';
+
+  /// Points each runtime at the port saved in Settings (always on 127.0.0.1)
+  /// and hands LM Studio the saved token, if any.
+  void _applyConnectionSettings() {
+    final settings = _settings;
+    for (final provider in _registry.providers) {
+      if (provider is OllamaProvider && settings != null) {
+        provider.useLoopbackPort(settings.assistantOllamaPort);
+      } else if (provider is LmStudioProvider) {
+        if (settings != null) {
+          provider.useLoopbackPort(settings.assistantLmStudioPort);
+        }
+        provider.apiToken = tokenStore.read();
+      }
+    }
+  }
 
   Future<void> _persistResolvedSelection() async {
     final settings = _settings;

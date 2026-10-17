@@ -7,7 +7,7 @@ import '../local_ai_types.dart';
 
 /// Ollama localhost API — tags + `/api/chat` with tools.
 ///
-/// Default base: `http://127.0.0.1:11434`
+/// Default base: `http://127.0.0.1:11434`; only the port can be changed.
 /// Does not start Ollama, pull models, or run installers.
 class OllamaProvider implements LocalAiProvider {
   OllamaProvider({
@@ -16,16 +16,22 @@ class OllamaProvider implements LocalAiProvider {
     this.timeout = const Duration(seconds: 2),
     this.chatTimeout = const Duration(seconds: 120),
   })  : _http = http ?? const DartLocalAiHttpClient(),
-        baseUri = baseUri ?? Uri.parse('http://127.0.0.1:11434') {
-    DartLocalAiHttpClient.assertLocalhost(this.baseUri);
+        _baseUri = baseUri ??
+            LocalAiLoopback.uri(LocalAiLoopback.ollamaDefaultPort) {
+    DartLocalAiHttpClient.assertLocalhost(_baseUri);
   }
 
   final LocalAiHttpClient _http;
   final Duration timeout;
   final Duration chatTimeout;
 
+  Uri _baseUri;
+
   @override
-  final Uri baseUri;
+  Uri get baseUri => _baseUri;
+
+  /// Reaches Ollama on another port of this PC (Settings → Privacy).
+  void useLoopbackPort(int port) => _baseUri = LocalAiLoopback.uri(port);
 
   @override
   String get id => 'ollama';
@@ -110,7 +116,8 @@ class OllamaProvider implements LocalAiProvider {
     } catch (e) {
       if (isLocalAiConnectionFailure(e)) {
         return LocalAiProviderStatus.notFound(
-          detail: 'Ollama is not running on localhost',
+          detail: 'Ollama is not running on '
+              '${LocalAiLoopback.label(baseUri)}',
         );
       }
       return LocalAiProviderStatus.error(
@@ -162,7 +169,7 @@ class OllamaProvider implements LocalAiProvider {
     } catch (e) {
       if (isLocalAiConnectionFailure(e)) {
         throw LocalAiChatException(
-          'Ollama is not available on localhost.',
+          'Ollama is not available on ${LocalAiLoopback.label(baseUri)}.',
           code: 'PROVIDER_UNAVAILABLE',
         );
       }
